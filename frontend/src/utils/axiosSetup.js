@@ -1,0 +1,36 @@
+import axios from 'axios';
+
+// Thiết lập Interceptor toàn cục cho axios
+axios.interceptors.request.use(
+  (config) => {
+    // Lấy token từ localStorage (nếu có)
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Đính kèm token vào header Authorization của mỗi request
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+axios.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // Nếu lỗi 401 (Hết hạn token hoặc không hợp lệ)
+    if (error.response && error.response.status === 401) {
+      console.error('Token expired or invalid. Please login again.');
+      // Xóa token và user, chuyển hướng về trang đăng nhập
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default axios;
