@@ -35,6 +35,16 @@ def _clock_to_datetime(ngay: date, value: str) -> datetime:
     return datetime.combine(ngay, _minutes_to_time(_clock_to_minutes(value)))
 
 
+def _round_datetime_to_hour(value: datetime) -> datetime:
+    minute = value.minute
+    rounded = value.replace(minute=0, second=0, microsecond=0)
+
+    if minute >= 30:
+        rounded += timedelta(hours=1)
+
+    return rounded
+
+
 def _normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(second=0, microsecond=0)
@@ -42,7 +52,7 @@ def _normalize_datetime(value: datetime) -> datetime:
 
 
 def _now_utc_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None, second=0, microsecond=0)
+    return datetime.now().replace(second=0, microsecond=0)
 
 
 def _reservation_window(thoiGianDen: datetime) -> tuple[datetime, datetime]:
@@ -134,6 +144,7 @@ def _get_table_schedule(db: Session, id_ban: int):
 
 def _classify_table_time(schedule, candidate_start: datetime):
     candidate_start = _normalize_datetime(candidate_start)
+    display_candidate_end = _round_datetime_to_hour(candidate_start + SERVICE_DURATION)
 
     for item in schedule:
         if item["start"] <= candidate_start < item["occupied_end"]:
@@ -143,7 +154,7 @@ def _classify_table_time(schedule, candidate_start: datetime):
                 "trangThai": "Đã có người đặt",
                 "warningType": None,
                 "warningMessage": None,
-                "display_end": item["occupied_end"],
+                "display_end": _round_datetime_to_hour(item["occupied_end"]),
                 "conflictingReservation": item["reservation"],
             }
 
@@ -157,7 +168,7 @@ def _classify_table_time(schedule, candidate_start: datetime):
                 "trangThai": "Không đủ thời gian",
                 "warningType": None,
                 "warningMessage": None,
-                "display_end": next_item["start"],
+                "display_end": _round_datetime_to_hour(next_item["start"]),
                 "conflictingReservation": next_item["reservation"],
             }
 
@@ -169,7 +180,7 @@ def _classify_table_time(schedule, candidate_start: datetime):
                 "trangThai": "Có giới hạn giờ",
                 "warningType": "next",
                 "warningMessage": f"Bàn này đã có người đặt vào lúc {next_time}, bạn chỉ có thể dùng bữa đến {next_time}. Bạn có chắc chắn muốn đặt không?",
-                "display_end": next_item["start"],
+                "display_end": _round_datetime_to_hour(next_item["start"]),
                 "conflictingReservation": next_item["reservation"],
             }
 
@@ -181,7 +192,7 @@ def _classify_table_time(schedule, candidate_start: datetime):
             "trangThai": "Có giới hạn giờ",
             "warningType": "previous",
             "warningMessage": "Khung giờ này có thể khách hàng trước chưa dùng xong bữa. Bạn có chắc chắn muốn đặt không?",
-            "display_end": candidate_start + SERVICE_DURATION,
+            "display_end": display_candidate_end,
             "conflictingReservation": previous_item["reservation"],
         }
 
@@ -191,7 +202,7 @@ def _classify_table_time(schedule, candidate_start: datetime):
         "trangThai": "Trống",
         "warningType": None,
         "warningMessage": None,
-        "display_end": candidate_start + SERVICE_DURATION,
+        "display_end": display_candidate_end,
         "conflictingReservation": None,
     }
 
@@ -248,6 +259,7 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
     slots = []
     current = day_start
     last_start = day_end - SERVICE_DURATION
+    used_requested_start = False
     while current <= last_start:
         if current + slot_delta > day_end:
             break
@@ -264,7 +276,12 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
             "id_datBan": classification["conflictingReservation"].id_datBan if classification["conflictingReservation"] else None,
             "thoiGianDen": classification["conflictingReservation"].thoiGianDen if classification["conflictingReservation"] else None,
         })
-        current = current + slot_delta
+
+        if requested_from_time and not used_requested_start and current.minute != 0:
+            current = (current.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+            used_requested_start = True
+        else:
+            current = current + slot_delta
 
     return {
         "table": {
