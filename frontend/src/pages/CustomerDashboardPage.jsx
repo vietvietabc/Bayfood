@@ -43,6 +43,19 @@ const CustomerDashboardPage = () => {
     const [error, setError] = useState('');
     const [checkinLoadingId, setCheckinLoadingId] = useState(null);
     const [actionMessage, setActionMessage] = useState('');
+    const [checkinToast, setCheckinToast] = useState('');
+
+    useEffect(() => {
+        if (!checkinToast) {
+            return undefined;
+        }
+
+        const timerId = window.setTimeout(() => {
+            setCheckinToast('');
+        }, 3500);
+
+        return () => window.clearTimeout(timerId);
+    }, [checkinToast]);
 
     useEffect(() => {
         const fetchCustomerData = async () => {
@@ -118,12 +131,24 @@ const CustomerDashboardPage = () => {
         setCheckinLoadingId(reservationId);
         setActionMessage('');
 
+        const reservation = reservations.find((item) => item.id_datBan === reservationId);
+        const reservationTime = reservation?.thoiGianDen ? new Date(reservation.thoiGianDen) : null;
+        const checkinOpenTime = reservationTime ? new Date(reservationTime.getTime() - 15 * 60 * 1000) : null;
+
+        if (checkinOpenTime && Date.now() < checkinOpenTime.getTime()) {
+            setCheckinToast('Nhà hàng chỉ nhận check-in trong vòng 15 phút trước giờ đặt bàn.');
+            setCheckinLoadingId(null);
+            return;
+        }
+
         try {
             await axios.post(`${BASE_URL}/api/datban/${reservationId}/checkin`);
             setActionMessage('Check-in thành công. Admin đã nhận thông báo bàn của bạn đã tới nơi.');
-
-            const response = await axios.get(`${BASE_URL}/api/datban/me`);
-            setReservations(response.data || []);
+            setReservations((current) => current.map((reservation) => (
+                reservation.id_datBan === reservationId
+                    ? { ...reservation, trangThai: 'Đã checkin', thoiGianDenThucTe: new Date().toISOString() }
+                    : reservation
+            )));
         } catch (checkinError) {
             console.error('Failed to check in', checkinError);
             setActionMessage(checkinError.response?.data?.detail || 'Không thể check-in lúc này.');
@@ -149,6 +174,27 @@ const CustomerDashboardPage = () => {
 
     return (
         <div className="container py-8">
+            {checkinToast && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        right: '1.25rem',
+                        bottom: '1.25rem',
+                        zIndex: 120,
+                        maxWidth: '360px',
+                        padding: '0.95rem 1rem',
+                        borderRadius: '0.9rem',
+                        background: 'rgba(249, 115, 22, 0.96)',
+                        color: 'white',
+                        boxShadow: '0 18px 45px rgba(0, 0, 0, 0.22)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        fontWeight: 'bold',
+                    }}
+                >
+                    {checkinToast}
+                </div>
+            )}
+
             {error && (
                 <div style={{ padding: '1rem', marginBottom: '1.5rem', borderRadius: '0.75rem', border: '1px solid var(--danger)', background: 'rgba(239, 68, 68, 0.08)', color: 'var(--danger)' }}>
                     {error}
@@ -313,6 +359,18 @@ const CustomerDashboardPage = () => {
                                                     <MapPinned size={16} />
                                                     {checkinLoadingId === reservation.id_datBan ? 'Đang check-in...' : 'Tôi đã tới bàn'}
                                                 </button>
+                                            </div>
+                                        )}
+
+                                        {reservation.trangThai === 'Chờ xác nhận' && (
+                                            <div style={{ marginTop: '0.9rem', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(234, 179, 8, 0.08)', color: '#ca8a04', fontSize: '0.875rem', fontWeight: 'bold' }}>
+                                                Bàn đang chờ admin xác nhận, chưa thể check-in.
+                                            </div>
+                                        )}
+
+                                        {reservation.trangThai === 'Đã đặt' && (
+                                            <div style={{ marginTop: '0.9rem', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(59, 130, 246, 0.08)', color: '#2563eb', fontSize: '0.875rem', fontWeight: 'bold' }}>
+                                                Bàn đã được đặt, chờ admin xác nhận trước khi check-in.
                                             </div>
                                         )}
 

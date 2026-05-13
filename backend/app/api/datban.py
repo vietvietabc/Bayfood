@@ -302,6 +302,14 @@ def checkin_reservation(
         lienKet="/admin/reservations",
     )
 
+    create_notification(
+        db,
+        id_nguoiDung=current_user.id_nguoiDung,
+        tieuDe="Bạn đã check-in thành công",
+        noiDung=f"Bạn đã check-in cho bàn #{db_res.id_ban or 'chưa gán bàn'} lúc {db_res.thoiGianDenThucTe.strftime('%H:%M %d/%m/%Y')}.",
+        lienKet="/account",
+    )
+
     db.commit()
     db.refresh(db_res)
     return db_res
@@ -366,7 +374,7 @@ def update_status(id_datBan: int, req: StatusUpdate, db: Session = Depends(get_d
             db,
             id_nguoiDung=db_res.id_nguoiDung,
             tieuDe="Đặt bàn đã được xác nhận",
-            noiDung=f"Đặt bàn #{db_res.id_datBan} của bạn đã được admin xác nhận. Khi tới bàn, bạn có thể check-in.",
+            noiDung=f"Đặt bàn #{db_res.id_datBan} của bạn đã được admin xác nhận. Bạn chỉ có thể check-in trong vòng 15 phút trước giờ đặt bàn.",
             lienKet="/account",
         )
     elif req.trangThai == "Đã hủy":
