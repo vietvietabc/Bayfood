@@ -11,7 +11,28 @@ router = APIRouter(prefix="/api/datban", tags=["Đặt Bàn"])
 
 SERVICE_DURATION = timedelta(hours=3)
 TIMELINE_SLOT_MINUTES = 60
-BUSINESS_OPEN_HOUR = 7
+DEFAULT_OPEN_TIME = "07:00"
+DEFAULT_CLOSE_TIME = "24:00"
+
+
+def _clock_to_minutes(value: str) -> int:
+    if value == "24:00":
+        return 24 * 60
+
+    hours, minutes = value.split(":")
+    return (int(hours) * 60) + int(minutes)
+
+
+def _minutes_to_time(minutes: int) -> time:
+    normalized = minutes % (24 * 60)
+    return time(hour=normalized // 60, minute=normalized % 60)
+
+
+def _clock_to_datetime(ngay: date, value: str) -> datetime:
+    if value == "24:00":
+        return datetime.combine(ngay + timedelta(days=1), time.min)
+
+    return datetime.combine(ngay, _minutes_to_time(_clock_to_minutes(value)))
 
 
 def _normalize_datetime(value: datetime) -> datetime:
@@ -28,10 +49,44 @@ def _reservation_window(thoiGianDen: datetime) -> tuple[datetime, datetime]:
     return thoiGianDen, thoiGianDen + SERVICE_DURATION
 
 
-def _business_day_window(ngay: date) -> tuple[datetime, datetime]:
-    day_start = datetime.combine(ngay, time(hour=BUSINESS_OPEN_HOUR))
-    day_end = datetime.combine(ngay + timedelta(days=1), time.min)
-    return day_start, day_end
+def _get_working_hours_record(db: Session, ngay: date):
+    return db.query(models.GioLamViec).filter(models.GioLamViec.ngay == ngay).first()
+
+
+def _serialize_working_hours(record, ngay: date) -> dict:
+    if record is None:
+        return {
+            "id_gioLamViec": None,
+            "ngay": ngay,
+            "gioMoCua": DEFAULT_OPEN_TIME,
+            "gioDongCua": DEFAULT_CLOSE_TIME,
+            "isNghi": False,
+            "ghiChu": None,
+            "source": "default",
+        }
+
+    return {
+        "id_gioLamViec": record.id_gioLamViec,
+        "ngay": record.ngay,
+        "gioMoCua": record.gioMoCua or DEFAULT_OPEN_TIME,
+        "gioDongCua": record.gioDongCua or DEFAULT_CLOSE_TIME,
+        "isNghi": bool(record.isNghi),
+        "ghiChu": record.ghiChu,
+        "source": "custom",
+    }
+
+
+def _business_day_window(db: Session, ngay: date) -> tuple[datetime, datetime, dict]:
+    working_hours = _serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
+    if working_hours["isNghi"]:
+        day_start = datetime.combine(ngay, time.min)
+        return day_start, day_start, working_hours
+
+    day_start = _clock_to_datetime(ngay, working_hours["gioMoCua"])
+    day_end = _clock_to_datetime(ngay, working_hours["gioDongCua"])
+    if day_end <= day_start:
+        raise HTTPException(status_code=400, detail="Giờ đóng cửa phải lớn hơn giờ mở cửa")
+    return day_start, day_end, working_hours
 
 
 def _has_time_overlap(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datetime) -> bool:
@@ -151,10 +206,29 @@ def _find_conflicting_reservation(db: Session, id_ban: int, thoiGianDen: datetim
     return None
 
 
-def _build_table_timeline(db: Session, table: models.Ban, ngay: date):
-    day_start, day_end = _business_day_window(ngay)
+def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_hours: dict, requested_from_time: str | None = None):
+    day_start, day_end, _ = _business_day_window(db, ngay)
+    if requested_from_time:
+        requested_start = _clock_to_datetime(ngay, requested_from_time)
+        if requested_start > day_start:
+            day_start = requested_start
     slot_delta = timedelta(minutes=TIMELINE_SLOT_MINUTES)
     schedule = _get_table_schedule(db, table.id_ban)
+
+    if working_hours["isNghi"]:
+        return {
+            "table": {
+                "id_ban": table.id_ban,
+                "tenBan": table.tenBan,
+                "sucChua": table.sucChua,
+                "viTri": table.viTri,
+                "trangThai": table.trangThai,
+                "maQR_url": table.maQR_url,
+                "hinhAnh": table.hinhAnh,
+            },
+            "reservations": [],
+            "slots": [],
+        }
 
     reservations = []
     for item in schedule:
@@ -217,7 +291,10 @@ def _is_checkin_allowed(thoiGianDen: datetime) -> bool:
 @router.post("/", response_model=schemas.DatBan)
 def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
     reservation_time = _normalize_datetime(reservation.thoiGianDen)
-    business_start, business_end = _business_day_window(reservation_time.date())
+    business_start, business_end, working_hours = _business_day_window(db, reservation_time.date())
+
+    if working_hours["isNghi"]:
+        raise HTTPException(status_code=400, detail="Nhà hàng nghỉ vào ngày bạn đã chọn")
 
     if reservation_time <= _now_utc_naive():
         raise HTTPException(status_code=400, detail="Thời gian đặt bàn phải lớn hơn thời gian hiện tại")
@@ -327,13 +404,22 @@ def get_available_tables(thoiGianDen: datetime | None = Query(default=None), db:
         return tables
 
     reservation_time = _normalize_datetime(thoiGianDen)
+    _, _, working_hours = _business_day_window(db, reservation_time.date())
+    if working_hours["isNghi"]:
+        return []
+
     return [table for table in tables if not _find_conflicting_reservation(db, table.id_ban, reservation_time)]
 
 
 @router.get("/timeline")
-def get_table_timeline(ngay: date = Query(...), db: Session = Depends(get_db)):
+def get_table_timeline(ngay: date = Query(...), fromTime: str | None = Query(default=None), db: Session = Depends(get_db)):
     tables = db.query(models.Ban).order_by(models.Ban.id_ban.asc()).all()
-    return [_build_table_timeline(db, table, ngay) for table in tables]
+    working_hours = _serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
+    return {
+        "ngay": ngay,
+        "workingHours": working_hours,
+        "tables": [_build_table_timeline(db, table, ngay, working_hours, fromTime) for table in tables],
+    }
 
 
 @router.get("/{id_datBan}", response_model=schemas.DatBan)

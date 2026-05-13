@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
-from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao
+from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, gio_lam_viec
 from app.db.database import engine, Base
 import os
 
@@ -48,6 +48,7 @@ app.include_router(ban.router)
 app.include_router(danhgia.router)
 app.include_router(upload.router)
 app.include_router(thongbao.router)
+app.include_router(gio_lam_viec.router)
 
 # Phục vụ file tĩnh (ảnh upload) tại đường dẫn /static
 os.makedirs("app/static/uploads/tables", exist_ok=True)

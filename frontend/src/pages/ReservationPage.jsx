@@ -33,6 +33,14 @@ const ReservationPage = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const statusRef = useRef(null);
 
+  const currentTimelineWorkingHours = timelineDays[0]?.workingHours || null;
+  const timelineOpenTime = currentTimelineWorkingHours?.isNghi
+    ? timelineSearch.fromTime
+    : (currentTimelineWorkingHours?.gioMoCua || '07:00');
+  const timelineCloseTime = currentTimelineWorkingHours?.isNghi
+    ? timelineSearch.fromTime
+    : (currentTimelineWorkingHours?.gioDongCua || '24:00');
+
   const toMinutes = (value) => {
     if (!value) return null;
     const [hours, minutes] = value.split(':').map(Number);
@@ -83,9 +91,9 @@ const ReservationPage = () => {
         const results = await Promise.all(
           dates.map(async (date) => {
             const response = await axios.get('http://localhost:8000/api/datban/timeline', {
-              params: { ngay: date }
+              params: { ngay: date, fromTime: timelineSearch.fromTime }
             });
-            return { date, tables: response.data || [] };
+            return response.data || { ngay: date, workingHours: null, tables: [] };
           })
         );
         setTimelineDays(results);
@@ -100,6 +108,19 @@ const ReservationPage = () => {
 
     loadTimeline();
   }, [timelineSearch.fromDate, timelineSearch.toDate, timelineSearch.fromTime]);
+
+  useEffect(() => {
+    if (!currentTimelineWorkingHours || currentTimelineWorkingHours.isNghi) {
+      return;
+    }
+
+    if (timelineSearch.fromTime === '07:00' && currentTimelineWorkingHours.gioMoCua) {
+      setTimelineSearch((current) => ({
+        ...current,
+        fromTime: currentTimelineWorkingHours.gioMoCua,
+      }));
+    }
+  }, [currentTimelineWorkingHours]);
 
   useEffect(() => {
     const loadTables = async () => {
@@ -348,8 +369,8 @@ const ReservationPage = () => {
                   value={timelineSearch.fromTime}
                   onChange={handleTimelineRangeChange}
                   className="input-field"
-                  min="07:00"
-                  max="23:00"
+                  min={timelineOpenTime}
+                  max={timelineCloseTime === '24:00' ? '23:59' : timelineCloseTime}
                 />
               </div>
               <div className="input-group">
@@ -367,128 +388,143 @@ const ReservationPage = () => {
             ) : timelineDays.length > 0 ? (
               <div style={{ maxHeight: '58vh', overflowY: 'auto', paddingRight: '0.35rem' }}>
                 <div style={{ display: 'grid', gap: '1rem' }}>
-                  {timelineDays.map((day) => (
-                    <div key={day.date} style={{ border: '1px solid var(--border)', borderRadius: '1rem', padding: '1rem', background: 'var(--surface)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{new Date(`${day.date}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Từ giờ: {timelineSearch.fromTime}</div>
+                  {timelineDays.map((day) => {
+                    const dayKey = day.date || day.ngay;
+                    const dayWorkingHours = day.workingHours || null;
+
+                    return (
+                      <div key={dayKey} style={{ border: '1px solid var(--border)', borderRadius: '1rem', padding: '1rem', background: 'var(--surface)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{new Date(`${dayKey}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                              {dayWorkingHours?.isNghi
+                                ? 'Hôm nay quán nghỉ'
+                                : `Giờ làm: ${dayWorkingHours?.gioMoCua || '07:00'} - ${dayWorkingHours?.gioDongCua || '24:00'}`}
+                            </div>
+                          </div>
+                        </div>
+
+                        {dayWorkingHours?.isNghi && (
+                          <div style={{ padding: '0.95rem 1rem', borderRadius: '0.75rem', background: 'rgba(239, 68, 68, 0.08)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)', marginBottom: '1rem' }}>
+                            Ngày này quán đang nghỉ, khách vui lòng chọn ngày khác.
+                          </div>
+                        )}
+
+                        <div style={{ display: 'grid', gap: '1rem' }}>
+                          {day.tables
+                            .filter((entry) => !selectedTable || entry.table.id_ban === selectedTable.id_ban)
+                            .map((entry) => {
+                              const table = entry.table;
+                              const filteredSlots = entry.slots.filter((slot) => {
+                                const slotStart = new Date(slot.batDau);
+                                return isSlotWithinSearchRange(slotStart);
+                              });
+
+                              if (filteredSlots.length === 0) {
+                                return null;
+                              }
+
+                              return (
+                                <div key={`${dayKey}-${table.id_ban}`} style={{ border: '1px solid var(--border)', borderRadius: '0.9rem', padding: '0.85rem', background: 'rgba(255,255,255,0.02)' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', alignItems: 'center' }}>
+                                    <div>
+                                      <div style={{ fontWeight: 'bold', fontSize: '0.98rem' }}>{table.tenBan}</div>
+                                      <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{table.viTri} · {table.sucChua} chỗ</div>
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{filteredSlots.length} slot</div>
+                                  </div>
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: '0.75rem' }}>
+                                    {filteredSlots.map((slot) => {
+                                      const booked = isBookedSlot(slot);
+                                      const blocked = isBlockedSlot(slot);
+                                      const warning = isWarningSlot(slot);
+                                      const slotStartDate = new Date(slot.batDau);
+                                      const slotEndDate = new Date(slot.ketThuc);
+                                      const slotStart = formatTimelineTime(slotStartDate);
+                                      const slotEnd = formatTimelineTime(slotEndDate, true);
+                                      const slotKey = `${dayKey}-${table.id_ban}-${slot.batDau}`;
+                                      const isSelectedSlot = selectedSlotKey === slotKey;
+                                      const slotBackground = booked || blocked
+                                        ? 'rgba(239, 68, 68, 0.09)'
+                                        : isSelectedSlot
+                                          ? 'rgba(59, 130, 246, 0.14)'
+                                          : warning
+                                            ? 'rgba(245, 158, 11, 0.12)'
+                                            : 'rgba(16, 185, 129, 0.09)';
+                                      const slotTextColor = booked || blocked
+                                        ? '#ef4444'
+                                        : isSelectedSlot
+                                          ? '#2563eb'
+                                          : warning
+                                            ? '#f59e0b'
+                                            : '#059669';
+
+                                      return (
+                                        <button
+                                          key={slotKey}
+                                          type="button"
+                                          disabled={booked || blocked}
+                                          onClick={() => handlePickSlot(dayKey, table, slot)}
+                                          style={{
+                                            borderRadius: '0.85rem',
+                                            padding: '0.85rem 0.8rem',
+                                            border: isSelectedSlot ? '2px solid #2563eb' : '1px solid var(--border)',
+                                            background: slotBackground,
+                                            minHeight: '96px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'space-between',
+                                            textAlign: 'left',
+                                            cursor: booked || blocked ? 'not-allowed' : 'pointer',
+                                            opacity: booked || blocked ? 0.92 : 1,
+                                            boxShadow: isSelectedSlot ? '0 0 0 3px rgba(59, 130, 246, 0.16)' : 'none',
+                                          }}
+                                        >
+                                          <div>
+                                            <div style={{ fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
+                                              {slotStart} - {slotEnd}
+                                            </div>
+                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Mỗi ô = tối đa 3 tiếng</div>
+                                          </div>
+                                          <div style={{ fontSize: '0.78rem', color: slotTextColor, fontWeight: 'bold' }}>
+                                            {booked
+                                              ? 'Đã có người đặt'
+                                              : blocked
+                                                ? 'Không đủ thời gian'
+                                                : warning
+                                                  ? 'Có giới hạn giờ - bấm để xem cảnh báo'
+                                                  : 'Trống - bấm để chọn'}
+                                          </div>
+                                          {isSelectedSlot && !booked && !blocked && (
+                                            <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.25rem', fontWeight: 'bold' }}>
+                                              Đang được chọn
+                                            </div>
+                                          )}
+                                          {(booked || blocked) && (
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.35 }}>
+                                              Slot này không thể đặt.
+                                            </div>
+                                          )}
+                                          {warning && (
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.35 }}>
+                                              {slot.warningType === 'next'
+                                                ? 'Sẽ có giới hạn theo lượt đặt tiếp theo.'
+                                                : 'Khung giờ này cần xác nhận trước khi đặt.'}
+                                            </div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
-
-                      <div style={{ display: 'grid', gap: '1rem' }}>
-                        {day.tables
-                          .filter((entry) => !selectedTable || entry.table.id_ban === selectedTable.id_ban)
-                          .map((entry) => {
-                            const table = entry.table;
-                            const filteredSlots = entry.slots.filter((slot) => {
-                              const slotStart = new Date(slot.batDau);
-                              return isSlotWithinSearchRange(slotStart);
-                            });
-
-                            if (filteredSlots.length === 0) {
-                              return null;
-                            }
-
-                            return (
-                              <div key={`${day.date}-${table.id_ban}`} style={{ border: '1px solid var(--border)', borderRadius: '0.9rem', padding: '0.85rem', background: 'rgba(255,255,255,0.02)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem', alignItems: 'center' }}>
-                                  <div>
-                                    <div style={{ fontWeight: 'bold', fontSize: '0.98rem' }}>{table.tenBan}</div>
-                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{table.viTri} · {table.sucChua} chỗ</div>
-                                  </div>
-                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{filteredSlots.length} slot</div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: '0.75rem' }}>
-                                  {filteredSlots.map((slot) => {
-                                    const booked = isBookedSlot(slot);
-                                    const blocked = isBlockedSlot(slot);
-                                    const warning = isWarningSlot(slot);
-                                    const slotStartDate = new Date(slot.batDau);
-                                    const slotEndDate = new Date(slot.ketThuc);
-                                    const slotStart = formatTimelineTime(slotStartDate);
-                                    const slotEnd = formatTimelineTime(slotEndDate, true);
-                                    const slotKey = `${day.date}-${table.id_ban}-${slot.batDau}`;
-                                    const isSelectedSlot = selectedSlotKey === slotKey;
-                                    const slotBackground = booked || blocked
-                                      ? 'rgba(239, 68, 68, 0.09)'
-                                      : isSelectedSlot
-                                        ? 'rgba(59, 130, 246, 0.14)'
-                                        : warning
-                                        ? 'rgba(245, 158, 11, 0.12)'
-                                        : 'rgba(16, 185, 129, 0.09)';
-                                    const slotTextColor = booked || blocked
-                                      ? '#ef4444'
-                                      : isSelectedSlot
-                                        ? '#2563eb'
-                                        : warning
-                                        ? '#f59e0b'
-                                        : '#059669';
-
-                                    return (
-                                      <button
-                                        key={slotKey}
-                                        type="button"
-                                        disabled={booked || blocked}
-                                        onClick={() => handlePickSlot(day.date, table, slot)}
-                                        style={{
-                                          borderRadius: '0.85rem',
-                                          padding: '0.85rem 0.8rem',
-                                          border: isSelectedSlot ? '2px solid #2563eb' : '1px solid var(--border)',
-                                          background: slotBackground,
-                                          minHeight: '96px',
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          justifyContent: 'space-between',
-                                          textAlign: 'left',
-                                          cursor: booked || blocked ? 'not-allowed' : 'pointer',
-                                          opacity: booked || blocked ? 0.92 : 1,
-                                          boxShadow: isSelectedSlot ? '0 0 0 3px rgba(59, 130, 246, 0.16)' : 'none',
-                                        }}
-                                      >
-                                        <div>
-                                          <div style={{ fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
-                                            {slotStart} - {slotEnd}
-                                          </div>
-                                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Mỗi ô = tối đa 3 tiếng</div>
-                                        </div>
-                                        <div style={{ fontSize: '0.78rem', color: slotTextColor, fontWeight: 'bold' }}>
-                                          {booked
-                                            ? 'Đã có người đặt'
-                                            : blocked
-                                              ? 'Không đủ thời gian'
-                                              : warning
-                                                ? 'Có giới hạn giờ - bấm để xem cảnh báo'
-                                                : 'Trống - bấm để chọn'}
-                                        </div>
-                                        {isSelectedSlot && !booked && !blocked && (
-                                          <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.25rem', fontWeight: 'bold' }}>
-                                            Đang được chọn
-                                          </div>
-                                        )}
-                                        {(booked || blocked) && (
-                                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.35 }}>
-                                            Slot này không thể đặt.
-                                          </div>
-                                        )}
-                                        {warning && (
-                                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.35 }}>
-                                            {slot.warningType === 'next'
-                                              ? 'Sẽ có giới hạn theo lượt đặt tiếp theo.'
-                                              : 'Khung giờ này cần xác nhận trước khi đặt.'}
-                                          </div>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

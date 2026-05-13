@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star, Clock3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AdminLayout = () => {
@@ -16,6 +16,7 @@ const AdminLayout = () => {
     { path: '/admin/orders', icon: <ShoppingBag size={20} />, label: 'Cập nhật đơn hàng' },
     { path: '/admin/users', icon: <Users size={20} />, label: 'Cập nhật tài khoản' },
     { path: '/admin/reviews', icon: <Star size={20} />, label: 'Cập nhật đánh giá' },
+    { path: '/admin/working-hours', icon: <Clock3 size={20} />, label: 'Giờ làm việc' },
   ];
 
   return (

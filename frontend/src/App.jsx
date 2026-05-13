@@ -18,6 +18,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminCategories from './pages/admin/AdminCategories';
 import AdminTables from './pages/admin/AdminTables';
 import AdminReviews from './pages/admin/AdminReviews';
+import AdminWorkingHours from './pages/admin/AdminWorkingHours';
 import ProtectedAdminRoute from './components/ProtectedAdminRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
@@ -55,6 +56,7 @@ function App() {
                   <Route path="orders" element={<AdminOrders />} />
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="reviews" element={<AdminReviews />} />
+                  <Route path="working-hours" element={<AdminWorkingHours />} />
                 </Route>
               </Routes>
             </main>
