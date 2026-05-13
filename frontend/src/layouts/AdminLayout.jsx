@@ -1,49 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star, Bell, CheckCheck } from 'lucide-react';
-import axios from 'axios';
+import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-
-const BASE_URL = 'http://localhost:8000';
 
 const AdminLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const [notificationRes, unreadCountRes] = await Promise.all([
-          axios.get(`${BASE_URL}/api/thongbao/me`),
-          axios.get(`${BASE_URL}/api/thongbao/me/unread-count`),
-        ]);
-
-        setNotifications(notificationRes.data || []);
-        setUnreadCount(unreadCountRes.data?.count || 0);
-      } catch (error) {
-        console.error('Failed to load admin notifications', error);
-      }
-    };
-
-    fetchNotifications();
-  }, [location.pathname]);
-
-  const handleMarkNotificationRead = async (notificationId) => {
-    try {
-      await axios.put(`${BASE_URL}/api/thongbao/${notificationId}/read`);
-      const [notificationRes, unreadCountRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/thongbao/me`),
-        axios.get(`${BASE_URL}/api/thongbao/me/unread-count`),
-      ]);
-
-      setNotifications(notificationRes.data || []);
-      setUnreadCount(unreadCountRes.data?.count || 0);
-    } catch (error) {
-      console.error('Failed to mark notification as read', error);
-    }
-  };
 
   const navItems = [
     { path: '/admin', icon: <LayoutDashboard size={20} />, label: 'Tổng Quan' },
@@ -90,40 +52,6 @@ const AdminLayout = () => {
         </nav>
 
         <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border)' }}>
-          <div style={{ marginBottom: '1rem', padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}>
-                <Bell size={18} color="var(--primary)" /> Thông báo
-              </div>
-              <span style={{ padding: '0.25rem 0.6rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.1)', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                {unreadCount}
-              </span>
-            </div>
-
-            {notifications.length === 0 ? (
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Chưa có thông báo mới.</div>
-            ) : (
-              <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto' }}>
-                {notifications.slice(0, 3).map((notification) => (
-                  <div key={notification.id_thongBao} style={{ padding: '0.75rem', borderRadius: '0.6rem', border: '1px solid var(--border)', background: notification.daDoc ? 'white' : 'rgba(249, 115, 22, 0.08)' }}>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 'bold', marginBottom: '0.2rem' }}>{notification.tieuDe}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.45rem' }}>{notification.noiDung}</div>
-                    {!notification.daDoc && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkNotificationRead(notification.id_thongBao)}
-                        className="btn btn-outline"
-                        style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                      >
-                        <CheckCheck size={14} /> Đã đọc
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div style={{ width: '32px', height: '32px', background: 'var(--primary)', color: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
               {user?.hoTen?.charAt(0) || 'A'}
