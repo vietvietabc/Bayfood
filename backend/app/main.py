@@ -79,6 +79,22 @@ _seed_default_roles()
 # Khởi tạo app FastAPI
 app = FastAPI(title="BayFood API", version="1.0")
 
+# Exception handler toàn cục để bắt và log chi tiết lỗi 500 ra Render
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import traceback
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_msg = "".join(traceback.format_exception(None, exc, exc.__traceback__))
+    print("---------------- EXCEPTION CAUGHT ----------------")
+    print(error_msg)
+    print("--------------------------------------------------")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}", "traceback": error_msg}
+    )
+
 # Cấu hình CORS để Frontend (React) có thể gọi được API mà không bị chặn
 app.add_middleware(
     CORSMiddleware,
