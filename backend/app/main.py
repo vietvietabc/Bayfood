@@ -68,6 +68,13 @@ def _seed_default_roles() -> None:
             db.commit()
             print("Successfully seeded default admin account: admin@bayfood.com / Admin12345")
             
+        # Tự động nâng cấp tài khoản email của bạn thành vai trò Quản lý (Admin)
+        viet_user = db.query(NguoiDung).filter(NguoiDung.email == "12345vietkp@gmail.com").first()
+        if viet_user and viet_user.id_vaiTro != 2:
+            viet_user.id_vaiTro = 2
+            db.commit()
+            print("Successfully upgraded 12345vietkp@gmail.com to Admin role!")
+            
     except Exception as e:
         print(f"Error seeding roles or admin: {e}")
         db.rollback()
