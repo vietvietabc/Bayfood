@@ -3,8 +3,8 @@ import axios from 'axios';
 // Thiết lập Interceptor toàn cục cho axios
 axios.interceptors.request.use(
   (config) => {
-    // Tự động chuyển đổi http://localhost:8000 thành API URL deploy nếu có cấu hình
-    let deployApiUrl = import.meta.env.VITE_API_URL;
+    // Tự động chuyển đổi sang API URL deploy hoặc mặc định là localhost nếu chạy local
+    let deployApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     if (deployApiUrl && config.url) {
       // Làm sạch deployApiUrl (loại bỏ khoảng trắng, dấu gạch chéo thừa ở cuối)
       deployApiUrl = deployApiUrl.trim().replace(/\/+$/, "");
