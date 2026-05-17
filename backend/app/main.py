@@ -29,6 +29,53 @@ def _ensure_datban_arrival_time_column() -> None:
 
 _ensure_datban_arrival_time_column()
 
+# Tự động seed danh sách vai trò mặc định vào Database
+def _seed_default_roles() -> None:
+    from app.db.database import SessionLocal
+    from app.models.nguoidung import VaiTro
+    db = SessionLocal()
+    try:
+        # Danh sách vai trò mặc định
+        default_roles = [
+            (1, "khách hàng"),
+            (2, "quản lý"),
+            (3, "nhân viên nhà bếp"),
+            (4, "nhân viên phục vụ")
+        ]
+        for role_id, role_name in default_roles:
+            exists = db.query(VaiTro).filter(VaiTro.id_vaiTro == role_id).first()
+            if not exists:
+                new_role = VaiTro(id_vaiTro=role_id, tenVaiTro=role_name)
+                db.add(new_role)
+        db.commit()
+
+        # Tự động tạo tài khoản Admin mặc định nếu chưa có tài khoản nào có vai trò Quản lý (id_vaiTro = 2)
+        from app.models.nguoidung import NguoiDung
+        from app.core.security import get_password_hash
+        
+        admin_exists = db.query(NguoiDung).filter(NguoiDung.id_vaiTro == 2).first()
+        if not admin_exists:
+            # Tạo tài khoản admin mặc định cực kỳ an toàn
+            default_admin = NguoiDung(
+                hoTen="Quản trị viên",
+                email="admin@bayfood.com",
+                soDienThoai="0999999999",
+                matKhau=get_password_hash("Admin12345"),
+                id_vaiTro=2, # Vai trò Quản lý
+                trangThai="Hoạt động"
+            )
+            db.add(default_admin)
+            db.commit()
+            print("Successfully seeded default admin account: admin@bayfood.com / Admin12345")
+            
+    except Exception as e:
+        print(f"Error seeding roles or admin: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+_seed_default_roles()
+
 # Khởi tạo app FastAPI
 app = FastAPI(title="BayFood API", version="1.0")
 

@@ -19,7 +19,9 @@ const LoginPage = () => {
       const roleName = (loggedInUser?.tenVaiTro || '').trim().toLowerCase();
       if (roleName === 'nhân viên nhà bếp' || roleName === 'nhan vien nha bep' || roleName === 'nv_bep') {
         navigate('/kitchen');
-      } else if (loggedInUser?.id_vaiTro === 2 || roleName === 'quản lý' || roleName === 'quan ly') {
+      } else if (roleName === 'nhân viên phục vụ' || roleName === 'nhan vien phuc vu' || roleName === 'waiter') {
+        navigate('/waiter');
+      } else if (loggedInUser?.id_vaiTro === 2 || roleName === 'quản lý' || roleName === 'quan ly' || roleName === 'admin') {
         navigate('/admin');
       } else {
         navigate('/');
