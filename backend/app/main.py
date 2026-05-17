@@ -37,10 +37,10 @@ def _seed_default_roles() -> None:
     try:
         # Danh sách vai trò mặc định
         default_roles = [
-            (1, "khách hàng"),
-            (2, "quản lý"),
-            (3, "nhân viên nhà bếp"),
-            (4, "nhân viên phục vụ")
+            (1, "Khách hàng"),
+            (2, "Quản lý"),
+            (3, "Nhân viên nhà bếp"),
+            (4, "Nhân viên phục vụ")
         ]
         for role_id, role_name in default_roles:
             exists = db.query(VaiTro).filter(VaiTro.id_vaiTro == role_id).first()
