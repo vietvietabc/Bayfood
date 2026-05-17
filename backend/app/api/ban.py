@@ -37,11 +37,40 @@ def build_table_qr_url(id_ban: int) -> str:
 # Lấy danh sách toàn bộ bàn (Public để khách cũng xem được bàn trống)
 @router.get("/", response_model=List[schemas.BanResponse])
 def get_all_tables(db: Session = Depends(get_db)):
-    return db.query(models.Ban).all()
+    tables = db.query(models.Ban).all()
+    updated = False
+    
+    for table in tables:
+        file_name = f"table-{table.id_ban}.png"
+        file_path = QR_UPLOAD_DIR / file_name
+        
+        # Cơ chế Auto-Healing: Nếu file ảnh vật lý bị mất trên Render hoặc link DB chứa localhost cũ
+        if not file_path.exists() or not table.maQR_url or "localhost" in table.maQR_url:
+            table.maQR_url = build_table_qr_url(table.id_ban)
+            updated = True
+            
+    if updated:
+        db.commit()
+        
+    return tables
 
 @router.get("/available", response_model=List[schemas.BanResponse])
 def get_available_tables(db: Session = Depends(get_db)):
-    return db.query(models.Ban).filter(models.Ban.trangThai == "Trống").all()
+    tables = db.query(models.Ban).filter(models.Ban.trangThai == "Trống").all()
+    updated = False
+    
+    for table in tables:
+        file_name = f"table-{table.id_ban}.png"
+        file_path = QR_UPLOAD_DIR / file_name
+        
+        if not file_path.exists() or not table.maQR_url or "localhost" in table.maQR_url:
+            table.maQR_url = build_table_qr_url(table.id_ban)
+            updated = True
+            
+    if updated:
+        db.commit()
+        
+    return tables
 
 # Thêm bàn mới (Chỉ Admin)
 @router.post("/", response_model=schemas.BanResponse)
