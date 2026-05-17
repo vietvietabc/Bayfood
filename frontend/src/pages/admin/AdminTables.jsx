@@ -23,9 +23,21 @@ const AdminTables = () => {
   // Preview ảnh trong form
   const [imagePreview, setImagePreview] = useState('');
 
+  // Lấy URL Backend từ biến môi trường
+  const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, "");
+
+  // Hàm chuyển đổi đường dẫn ảnh tương đối thành tuyệt đối
+  const getImageUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+      return path;
+    }
+    return `${BACKEND_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
   const fetchTables = async () => {
     try {
-      const response = await api.get('http://localhost:8000/api/ban');
+      const response = await api.get('/api/ban');
       setTables(response.data);
     } catch (error) {
       console.error('Lỗi tải danh sách bàn', error);
@@ -41,7 +53,7 @@ const AdminTables = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa bàn này không?")) {
       try {
-        await api.delete(`http://localhost:8000/api/ban/${id}`);
+        await api.delete(`/api/ban/${id}`);
         fetchTables();
       } catch (error) {
         alert(error.response?.data?.detail || "Có lỗi xảy ra khi xóa");
@@ -86,7 +98,7 @@ const AdminTables = () => {
     try {
       const uploadForm = new FormData();
       uploadForm.append('file', file);
-      const response = await api.post('http://localhost:8000/api/upload/table-image', uploadForm, {
+      const response = await api.post('/api/upload/table-image', uploadForm, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       // Lưu URL vào formData
@@ -107,10 +119,10 @@ const AdminTables = () => {
     }
     try {
       if (isEditing) {
-        await api.put(`http://localhost:8000/api/ban/${currentId}`, formData);
+        await api.put(`/api/ban/${currentId}`, formData);
         alert("Cập nhật bàn thành công!");
       } else {
-        await api.post('http://localhost:8000/api/ban', formData);
+        await api.post('/api/ban', formData);
         alert("Thêm bàn mới thành công!");
       }
       setIsModalOpen(false);
@@ -132,8 +144,9 @@ const AdminTables = () => {
   const handleDownloadQr = async (qrUrl, fileName) => {
     if (!qrUrl) return;
 
+    const fullUrl = getImageUrl(qrUrl);
     try {
-      const response = await fetch(qrUrl);
+      const response = await fetch(fullUrl);
       const blob = await response.blob();
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -144,7 +157,7 @@ const AdminTables = () => {
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
     } catch (error) {
-      window.open(qrUrl, '_blank', 'noopener,noreferrer');
+      window.open(fullUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -181,7 +194,7 @@ const AdminTables = () => {
                   <td style={{ padding: '1rem' }}>{table.viTri}</td>
                   <td style={{ padding: '1rem' }}>
                     {table.hinhAnh ? (
-                      <img src={table.hinhAnh} alt="View" style={{ width: '80px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                      <img src={getImageUrl(table.hinhAnh)} alt="View" style={{ width: '80px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
                     ) : (
                       <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         <ImageIcon size={16} /> Chưa có
@@ -195,7 +208,7 @@ const AdminTables = () => {
                         onClick={() => handleOpenQrPreview(table)}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left' }}
                       >
-                        <img src={table.maQR_url} alt={`QR ${table.tenBan}`} style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '8px', background: 'white', border: '1px solid var(--border)' }} />
+                        <img src={getImageUrl(table.maQR_url)} alt={`QR ${table.tenBan}`} style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '8px', background: 'white', border: '1px solid var(--border)' }} />
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text)' }}>
                             <QrCode size={14} /> Quét để mở menu
@@ -416,7 +429,7 @@ const AdminTables = () => {
 
             <div style={{ background: 'white', borderRadius: '1rem', padding: '1rem', border: '1px solid var(--border)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <img
-                src={selectedQrTable.maQR_url}
+                src={getImageUrl(selectedQrTable.maQR_url)}
                 alt={`QR ${selectedQrTable.tenBan}`}
                 style={{ width: '100%', maxWidth: '340px', aspectRatio: '1 / 1', objectFit: 'contain' }}
               />

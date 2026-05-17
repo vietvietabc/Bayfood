@@ -9,7 +9,11 @@ import qrcode
 
 router = APIRouter(prefix="/api/ban", tags=["Bàn"])
 
-FRONTEND_MENU_URL = "http://localhost:5173/menu"
+import os
+
+# Tự động nhận diện URL Frontend deploy hoặc mặc định chạy local
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_MENU_URL = f"{FRONTEND_URL}/menu"
 QR_UPLOAD_DIR = Path("app/static/uploads/tables/qrcodes")
 
 
@@ -27,7 +31,8 @@ def build_table_qr_url(id_ban: int) -> str:
     image = qr.make_image(fill_color="black", back_color="white")
     image.save(file_path)
 
-    return f"http://localhost:8000/static/uploads/tables/qrcodes/{file_name}"
+    # Trả về đường dẫn tương đối để frontend tự động ghép với domain backend hiện tại
+    return f"/static/uploads/tables/qrcodes/{file_name}"
 
 # Lấy danh sách toàn bộ bàn (Public để khách cũng xem được bàn trống)
 @router.get("/", response_model=List[schemas.BanResponse])
