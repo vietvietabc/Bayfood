@@ -4,13 +4,21 @@ import axios from 'axios';
 axios.interceptors.request.use(
   (config) => {
     // Tự động chuyển đổi http://localhost:8000 thành API URL deploy nếu có cấu hình
-    const deployApiUrl = import.meta.env.VITE_API_URL;
+    let deployApiUrl = import.meta.env.VITE_API_URL;
     if (deployApiUrl && config.url) {
+      // Làm sạch deployApiUrl (loại bỏ khoảng trắng, dấu gạch chéo thừa ở cuối)
+      deployApiUrl = deployApiUrl.trim().replace(/\/+$/, "");
+      
       if (config.url.startsWith('http://localhost:8000')) {
         config.url = config.url.replace('http://localhost:8000', deployApiUrl);
       } else if (!config.url.startsWith('http') && !config.url.startsWith('/static')) {
-        // Hỗ trợ request viết dạng tương đối (ví dụ /api/users)
+        // Hỗ trợ request tương đối
         config.url = `${deployApiUrl}${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+      }
+      
+      // Sửa lỗi tự động nếu URL vô tình bị lặp lại nhiều lần tên miền deploy
+      if (config.url.includes(deployApiUrl + deployApiUrl)) {
+        config.url = config.url.replace(deployApiUrl + deployApiUrl, deployApiUrl);
       }
     }
 
