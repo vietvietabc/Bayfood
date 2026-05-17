@@ -3,6 +3,17 @@ import axios from 'axios';
 // Thiết lập Interceptor toàn cục cho axios
 axios.interceptors.request.use(
   (config) => {
+    // Tự động chuyển đổi http://localhost:8000 thành API URL deploy nếu có cấu hình
+    const deployApiUrl = import.meta.env.VITE_API_URL;
+    if (deployApiUrl && config.url) {
+      if (config.url.startsWith('http://localhost:8000')) {
+        config.url = config.url.replace('http://localhost:8000', deployApiUrl);
+      } else if (!config.url.startsWith('http') && !config.url.startsWith('/static')) {
+        // Hỗ trợ request viết dạng tương đối (ví dụ /api/users)
+        config.url = `${deployApiUrl}${config.url.startsWith('/') ? '' : '/'}${config.url}`;
+      }
+    }
+
     // Lấy token từ localStorage (nếu có)
     const token = localStorage.getItem('token');
     if (token) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ChefHat, Truck, CheckCircle, Eye, X, User, UtensilsCrossed, Star } from 'lucide-react';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);

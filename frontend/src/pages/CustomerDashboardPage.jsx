@@ -5,7 +5,7 @@ import { CalendarDays, ClipboardList, Clock3, LogIn, MapPin, UtensilsCrossed, Us
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const formatDateTime = (value) => {
     if (!value) {
