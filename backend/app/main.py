@@ -35,48 +35,43 @@ def _seed_default_roles() -> None:
     from app.models.nguoidung import VaiTro
     db = SessionLocal()
     try:
-        # Danh sách vai trò mặc định
+        # 1. Danh sách 4 vai trò cốt lõi (Viết hoa chữ cái đầu để chuẩn hóa)
         default_roles = [
             (1, "Khách hàng"),
             (2, "Quản lý"),
             (3, "Nhân viên nhà bếp"),
             (4, "Nhân viên phục vụ")
         ]
+        
+        # Đồng bộ và cập nhật 4 vai trò chuẩn
         for role_id, role_name in default_roles:
-            exists = db.query(VaiTro).filter(VaiTro.id_vaiTro == role_id).first()
-            if not exists:
+            role = db.query(VaiTro).filter(VaiTro.id_vaiTro == role_id).first()
+            if not role:
                 new_role = VaiTro(id_vaiTro=role_id, tenVaiTro=role_name)
                 db.add(new_role)
+            else:
+                role.tenVaiTro = role_name # Cập nhật tên viết hoa chuẩn
         db.commit()
 
-        # Tự động tạo tài khoản Admin mặc định nếu chưa có tài khoản nào có vai trò Quản lý (id_vaiTro = 2)
+        # 2. Tự động tạo tài khoản Admin mặc định phụ nếu chưa có ai làm quản lý
         from app.models.nguoidung import NguoiDung
         from app.core.security import get_password_hash
-        
         admin_exists = db.query(NguoiDung).filter(NguoiDung.id_vaiTro == 2).first()
         if not admin_exists:
-            # Tạo tài khoản admin mặc định cực kỳ an toàn
             default_admin = NguoiDung(
                 hoTen="Quản trị viên",
                 email="admin@bayfood.com",
                 soDienThoai="0999999999",
                 matKhau=get_password_hash("Admin12345"),
-                id_vaiTro=2, # Vai trò Quản lý
+                id_vaiTro=2,
                 trangThai="Hoạt động"
             )
             db.add(default_admin)
             db.commit()
-            print("Successfully seeded default admin account: admin@bayfood.com / Admin12345")
-            
-        # Tự động nâng cấp tài khoản email của bạn thành vai trò Quản lý (Admin)
-        viet_user = db.query(NguoiDung).filter(NguoiDung.email == "12345vietkp@gmail.com").first()
-        if viet_user and viet_user.id_vaiTro != 2:
-            viet_user.id_vaiTro = 2
-            db.commit()
-            print("Successfully upgraded 12345vietkp@gmail.com to Admin role!")
-            
+            print("Seeded default admin account!")
+
     except Exception as e:
-        print(f"Error seeding roles or admin: {e}")
+        print(f"Error seeding default roles: {e}")
         db.rollback()
     finally:
         db.close()
