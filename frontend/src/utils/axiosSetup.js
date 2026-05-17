@@ -23,11 +23,17 @@ axios.interceptors.response.use(
   (error) => {
     // Nếu lỗi 401 (Hết hạn token hoặc không hợp lệ)
     if (error.response && error.response.status === 401) {
-      console.error('Token expired or invalid. Please login again.');
-      // Xóa token và user, chuyển hướng về trang đăng nhập
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Bỏ qua nếu là request đăng nhập (để trang Login tự hiển thị thông báo lỗi)
+      const isLoginRequest = error.config && error.config.url && 
+        (error.config.url.includes('/api/auth/login') || error.config.url.includes('/login'));
+      
+      if (!isLoginRequest) {
+        console.error('Token expired or invalid. Please login again.');
+        // Xóa token và user, chuyển hướng về trang đăng nhập
+        localStorage.removeItem('token');
+        localStorage.removeItem('user:v1');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

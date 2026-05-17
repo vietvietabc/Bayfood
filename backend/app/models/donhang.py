@@ -1,6 +1,9 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric, Text
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.db.database import Base
+
+def get_vn_time():
+    return datetime.utcnow() + timedelta(hours=7)
 
 class DonHang(Base):
     __tablename__ = "DONHANG"
@@ -9,8 +12,10 @@ class DonHang(Base):
     id_datBan = Column(Integer, ForeignKey("DATBAN.id_datBan"), nullable=True)
     id_nhanVien = Column(Integer, ForeignKey("NHANVIEN.id_nhanVien"), nullable=True)
     id_ban = Column(Integer, ForeignKey("BAN.id_ban"))
-    thoiGianTao = Column(DateTime, default=datetime.utcnow)
+    thoiGianTao = Column(DateTime, default=get_vn_time)
+    thoiGianDen = Column(DateTime, nullable=True)
     tinhTrang = Column(String(50), default="Đang chờ món")
+    thoiGianHoanThanh = Column(DateTime, nullable=True)
 
 class ChiTietDonHang(Base):
     __tablename__ = "CHITIETDONHANG"
@@ -28,7 +33,7 @@ class ThanhToan(Base):
     id_donHang = Column(Integer, ForeignKey("DONHANG.id_donHang"))
     phuongThuc = Column(String(50))
     soTienThanhToan = Column(Numeric(10, 2))
-    thoiGianGiaoDich = Column(DateTime, default=datetime.utcnow)
+    thoiGianGiaoDich = Column(DateTime, default=get_vn_time)
     maQR_thanhToan = Column(String(255))
 
 class DanhGia(Base):

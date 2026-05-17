@@ -1,9 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 
 from app.db.database import Base
 
+def get_vn_time():
+    return datetime.utcnow() + timedelta(hours=7)
 
 class ThongBao(Base):
     __tablename__ = "THONGBAO"
@@ -15,4 +17,4 @@ class ThongBao(Base):
     noiDung = Column(String(500))
     lienKet = Column(String(255), nullable=True)
     daDoc = Column(Boolean, default=False)
-    thoiGianTao = Column(DateTime, default=datetime.utcnow)
+    thoiGianTao = Column(DateTime, default=get_vn_time)

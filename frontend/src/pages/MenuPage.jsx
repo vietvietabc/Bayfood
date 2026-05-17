@@ -1,26 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useReducer } from 'react';
 import axios from 'axios';
 import FoodCard from '../components/FoodCard';
 import { Search } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
+const initialState = { menuItems: [], categories: [], loading: true, error: null };
+function reducer(state, action) {
+  switch (action.type) {
+    case 'FETCH_SUCCESS': 
+      return { ...state, menuItems: action.payload.menuItems, categories: action.payload.categories, loading: false };
+    case 'FETCH_ERROR': 
+      return { ...state, error: action.payload, loading: false };
+    default: return state;
+  }
+}
+
 const MenuPage = () => {
-  const [menuItems, setMenuItems] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { menuItems, categories, loading } = state;
   const [activeCategory, setActiveCategory] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { selectedTableId, setSelectedTableId } = useCart();
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tableParam = params.get('table');
-
+    const tableParam = searchParams.get('table');
     if (tableParam) {
       setSelectedTableId(tableParam);
     }
-  }, [location.search, setSelectedTableId]);
+  }, [searchParams, setSelectedTableId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,19 +37,21 @@ const MenuPage = () => {
           axios.get('http://localhost:8000/api/thucdon'),
           axios.get('http://localhost:8000/api/thucdon/danhmuc')
         ]);
-        setMenuItems(menuRes.data);
-        setCategories(catRes.data);
+        dispatch({ type: 'FETCH_SUCCESS', payload: { menuItems: menuRes.data, categories: catRes.data } });
       } catch (error) {
         console.error("Error fetching data", error);
         // Fallback data for visual testing if backend is not running
-        setCategories([{ id_danhMuc: 1, tenDanhMuc: 'Món Chính' }, { id_danhMuc: 2, tenDanhMuc: 'Đồ Uống' }]);
-        setMenuItems([
-          { id_monAn: 1, id_danhMuc: 1, tenMon: 'Bò Bít Tết', giaTien: 250000, hinhAnh: 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=800' },
-          { id_monAn: 2, id_danhMuc: 1, tenMon: 'Cá Hồi Nướng', giaTien: 180000, hinhAnh: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800' },
-          { id_monAn: 3, id_danhMuc: 2, tenMon: 'Nước Ép Cam', giaTien: 450000, hinhAnh: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800' },
-        ]);
-      } finally {
-        setLoading(false);
+        dispatch({
+          type: 'FETCH_SUCCESS',
+          payload: {
+            categories: [{ id_danhMuc: 1, tenDanhMuc: 'Món Chính' }, { id_danhMuc: 2, tenDanhMuc: 'Đồ Uống' }],
+            menuItems: [
+              { id_monAn: 1, id_danhMuc: 1, tenMon: 'Bò Bít Tết', giaTien: 250000, hinhAnh: 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=800' },
+              { id_monAn: 2, id_danhMuc: 1, tenMon: 'Cá Hồi Nướng', giaTien: 180000, hinhAnh: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800' },
+              { id_monAn: 3, id_danhMuc: 2, tenMon: 'Nước Ép Cam', giaTien: 450000, hinhAnh: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800' },
+            ]
+          }
+        });
       }
     };
     fetchData();
@@ -55,30 +65,35 @@ const MenuPage = () => {
     <div className="container py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-gradient" style={{ fontSize: '2.5rem', marginBottom: '0.35rem' }}>Thực Đơn</h1>
+          <h1 className="text-gradient text-4xl mb-1">Thực Đơn</h1>
           {selectedTableId ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.1)', color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 'bold' }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100/10 text-primary text-sm font-bold">
               Bàn đang gọi món: #{selectedTableId}
+              <button 
+                onClick={() => setSelectedTableId(null)}
+                className="ml-2 flex items-center justify-center bg-red-100/10 text-red-500 border-none rounded-full w-5 h-5 cursor-pointer text-xs"
+                title="Bỏ chọn bàn"
+              >
+                ✕
+              </button>
             </div>
           ) : (
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>Quét QR bàn để tự động gắn bàn vào đơn hàng.</p>
+            <p className="m-0 text-muted-foreground">Quét QR bàn để tự động gắn bàn vào đơn hàng.</p>
           )}
         </div>
         <div className="relative w-64">
           <input
             type="text"
             placeholder="Tìm kiếm món ăn..."
-            className="input-field"
-            style={{ paddingLeft: '2.5rem' }}
+            className="input-field pl-10"
           />
-          <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>
       </div>
 
-      <div className="flex gap-4 mb-8" style={{ overflowX: 'auto', paddingBottom: '0.5rem' }}>
+      <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
         <button
-          className={`btn ${activeCategory === null ? 'btn-primary' : 'btn-outline'}`}
-          style={{ whiteSpace: 'nowrap' }}
+          className={`btn whitespace-nowrap ${activeCategory === null ? 'btn-primary' : 'btn-outline'}`}
           onClick={() => setActiveCategory(null)}
         >
           Tất Cả
@@ -86,8 +101,7 @@ const MenuPage = () => {
         {categories.map(cat => (
           <button
             key={cat.id_danhMuc}
-            className={`btn ${activeCategory === cat.id_danhMuc ? 'btn-primary' : 'btn-outline'}`}
-            style={{ whiteSpace: 'nowrap' }}
+            className={`btn whitespace-nowrap ${activeCategory === cat.id_danhMuc ? 'btn-primary' : 'btn-outline'}`}
             onClick={() => setActiveCategory(cat.id_danhMuc)}
           >
             {cat.tenDanhMuc}
@@ -97,7 +111,7 @@ const MenuPage = () => {
 
       {loading ? (
         <div className="flex justify-center items-center py-16">
-          <div style={{ width: '40px', height: '40px', border: '4px solid var(--border)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <div className="w-10 h-10 border-4 border-border border-t-primary rounded-full animate-spin"></div>
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-6">

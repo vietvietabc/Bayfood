@@ -108,7 +108,7 @@ def _get_active_reservations_for_table(db: Session, id_ban: int):
         db.query(models.DatBan)
         .filter(
             models.DatBan.id_ban == id_ban,
-            models.DatBan.trangThai != "Đã hủy",
+            ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành"]),
         )
         .order_by(models.DatBan.thoiGianDen.asc())
         .all()
@@ -258,7 +258,8 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
 
     slots = []
     current = day_start
-    last_start = day_end - SERVICE_DURATION
+    # Cho phép đặt đến trước giờ đóng cửa tối thiểu 2 tiếng (ví dụ 22:00 nếu đóng 24:00)
+    last_start = day_end - timedelta(hours=2)
     used_requested_start = False
     while current <= last_start:
         if current + slot_delta > day_end:
@@ -268,7 +269,7 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
 
         slots.append({
             "batDau": current,
-            "ketThuc": classification["display_end"],
+            "ketThuc": min(classification["display_end"], day_end),
             "trangThai": classification["trangThai"],
             "canDat": classification["can_dat"],
             "warningType": classification["warningType"],
@@ -316,8 +317,13 @@ def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = 
     if reservation_time <= _now_utc_naive():
         raise HTTPException(status_code=400, detail="Thời gian đặt bàn phải lớn hơn thời gian hiện tại")
 
-    if reservation_time < business_start or reservation_time + SERVICE_DURATION > business_end:
-        raise HTTPException(status_code=400, detail="Nhà hàng chỉ nhận đặt từ 7h sáng tới 12h đêm")
+    if reservation_time < business_start or reservation_time > (business_end - timedelta(hours=2)):
+        raise HTTPException(status_code=400, detail="Nhà hàng chỉ nhận đặt muộn nhất là 22:00")
+
+    # Nếu đặt muộn (sau 21h), thời gian dùng bữa sẽ bị giới hạn bởi giờ đóng cửa
+    reservation_end = min(reservation_time + SERVICE_DURATION, business_end)
+    if reservation_end <= reservation_time:
+         raise HTTPException(status_code=400, detail="Thời gian đặt không hợp lệ")
 
     if reservation.id_ban is not None:
         db_ban = db.query(models.Ban).filter(models.Ban.id_ban == reservation.id_ban).first()
@@ -388,6 +394,14 @@ def checkin_reservation(
         if db_ban:
             db_ban.trangThai = "Có khách"
 
+    # Update related orders
+    db_orders = db.query(models.DonHang).filter(
+        models.DonHang.id_datBan == id_datBan,
+        models.DonHang.tinhTrang == "Chờ khách đến"
+    ).all()
+    for order in db_orders:
+        order.tinhTrang = "Đang chờ món"
+
     create_notification(
         db,
         vaiTroNhan="Quản lý",
@@ -457,6 +471,11 @@ def update_status(id_datBan: int, req: StatusUpdate, db: Session = Depends(get_d
     if not db_res:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
+    if req.trangThai in ["Đã xác nhận", "Đã checkin"]:
+        working_hours = _get_working_hours_record(db, db_res.thoiGianDen.date())
+        if working_hours and working_hours.isNghi:
+            raise HTTPException(status_code=400, detail="Không thể xác nhận hoặc check-in vì quán có lịch nghỉ vào ngày này. Vui lòng hủy đơn đặt bàn.")
+
     db_ban = None
     if db_res.id_ban is not None:
         db_ban = db.query(models.Ban).filter(models.Ban.id_ban == db_res.id_ban).first()
@@ -464,13 +483,21 @@ def update_status(id_datBan: int, req: StatusUpdate, db: Session = Depends(get_d
     db_res.trangThai = req.trangThai
 
     if db_ban is not None:
-        if req.trangThai == "Đã hủy":
+        if req.trangThai in ["Đã hủy", "Hoàn thành"]:
             db_ban.trangThai = "Trống"
         elif req.trangThai == "Đã xác nhận":
             db_ban.trangThai = "Đã đặt"
         elif req.trangThai == "Đã checkin":
             db_ban.trangThai = "Có khách"
             db_res.thoiGianDenThucTe = db_res.thoiGianDenThucTe or _now_utc_naive()
+            
+            # Update related orders
+            db_orders = db.query(models.DonHang).filter(
+                models.DonHang.id_datBan == id_datBan,
+                models.DonHang.tinhTrang == "Chờ khách đến"
+            ).all()
+            for order in db_orders:
+                order.tinhTrang = "Đang chờ món"
 
     if req.trangThai == "Đã xác nhận":
         create_notification(

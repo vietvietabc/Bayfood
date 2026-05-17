@@ -12,9 +12,9 @@ const FoodCard = ({ item }) => {
   return (
     <div className="card">
       <div style={{ height: '200px', overflow: 'hidden' }}>
-        <img 
-          src={imageUrl} 
-          alt={item.tenMon} 
+        <img
+          src={imageUrl}
+          alt={item.tenMon}
           style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
           onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'}
           onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
@@ -29,8 +29,8 @@ const FoodCard = ({ item }) => {
           <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--primary)' }}>
             {Number(item.giaTien).toLocaleString('vi-VN')} đ
           </span>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }}
             onClick={() => addToCart(item)}
           >

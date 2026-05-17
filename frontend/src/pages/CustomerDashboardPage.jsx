@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { CalendarDays, ClipboardList, Clock3, LogIn, MapPin, UtensilsCrossed, UserCircle2, MapPinned, Bell, CheckCheck } from 'lucide-react';
+import { CalendarDays, ClipboardList, Clock3, LogIn, MapPin, UtensilsCrossed, UserCircle2, MapPinned, Bell, CheckCheck, Eye, X, Star, ChefHat, User, Edit3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 
 const BASE_URL = 'http://localhost:8000';
 
@@ -12,9 +13,24 @@ const formatDateTime = (value) => {
     }
 
     return new Date(value).toLocaleString('vi-VN', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
     });
+};
+
+const currencyFormatter = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const getMonStatusColor = (status) => {
+    switch (status) {
+        case 'Chờ chế biến': return '#eab308';
+        case 'Đang chế biến': return '#3b82f6';
+        case 'Hoàn thành': return '#10b981';
+        default: return 'var(--text-muted)';
+    }
 };
 
 const getStatusStyle = (status) => {
@@ -23,7 +39,9 @@ const getStatusStyle = (status) => {
         'Đã đặt': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
         'Đã xác nhận': { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669' },
         'Đã checkin': { bg: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' },
+        'Hoàn thành': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
         'Đã hủy': { bg: 'rgba(239, 68, 68, 0.12)', color: '#dc2626' },
+        'Chờ khách đến': { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c' },
         'Đang chờ món': { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04' },
         'Đang chế biến': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
         'Đã phục vụ': { bg: 'rgba(168, 85, 247, 0.12)', color: '#7c3aed' },
@@ -34,16 +52,25 @@ const getStatusStyle = (status) => {
 };
 
 const CustomerDashboardPage = () => {
+    const navigate = useNavigate();
     const { user, loading: authLoading } = useAuth();
-    const [reservations, setReservations] = useState([]);
-    const [orders, setOrders] = useState([]);
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const { setCartFromOrder } = useCart();
+    const [data, setData] = useState({ reservations: [], orders: [] });
+    const { reservations, orders } = data;
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [checkinLoadingId, setCheckinLoadingId] = useState(null);
     const [actionMessage, setActionMessage] = useState('');
     const [checkinToast, setCheckinToast] = useState('');
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+    const [showOrderModal, setShowOrderModal] = useState(false);
+    const [selectedReservation, setSelectedReservation] = useState(null);
+    const [showReservationModal, setShowReservationModal] = useState(false);
+    const [reviews, setReviews] = useState([]);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [reviewForm, setReviewForm] = useState({ id_donHang: null, soSao: 5, noiDung: '' });
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
     useEffect(() => {
         if (!checkinToast) {
@@ -68,17 +95,17 @@ const CustomerDashboardPage = () => {
             setError('');
 
             try {
-                const [reservationRes, orderRes, notificationRes, unreadCountRes] = await Promise.all([
+                const [reservationRes, orderRes, reviewRes] = await Promise.all([
                     axios.get(`${BASE_URL}/api/datban/me`),
                     axios.get(`${BASE_URL}/api/donhang/me`),
-                    axios.get(`${BASE_URL}/api/thongbao/me`),
-                    axios.get(`${BASE_URL}/api/thongbao/me/unread-count`),
+                    axios.get(`${BASE_URL}/api/danhgia/me`),
                 ]);
 
-                setReservations(reservationRes.data || []);
-                setOrders(orderRes.data || []);
-                setNotifications(notificationRes.data || []);
-                setUnreadCount(unreadCountRes.data?.count || 0);
+                setData({
+                    reservations: reservationRes.data || [],
+                    orders: orderRes.data || []
+                });
+                setReviews(reviewRes.data || []);
             } catch (fetchError) {
                 console.error('Failed to load customer dashboard', fetchError);
                 setError('Không thể tải dữ liệu khách hàng. Vui lòng thử lại sau.');
@@ -144,11 +171,14 @@ const CustomerDashboardPage = () => {
         try {
             await axios.post(`${BASE_URL}/api/datban/${reservationId}/checkin`);
             setActionMessage('Check-in thành công. Admin đã nhận thông báo bàn của bạn đã tới nơi.');
-            setReservations((current) => current.map((reservation) => (
-                reservation.id_datBan === reservationId
-                    ? { ...reservation, trangThai: 'Đã checkin', thoiGianDenThucTe: new Date().toISOString() }
-                    : reservation
-            )));
+            setData(current => ({
+                ...current,
+                reservations: current.reservations.map((reservation) => (
+                    reservation.id_datBan === reservationId
+                        ? { ...reservation, trangThai: 'Đã checkin', thoiGianDenThucTe: new Date().toISOString() }
+                        : reservation
+                ))
+            }));
         } catch (checkinError) {
             console.error('Failed to check in', checkinError);
             setActionMessage(checkinError.response?.data?.detail || 'Không thể check-in lúc này.');
@@ -160,16 +190,101 @@ const CustomerDashboardPage = () => {
     const handleMarkNotificationRead = async (notificationId) => {
         try {
             await axios.put(`${BASE_URL}/api/thongbao/${notificationId}/read`);
-            const [notificationRes, unreadCountRes] = await Promise.all([
-                axios.get(`${BASE_URL}/api/thongbao/me`),
-                axios.get(`${BASE_URL}/api/thongbao/me/unread-count`),
-            ]);
-
-            setNotifications(notificationRes.data || []);
-            setUnreadCount(unreadCountRes.data?.count || 0);
         } catch (notificationError) {
             console.error('Failed to mark notification as read', notificationError);
         }
+    };
+
+    const handleViewOrder = async (orderId) => {
+        setOrderDetailLoading(true);
+        setShowOrderModal(true);
+        try {
+            const response = await axios.get(`${BASE_URL}/api/donhang/me/${orderId}`);
+            setSelectedOrder(response.data);
+        } catch (error) {
+            console.error('Lỗi tải chi tiết đơn hàng', error);
+            alert('Không thể tải chi tiết đơn hàng.');
+            setShowOrderModal(false);
+        } finally {
+            setOrderDetailLoading(false);
+        }
+    };
+
+    const handleCloseOrderModal = () => {
+        setShowOrderModal(false);
+        setSelectedOrder(null);
+    };
+
+    const handleEditOrder = (order) => {
+        const cartItems = order.chi_tiet.map(ct => ({
+            id_monAn: ct.id_monAn,
+            tenMon: ct.tenMon,
+            hinhAnh: ct.hinhAnhMon,
+            giaTien: ct.giaTaiThoiDiemBan,
+            quantity: ct.soLuong
+        }));
+        setCartFromOrder(cartItems, order.id_donHang, order.thoiGianDen);
+        navigate('/cart');
+    };
+
+    const handleCheckinOrder = async (orderId) => {
+        setCheckinLoadingId(orderId);
+        setActionMessage('');
+
+        const order = orders.find((item) => item.id_donHang === orderId);
+        const orderTime = order?.thoiGianDen ? new Date(order.thoiGianDen) : null;
+        const checkinOpenTime = orderTime ? new Date(orderTime.getTime() - 15 * 60 * 1000) : null;
+
+        if (checkinOpenTime && Date.now() < checkinOpenTime.getTime()) {
+            setCheckinToast('Chỉ nhận báo tới trong vòng 15 phút trước thời gian đã hẹn.');
+            setCheckinLoadingId(null);
+            return;
+        }
+
+        try {
+            await axios.put(`${BASE_URL}/api/donhang/me/${orderId}/checkin`);
+            
+            const orderRes = await axios.get(`${BASE_URL}/api/donhang/me`);
+            setData(current => ({ ...current, orders: orderRes.data }));
+            
+            setCheckinToast('Đã báo tới thành công!');
+            setActionMessage('Bếp đã nhận được thông báo và bắt đầu chuẩn bị món cho bạn!');
+        } catch (error) {
+            console.error('Lỗi khi báo đã tới:', error);
+            alert(error.response?.data?.detail || 'Không thể báo đã tới.');
+        } finally {
+            setCheckinLoadingId(null);
+        }
+    };
+
+    const handleSubmittingReview = async (e) => {
+        e.preventDefault();
+        setIsSubmittingReview(true);
+        try {
+            const res = await axios.post(`${BASE_URL}/api/danhgia/`, {
+                id_donHang: reviewForm.id_donHang,
+                soSao: reviewForm.soSao,
+                noiDung: reviewForm.noiDung
+            });
+            setReviews(current => [res.data, ...current]);
+            setShowReviewModal(false);
+            alert('Cảm ơn bạn đã gửi đánh giá và đóng góp ý kiến!');
+        } catch (err) {
+            console.error('Lỗi khi gửi đánh giá:', err);
+            alert(err.response?.data?.detail || 'Không thể gửi đánh giá lúc này.');
+        } finally {
+            setIsSubmittingReview(false);
+        }
+    };
+
+    const handleViewReservation = (reservation) => {
+        setSelectedReservation(reservation);
+        setShowReservationModal(true);
+    };
+
+    const handleCloseReservationModal = () => {
+        setShowReservationModal(false);
+        setSelectedReservation(null);
     };
 
     return (
@@ -230,7 +345,7 @@ const CustomerDashboardPage = () => {
                 </div>
             </div>
 
-            <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+            {/* <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <Bell size={20} color="var(--primary)" />
@@ -280,7 +395,7 @@ const CustomerDashboardPage = () => {
                         ))}
                     </div>
                 )}
-            </div>
+            </div> */}
 
             <div className="grid grid-cols-3 gap-6" style={{ marginBottom: '1.5rem' }}>
                 <div className="card" style={{ padding: '1.5rem' }}>
@@ -345,10 +460,19 @@ const CustomerDashboardPage = () => {
                                             <span>Đến thực tế: {formatDateTime(reservation.thoiGianDenThucTe)}</span>
                                             <span>Số người: {reservation.soNguoi}</span>
                                             {reservation.ghiChu ? <span>Ghi chú: {reservation.ghiChu}</span> : null}
+                                            {orders.some(o => o.id_datBan === reservation.id_datBan) && (
+                                                <span style={{ color: '#2563eb', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                                    🍽️ Đã đặt món đi kèm
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {reservation.trangThai === 'Đã xác nhận' && (
-                                            <div style={{ marginTop: '0.9rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                            <button className="btn btn-outline" onClick={() => handleViewReservation(reservation)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                <Eye size={16} /> Xem chi tiết
+                                            </button>
+
+                                            {reservation.trangThai === 'Đã xác nhận' && (
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCheckin(reservation.id_datBan)}
@@ -359,8 +483,8 @@ const CustomerDashboardPage = () => {
                                                     <MapPinned size={16} />
                                                     {checkinLoadingId === reservation.id_datBan ? 'Đang check-in...' : 'Tôi đã tới bàn'}
                                                 </button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
                                         {reservation.trangThai === 'Chờ xác nhận' && (
                                             <div style={{ marginTop: '0.9rem', padding: '0.75rem', borderRadius: '0.75rem', background: 'rgba(234, 179, 8, 0.08)', color: '#ca8a04', fontSize: '0.875rem', fontWeight: 'bold' }}>
@@ -417,7 +541,54 @@ const CustomerDashboardPage = () => {
                                         <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem', display: 'grid', gap: '0.25rem' }}>
                                             <span>Thời gian tạo: {formatDateTime(order.thoiGianTao)}</span>
                                             <span>Bàn: {order.id_ban || 'Chưa gán bàn'}</span>
-                                            <span>Đặt bàn liên quan: {order.id_datBan || 'Không'}</span>
+                                            {order.thoiGianDen && (
+                                                <span>Thời gian tới: {formatDateTime(order.thoiGianDen)}</span>
+                                            )}
+                                            {order.id_datBan && (
+                                                <span style={{ color: '#10b981', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                                    🔗 Đã đặt kèm bàn #{order.id_datBan}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                            <button className="btn btn-outline" onClick={() => handleViewOrder(order.id_donHang)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                <Eye size={16} /> Xem chi tiết
+                                            </button>
+                                            {(order.tinhTrang === 'Đang chờ món' || order.tinhTrang === 'Chờ khách đến') && (
+                                                <button className="btn btn-primary" onClick={() => handleEditOrder(order)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    <Edit3 size={16} /> Chỉnh sửa
+                                                </button>
+                                            )}
+                                            {order.tinhTrang === 'Chờ khách đến' && !order.id_datBan && (
+                                                <button className="btn btn-success" onClick={() => handleCheckinOrder(order.id_donHang)} disabled={checkinLoadingId === order.id_donHang} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#10b981', color: '#fff', border: 'none' }}>
+                                                    <CheckCheck size={16} /> {checkinLoadingId === order.id_donHang ? 'Đang xử lý...' : 'Báo đã tới'}
+                                                </button>
+                                            )}
+                                            {order.tinhTrang === 'Đã thanh toán' && (
+                                                (() => {
+                                                    const hasReview = reviews.some(r => r.id_donHang === order.id_donHang);
+                                                    if (hasReview) {
+                                                        const review = reviews.find(r => r.id_donHang === order.id_donHang);
+                                                        return (
+                                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '0.5rem', fontWeight: 'bold' }}>
+                                                                <Star size={16} fill="#10b981" /> Đã đánh giá ({review.soSao}★)
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <button 
+                                                            className="btn" 
+                                                            onClick={() => {
+                                                                setReviewForm({ id_donHang: order.id_donHang, soSao: 5, noiDung: '' });
+                                                                setShowReviewModal(true);
+                                                            }} 
+                                                            style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}
+                                                        >
+                                                            <Star size={16} /> Đánh giá
+                                                        </button>
+                                                    );
+                                                })()
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -426,6 +597,208 @@ const CustomerDashboardPage = () => {
                     )}
                 </section>
             </div>
+
+            {/* MODAL CHI TIẾT ĐƠN HÀNG */}
+            {showOrderModal && (
+                <div onClick={handleCloseOrderModal} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Chi Tiết Đơn Hàng {selectedOrder ? `#DH${selectedOrder.id_donHang}` : ''}</h2>
+                            <button onClick={handleCloseOrderModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}><X size={22} /></button>
+                        </div>
+                        <div style={{ overflowY: 'auto', padding: '1.5rem', flex: 1 }}>
+                            {orderDetailLoading ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Đang tải chi tiết...</div>
+                            ) : selectedOrder ? (
+                                <>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#a855f7' }}>
+                                                <Star size={16} /><span style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}>Nhân viên phục vụ</span>
+                                            </div>
+                                            <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{selectedOrder.tenNhanVienPhucVu || <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontStyle: 'italic' }}>Chưa phân công</span>}</div>
+                                        </div>
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Trạng thái</div>
+                                            <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.85rem', background: getStatusStyle(selectedOrder.tinhTrang).bg, color: getStatusStyle(selectedOrder.tinhTrang).color, fontWeight: 600 }}>{selectedOrder.tinhTrang}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Thời gian tạo</div>
+                                            <div style={{ fontWeight: 'bold' }}>{formatDateTime(selectedOrder.thoiGianTao)}</div>
+                                        </div>
+                                        {selectedOrder.thoiGianDen && (
+                                            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.2)' }}>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.25rem', fontWeight: 600 }}>Thời gian tới</div>
+                                                <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatDateTime(selectedOrder.thoiGianDen)}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {selectedOrder.id_datBan && (
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            <div>
+                                                <div style={{ fontSize: '0.8rem', color: '#059669', marginBottom: '0.25rem', fontWeight: 600 }}>Đã liên kết lịch đặt bàn</div>
+                                                <div style={{ fontWeight: 'bold', color: '#059669' }}>Mã đặt bàn: #{selectedOrder.id_datBan}</div>
+                                            </div>
+                                            <button 
+                                                className="btn btn-outline" 
+                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#059669', borderColor: '#10b981' }}
+                                                onClick={() => {
+                                                    setShowOrderModal(false);
+                                                    const res = reservations.find(r => r.id_datBan === selectedOrder.id_datBan);
+                                                    if (res) {
+                                                        setSelectedReservation(res);
+                                                        setShowReservationModal(true);
+                                                    } else {
+                                                        alert("Không tìm thấy thông tin chi tiết đặt bàn!");
+                                                    }
+                                                }}
+                                            >
+                                                Xem chi tiết đặt bàn
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><UtensilsCrossed size={18} style={{ color: '#f97316' }} />Danh sách món ăn</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            {selectedOrder.chi_tiet && selectedOrder.chi_tiet.length > 0 ? selectedOrder.chi_tiet.map((item) => (
+                                                <div key={item.id_chiTietDonHang} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '1rem', alignItems: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
+                                                    <div style={{ width: '52px', height: '52px', borderRadius: '0.5rem', overflow: 'hidden', background: 'var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        {item.hinhAnhMon ? <img src={`${BASE_URL}${item.hinhAnhMon}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} /> : <span style={{ fontSize: '1.5rem' }}>🍽️</span>}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>{item.tenMon || `Món #${item.id_monAn}`}</div>
+                                                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>SL: <strong style={{ color: 'var(--text)' }}>{item.soLuong}</strong></span>
+                                                            <span style={{ fontSize: '0.8rem' }}>Trạng thái: <strong style={{ color: getMonStatusColor(item.trangThaiMon) }}>{item.trangThaiMon}</strong></span>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                        <div style={{ fontWeight: 'bold', color: '#f97316', fontSize: '0.95rem' }}>{formatCurrency(item.giaTaiThoiDiemBan * item.soLuong)}</div>
+                                                    </div>
+                                                </div>
+                                            )) : <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>Không có món nào.</div>}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderRadius: '0.75rem', background: 'linear-gradient(135deg, rgba(249,115,22,0.1), rgba(234,179,8,0.08))', border: '1px solid rgba(249,115,22,0.3)' }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Tổng tiền</span>
+                                        <span style={{ fontWeight: 'bold', fontSize: '1.4rem', color: '#f97316' }}>{formatCurrency(selectedOrder.tongTien)}</span>
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL CHI TIẾT ĐẶT BÀN */}
+                               {showReservationModal && selectedReservation && (() => {
+                                   const linkedOrder = orders.find(o => o.id_datBan === selectedReservation.id_datBan);
+                                   return (
+                                       <div onClick={handleCloseReservationModal} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                                           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+                                               <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                                                   <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}</h2>
+                                                   <button onClick={handleCloseReservationModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}><X size={22} /></button>
+                                               </div>
+                                               <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', overflowY: 'auto' }}>
+                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Trạng thái</span>
+                                                       <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', background: getStatusStyle(selectedReservation.trangThai).bg, color: getStatusStyle(selectedReservation.trangThai).color, fontSize: '0.875rem', fontWeight: 'bold' }}>{selectedReservation.trangThai}</span>
+                                                   </div>
+                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Bàn</span>
+                                                       <strong>{selectedReservation.id_ban ? `Bàn ${selectedReservation.id_ban}` : 'Chưa xếp'}</strong>
+                                                   </div>
+                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Thời gian đến</span>
+                                                       <strong>{formatDateTime(selectedReservation.thoiGianDen)}</strong>
+                                                   </div>
+                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Đến thực tế</span>
+                                                       <strong>{formatDateTime(selectedReservation.thoiGianDenThucTe)}</strong>
+                                                   </div>
+                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Số người</span>
+                                                       <strong>{selectedReservation.soNguoi}</strong>
+                                                   </div>
+                                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                                       <span style={{ color: 'var(--text-muted)' }}>Ghi chú</span>
+                                                       <div style={{ padding: '1rem', background: 'var(--surface-light)', borderRadius: '0.5rem', border: '1px solid var(--border)', minHeight: '60px' }}>
+                                                           {selectedReservation.ghiChu || <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>}
+                                                       </div>
+                                                   </div>
+                                                   {linkedOrder && (
+                                                       <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                           <div>
+                                                               <div style={{ fontSize: '0.8rem', color: '#2563eb', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
+                                                               <div style={{ fontWeight: 'bold', color: '#2563eb' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
+                                                           </div>
+                                                           <button 
+                                                               className="btn btn-outline"
+                                                               style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#2563eb', borderColor: '#3b82f6' }}
+                                                               onClick={() => {
+                                                                   setShowReservationModal(false);
+                                                                   handleViewOrder(linkedOrder.id_donHang);
+                                                               }}
+                                                           >
+                                                               Xem đơn món
+                                                           </button>
+                                                       </div>
+                                                   )}
+                                               </div>
+                                           </div>
+                                       </div>
+                                   );
+                               })()}
+
+            {/* MODAL ĐÁNH GIÁ ĐƠN HÀNG */}
+            {showReviewModal && (
+                <div onClick={() => setShowReviewModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '450px', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Đánh Giá Đơn Hàng #{reviewForm.id_donHang}</h2>
+                            <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
+                        </div>
+                        <form onSubmit={handleSubmittingReview} style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>Số sao đánh giá</label>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            type="button"
+                                            key={star}
+                                            onClick={() => setReviewForm({ ...reviewForm, soSao: star })}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: star <= reviewForm.soSao ? '#eab308' : 'var(--border)' }}
+                                        >
+                                            <Star size={32} fill={star <= reviewForm.soSao ? '#eab308' : 'none'} />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>Bình luận / Ý kiến đóng góp</label>
+                                <textarea
+                                    className="input-field"
+                                    placeholder="Chia sẻ trải nghiệm của bạn về món ăn và dịch vụ..."
+                                    rows={4}
+                                    value={reviewForm.noiDung}
+                                    onChange={(e) => setReviewForm({ ...reviewForm, noiDung: e.target.value })}
+                                    required
+                                    style={{ width: '100%', resize: 'none', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border)', background: 'var(--surface-light)', color: 'var(--text)' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                <button type="button" className="btn btn-outline" onClick={() => setShowReviewModal(false)}>Hủy</button>
+                                <button type="submit" className="btn btn-primary" disabled={isSubmittingReview} style={{ background: '#eab308', color: '#000', borderColor: '#eab308' }}>
+                                    {isSubmittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -35,6 +35,7 @@ const AdminReservations = () => {
       case 'Chờ xác nhận': return { bg: 'rgba(234, 179, 8, 0.1)', color: '#eab308' };
       case 'Đã xác nhận': return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' };
       case 'Đã checkin': return { bg: 'rgba(124, 58, 237, 0.1)', color: '#7c3aed' };
+      case 'Hoàn thành': return { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' };
       case 'Đã hủy': return { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' };
       default: return { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
     }
@@ -44,7 +45,7 @@ const AdminReservations = () => {
     ? reservations
     : reservations.filter(r => r.trangThai === filterStatus);
 
-  const statusOptions = ['Tất cả', 'Chờ xác nhận', 'Đã xác nhận', 'Đã checkin', 'Đã hủy'];
+  const statusOptions = ['Tất cả', 'Chờ xác nhận', 'Đã xác nhận', 'Đã checkin', 'Hoàn thành', 'Đã hủy'];
 
   return (
     <div>
@@ -74,7 +75,7 @@ const AdminReservations = () => {
 
       <div className="card" style={{ overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu...</div>
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu…</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
@@ -98,9 +99,11 @@ const AdminReservations = () => {
                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>#DB{res.id_datBan}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>KH{res.id_nguoiDung}</td>
                     <td style={{ padding: '1rem' }}>{res.id_ban ? `Bàn ${res.id_ban}` : 'Chưa xếp'}</td>
-                    <td style={{ padding: '1rem' }}>{new Date(res.thoiGianDen).toLocaleString('vi-VN')}</td>
-                    <td style={{ padding: '1rem' }}>
-                      {res.thoiGianDenThucTe ? new Date(res.thoiGianDenThucTe).toLocaleString('vi-VN') : '-'}
+                    <td style={{ padding: '1rem' }} suppressHydrationWarning>
+                      {new Date(res.thoiGianDen).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td style={{ padding: '1rem' }} suppressHydrationWarning>
+                      {res.thoiGianDenThucTe ? new Date(res.thoiGianDenThucTe).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                     </td>
                     <td style={{ padding: '1rem' }}>{res.soNguoi} người</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{res.ghiChu || '-'}</td>

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -99,3 +99,27 @@ def upsert_working_hours(
     db.commit()
     db.refresh(record)
     return _serialize_working_hours(record, payload.ngay)
+
+
+@router.get("/range", response_model=list[schemas.GioLamViecResponse])
+def get_working_hours_range(
+    tu_ngay: date = Query(...),
+    den_ngay: date = Query(...),
+    db: Session = Depends(get_db),
+):
+    if tu_ngay > den_ngay:
+        raise HTTPException(status_code=400, detail="Từ ngày không được lớn hơn đến ngày")
+
+    records = db.query(models.GioLamViec).filter(
+        models.GioLamViec.ngay >= tu_ngay,
+        models.GioLamViec.ngay <= den_ngay
+    ).all()
+    records_map = {r.ngay: r for r in records}
+
+    results = []
+    current_date = tu_ngay
+    while current_date <= den_ngay:
+        results.append(_serialize_working_hours(records_map.get(current_date), current_date))
+        current_date += timedelta(days=1)
+
+    return results

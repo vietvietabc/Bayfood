@@ -35,11 +35,24 @@ class DonHangCreate(BaseModel):
     id_ban: Optional[int] = None
     chi_tiet: List[ChiTietDonHangCreate]
 
-# Khách hàng tạo đơn — không cần truyền id_nguoiDung (server lấy từ token)
 class DonHangCreateCustomer(BaseModel):
     id_datBan: Optional[int] = None
     id_ban: Optional[int] = None
+    thoiGianDen: Optional[datetime] = None
     chi_tiet: List[ChiTietDonHangCreate]
+
+class DatBanCreateForOrder(BaseModel):
+    id_ban: Optional[int] = None
+    thoiGianDen: datetime
+    soNguoi: int
+    ghiChu: Optional[str] = None
+
+class OrderWithOptionalBookingCreate(BaseModel):
+    id_ban: Optional[int] = None
+    id_datBan: Optional[int] = None
+    chi_tiet: List[ChiTietDonHangCreate]
+    dat_ban: Optional[DatBanCreateForOrder] = None
+    thoiGianDen: Optional[datetime] = None
 
 class DonHang(BaseModel):
     id_donHang: int
@@ -48,6 +61,7 @@ class DonHang(BaseModel):
     id_nhanVien: Optional[int] = None
     id_ban: Optional[int] = None
     thoiGianTao: datetime
+    thoiGianDen: Optional[datetime] = None
     tinhTrang: str
     class Config:
         from_attributes = True
@@ -59,6 +73,7 @@ class DonHangDetail(BaseModel):
     id_datBan: Optional[int] = None
     id_ban: Optional[int] = None
     thoiGianTao: datetime
+    thoiGianDen: Optional[datetime] = None
     tinhTrang: str
     id_nhanVien_phucvu: Optional[int] = None
     tenNhanVienPhucVu: Optional[str] = None  # Người phục vụ
@@ -81,3 +96,7 @@ class DanhGiaResponse(DanhGiaBase):
 
     class Config:
         from_attributes = True
+
+class DonHangEditCustomer(BaseModel):
+    thoiGianDen: Optional[datetime] = None
+    chi_tiet: List[ChiTietDonHangCreate]

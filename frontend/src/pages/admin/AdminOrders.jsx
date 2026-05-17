@@ -57,6 +57,7 @@ const AdminOrders = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'Chờ khách đến': return { bg: 'rgba(249, 115, 22, 0.1)', color: '#ea580c' };
       case 'Đang chờ món': return { bg: 'rgba(234, 179, 8, 0.1)', color: '#eab308' };
       case 'Đang chế biến': return { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' };
       case 'Đã phục vụ': return { bg: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' };
@@ -77,6 +78,17 @@ const AdminOrders = () => {
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
 
+  const formatDateTime = (value) => {
+    if (!value) return '-';
+    return new Date(value).toLocaleString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <div>
       <h1 style={{ fontSize: '2rem', marginBottom: '2rem' }}>Cập nhật đơn hàng</h1>
@@ -91,6 +103,7 @@ const AdminOrders = () => {
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã Đơn</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã Khách</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã Bàn</th>
+                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Thời Gian</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tổng Tiền</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Trạng Thái</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold', textAlign: 'right' }}>Thao Tác</th>
@@ -104,6 +117,16 @@ const AdminOrders = () => {
                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>#DH{order.id_donHang}</td>
                     <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>KH{order.id_nguoiDung}</td>
                     <td style={{ padding: '1rem' }}>Bàn {order.id_ban || '-'}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ fontSize: '0.85rem' }}>
+                        Tạo lúc: {formatDateTime(order.thoiGianTao)}
+                      </div>
+                      {order.thoiGianDen && (
+                        <div style={{ fontSize: '0.85rem', color: '#ea580c', fontWeight: 'bold', marginTop: '0.25rem' }}>
+                          Đến lúc: {formatDateTime(order.thoiGianDen)}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '1rem', fontWeight: 'bold' }}>
                       {formatCurrency(order.tongTien || 0)}
                     </td>
@@ -245,6 +268,21 @@ const AdminOrders = () => {
                           <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontStyle: 'italic' }}>Chưa phân công</span>
                         )}
                       </div>
+                    </div>
+
+                    {/* Thời gian */}
+                    <div style={{
+                      padding: '1rem', borderRadius: '0.75rem',
+                      background: 'var(--surface-light)', border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Thời gian tạo đơn</div>
+                      <div style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>{formatDateTime(selectedOrder.thoiGianTao)}</div>
+                      {selectedOrder.thoiGianDen && (
+                        <>
+                          <div style={{ fontSize: '0.8rem', color: '#ea580c', marginBottom: '0.25rem' }}>Giờ khách đến (đặt trước)</div>
+                          <div style={{ fontWeight: 'bold', color: '#ea580c' }}>{formatDateTime(selectedOrder.thoiGianDen)}</div>
+                        </>
+                      )}
                     </div>
 
                     {/* Bàn */}

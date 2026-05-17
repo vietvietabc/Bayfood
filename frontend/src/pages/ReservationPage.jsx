@@ -129,7 +129,6 @@ const ReservationPage = () => {
         const response = await axios.get('http://localhost:8000/api/ban');
         const loadedTables = response.data || [];
         setTables(loadedTables);
-        setSelectedTable((current) => current || loadedTables[0] || null);
       } catch (error) {
         console.error('Failed to load tables', error);
         setTables([]);
@@ -245,9 +244,33 @@ const ReservationPage = () => {
         soNguoi: parseInt(formData.soNguoi),
         ghiChu: formData.ghiChu
       };
-      await axios.post('http://localhost:8000/api/datban', payload);
+      const response = await axios.post('http://localhost:8000/api/datban', payload);
+      const newReservationId = response.data.id_datBan;
       setStatus('success');
-      setStatusMessage('Đặt bàn thành công! Chúng tôi sẽ liên hệ để xác nhận sớm nhất.');
+      setStatusMessage(
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', color: '#059669' }}>
+          <strong style={{ fontSize: '1.1rem' }}>Đặt bàn thành công! Mã đơn: #DB{newReservationId}</strong>
+          <span style={{ color: 'var(--text)' }}>
+            Hệ thống đã ghi nhận đơn đặt bàn của bạn. Bạn có muốn đặt món trước luôn để không phải chờ đợi khi tới nơi không?
+          </span>
+          <div style={{ marginTop: '0.5rem', display: 'flex', gap: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => navigate(`/menu?reservationId=${newReservationId}&tableId=${selectedTable.id_ban}`)}
+              className="btn btn-primary"
+            >
+              Có, chọn món ngay
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/account')}
+              className="btn btn-outline"
+            >
+              Không, để sau
+            </button>
+          </div>
+        </div>
+      );
       setFormData({ date: '', time: '', soNguoi: 2, ghiChu: '' });
       setSelectedSlotKey('');
     } catch (error) {
@@ -317,9 +340,6 @@ const ReservationPage = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Lọc timeline theo ngày giờ</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0.35rem 0 0' }}>
-                  Chọn từ ngày, tới ngày và từ giờ để xem các slot 3 tiếng theo từng giờ.
-                </p>
               </div>
             </div>
 
@@ -442,31 +462,32 @@ const ReservationPage = () => {
                                       const warning = isWarningSlot(slot);
                                       const slotStartDate = new Date(slot.batDau);
                                       const slotEndDate = new Date(slot.ketThuc);
+                                      const isPastSlot = slotStartDate <= new Date();
                                       const slotStart = formatTimelineTime(slotStartDate);
                                       const slotEnd = formatTimelineTime(slotEndDate, true);
                                       const slotKey = `${dayKey}-${table.id_ban}-${slot.batDau}`;
                                       const isSelectedSlot = selectedSlotKey === slotKey;
-                                      const slotBackground = booked || blocked
-                                        ? 'rgba(239, 68, 68, 0.09)'
-                                        : isSelectedSlot
-                                          ? 'rgba(59, 130, 246, 0.14)'
-                                          : warning
-                                            ? 'rgba(245, 158, 11, 0.12)'
-                                            : 'rgba(16, 185, 129, 0.09)';
-                                      const slotTextColor = booked || blocked
-                                        ? '#ef4444'
-                                        : isSelectedSlot
-                                          ? '#2563eb'
-                                          : warning
-                                            ? '#f59e0b'
-                                            : '#059669';
+
+                                      let slotBackground = 'rgba(16, 185, 129, 0.09)';
+                                      if (isPastSlot) slotBackground = 'var(--surface-light)';
+                                      else if (booked || blocked) slotBackground = 'rgba(239, 68, 68, 0.09)';
+                                      else if (isSelectedSlot) slotBackground = 'rgba(59, 130, 246, 0.14)';
+                                      else if (warning) slotBackground = 'rgba(245, 158, 11, 0.12)';
+
+                                      let slotTextColor = '#059669';
+                                      if (isPastSlot) slotTextColor = 'var(--text-muted)';
+                                      else if (booked || blocked) slotTextColor = '#ef4444';
+                                      else if (isSelectedSlot) slotTextColor = '#2563eb';
+                                      else if (warning) slotTextColor = '#f59e0b';
+
+                                      const isDisabled = booked || blocked || isPastSlot;
 
                                       return (
                                         <button
                                           key={slotKey}
                                           type="button"
-                                          disabled={booked || blocked}
-                                          onClick={() => handlePickSlot(dayKey, table, slot)}
+                                          disabled={isDisabled}
+                                          onClick={() => !isPastSlot && handlePickSlot(dayKey, table, slot)}
                                           style={{
                                             borderRadius: '0.85rem',
                                             padding: '0.85rem 0.8rem',
@@ -477,8 +498,8 @@ const ReservationPage = () => {
                                             flexDirection: 'column',
                                             justifyContent: 'space-between',
                                             textAlign: 'left',
-                                            cursor: booked || blocked ? 'not-allowed' : 'pointer',
-                                            opacity: booked || blocked ? 0.92 : 1,
+                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                            opacity: isDisabled ? 0.6 : 1,
                                             boxShadow: isSelectedSlot ? '0 0 0 3px rgba(59, 130, 246, 0.16)' : 'none',
                                           }}
                                         >
@@ -489,20 +510,22 @@ const ReservationPage = () => {
                                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Mỗi ô = tối đa 3 tiếng</div>
                                           </div>
                                           <div style={{ fontSize: '0.78rem', color: slotTextColor, fontWeight: 'bold' }}>
-                                            {booked
-                                              ? 'Đã có người đặt'
-                                              : blocked
-                                                ? 'Không đủ thời gian'
-                                                : warning
-                                                  ? 'Có giới hạn giờ - bấm để xem cảnh báo'
-                                                  : 'Trống - bấm để chọn'}
+                                            {isPastSlot
+                                              ? 'Đã qua giờ'
+                                              : booked
+                                                ? 'Đã có người đặt'
+                                                : blocked
+                                                  ? 'Không đủ thời gian'
+                                                  : warning
+                                                    ? 'Có giới hạn giờ - bấm để xem cảnh báo'
+                                                    : 'Trống - bấm để chọn'}
                                           </div>
-                                          {isSelectedSlot && !booked && !blocked && (
+                                          {isSelectedSlot && !isDisabled && (
                                             <div style={{ fontSize: '0.72rem', color: '#2563eb', marginTop: '0.25rem', fontWeight: 'bold' }}>
                                               Đang được chọn
                                             </div>
                                           )}
-                                          {(booked || blocked) && (
+                                          {(booked || blocked || isPastSlot) && (
                                             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.35 }}>
                                               Slot này không thể đặt.
                                             </div>

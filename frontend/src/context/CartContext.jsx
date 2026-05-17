@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, use, useState } from 'react';
 
 const CartContext = createContext();
 
-export const useCart = () => useContext(CartContext);
+export const useCart = () => use(CartContext);
 
 const readStoredTableId = () => {
   const value = localStorage.getItem('selectedTableId');
@@ -13,6 +13,14 @@ const readStoredTableId = () => {
 export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [selectedTableId, setSelectedTableIdState] = useState(() => readStoredTableId());
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [editingOrderThoiGianDen, setEditingOrderThoiGianDen] = useState(null);
+
+  const setCartFromOrder = (items, orderId, thoiGianDen = null) => {
+    setCart(items);
+    setEditingOrderId(orderId);
+    setEditingOrderThoiGianDen(thoiGianDen);
+  };
 
   const setSelectedTableId = (tableId) => {
     const normalized = tableId ? Number(tableId) : null;
@@ -72,6 +80,11 @@ export const CartProvider = ({ children }) => {
         cartCount,
         selectedTableId,
         setSelectedTableId,
+        editingOrderId,
+        setEditingOrderId,
+        editingOrderThoiGianDen,
+        setEditingOrderThoiGianDen,
+        setCartFromOrder,
       }}
     >
       {children}

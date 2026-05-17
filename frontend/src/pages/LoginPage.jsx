@@ -13,8 +13,17 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await login(email, password);
-      navigate('/');
+      const loggedInUser = await login(email, password);
+      
+      // Chuyển hướng dựa trên vai trò (role)
+      const roleName = (loggedInUser?.tenVaiTro || '').trim().toLowerCase();
+      if (roleName === 'nhân viên nhà bếp' || roleName === 'nhan vien nha bep' || roleName === 'nv_bep') {
+        navigate('/kitchen');
+      } else if (loggedInUser?.id_vaiTro === 2 || roleName === 'quản lý' || roleName === 'quan ly') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Đăng nhập thất bại. Vui lòng kiểm tra lại.');
     }

@@ -6,8 +6,12 @@ from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, dan
 from app.db.database import engine, Base
 import os
 
+# Đảm bảo các models được load đầy đủ để metadata nhận diện
+from app import models
+
 # Khởi tạo db (chỉ chạy lần đầu nếu chưa có bảng, nhưng vì đã có rồi nên có thể bỏ qua hoặc để lại để sync)
 Base.metadata.create_all(bind=engine)
+
 
 
 def _ensure_datban_arrival_time_column() -> None:

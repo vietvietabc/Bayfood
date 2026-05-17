@@ -1,13 +1,13 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, use } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => use(AuthContext);
 
 const readCachedUser = () => {
   try {
-    const cachedUser = localStorage.getItem('user');
+    const cachedUser = localStorage.getItem('user:v1');
     return cachedUser ? JSON.parse(cachedUser) : null;
   } catch {
     return null;
@@ -25,12 +25,13 @@ export const AuthProvider = ({ children }) => {
       });
       setUser(response.data);
       if (persist) {
-        localStorage.setItem('user', JSON.stringify(response.data));
+        localStorage.setItem('user:v1', JSON.stringify(response.data));
       }
+      return response.data;
     } catch (error) {
       console.error("Failed to fetch user", error);
       localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem('user:v1');
       setUser(null);
       throw error;
     } finally {
@@ -62,7 +63,7 @@ export const AuthProvider = ({ children }) => {
     const response = await axios.post('http://localhost:8000/api/auth/login/json', { email, matKhau });
     const { access_token } = response.data;
     localStorage.setItem('token', access_token);
-    await fetchUser(access_token);
+    return await fetchUser(access_token);
   };
 
   const register = async (hoTen, email, soDienThoai, matKhau) => {
@@ -71,7 +72,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem('user:v1');
     setUser(null);
   };
 

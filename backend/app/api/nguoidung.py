@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app import models, schemas
 from typing import List
+from pydantic import BaseModel
+from datetime import datetime, timedelta
 from app.api.auth import get_current_admin, get_current_user
 from app.core.security import get_password_hash, verify_password
 
@@ -54,6 +56,13 @@ def get_all_users(db: Session = Depends(get_db), current_admin: models.NguoiDung
     result = []
     for user in users:
         vai_tro = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == user.id_vaiTro).first()
+        
+        # Lấy ca làm việc nếu là nhân viên
+        ca_lam_viec = None
+        nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == user.id_nguoiDung).first()
+        if nv:
+            ca_lam_viec = nv.caLamViec
+            
         result.append({
             "id_nguoiDung": user.id_nguoiDung,
             "hoTen": user.hoTen,
@@ -62,6 +71,7 @@ def get_all_users(db: Session = Depends(get_db), current_admin: models.NguoiDung
             "id_vaiTro": user.id_vaiTro,
             "tenVaiTro": vai_tro.tenVaiTro if vai_tro else None,
             "trangThai": user.trangThai or "Hoạt động",
+            "caLamViec": ca_lam_viec,
         })
     return result
 
@@ -132,3 +142,111 @@ def unban_user(id_nguoidung: int, db: Session = Depends(get_db), current_admin: 
     user.trangThai = "Hoạt động"
     db.commit()
     return {"message": f"Đã mở khóa tài khoản {user.hoTen}"}
+
+
+class UpdateStaffShiftRequest(BaseModel):
+    caLamViec: str
+
+
+# Admin cập nhật ca làm việc cho nhân viên
+@router.put("/{id_nguoidung}/shift")
+def update_staff_shift(
+    id_nguoidung: int,
+    req: UpdateStaffShiftRequest,
+    db: Session = Depends(get_db),
+    current_admin: models.NguoiDung = Depends(get_current_admin)
+):
+    """Admin cập nhật ca làm việc cho nhân viên."""
+    user = db.query(models.NguoiDung).filter(models.NguoiDung.id_nguoiDung == id_nguoidung).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    
+    # Kiểm tra xem có phải nhân viên không
+    vai_tro = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == user.id_vaiTro).first()
+    ten_vai_tro = (vai_tro.tenVaiTro if vai_tro else "").strip().lower()
+    allowed_roles = {"nhân viên nhà bếp", "nhân viên phục vụ"}
+    if ten_vai_tro not in allowed_roles and user.id_vaiTro not in (3, 4):
+        raise HTTPException(status_code=400, detail="Tài khoản này không phải là nhân viên để có ca làm việc")
+        
+    nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == id_nguoidung).first()
+    if not nv:
+        nv = models.NhanVien(
+            id_nguoiDung=id_nguoidung,
+            ngayVaoLam=datetime.utcnow() + timedelta(hours=7),
+            caLamViec=req.caLamViec,
+            trangThai="Nghỉ"
+        )
+        db.add(nv)
+    else:
+        nv.caLamViec = req.caLamViec
+        
+    db.commit()
+    return {"message": f"Cập nhật ca làm việc thành công cho {user.hoTen}", "caLamViec": req.caLamViec}
+
+
+# Admin xem lịch sử ca làm việc
+@router.get("/shift-history")
+def get_shift_history(
+    db: Session = Depends(get_db),
+    current_admin: models.NguoiDung = Depends(get_current_admin),
+):
+    """Lấy lịch sử vào ca / tan ca của tất cả nhân viên."""
+    from app.db.database import engine
+    models.LichSuCa.__table__.create(bind=engine, checkfirst=True)
+
+    records = (
+        db.query(models.LichSuCa)
+        .order_by(models.LichSuCa.ngay.desc(), models.LichSuCa.thoiGianVao.desc())
+        .limit(100)
+        .all()
+    )
+    result = []
+    for r in records:
+        nv = db.query(models.NhanVien).filter(models.NhanVien.id_nhanVien == r.id_nhanVien).first()
+        nd = db.query(models.NguoiDung).filter(models.NguoiDung.id_nguoiDung == nv.id_nguoiDung).first() if nv else None
+        result.append({
+            "id": r.id_lichSuCa,
+            "hoTen": nd.hoTen if nd else "?",
+            "ngay": r.ngay.strftime("%d/%m/%Y") if r.ngay else None,
+            "caLamViec": r.caLamViec,
+            "thoiGianVao": r.thoiGianVao.strftime("%H:%M") if r.thoiGianVao else None,
+            "thoiGianRa": r.thoiGianRa.strftime("%H:%M") if r.thoiGianRa else "Chưa tan ca",
+            "soGio": round((r.thoiGianRa - r.thoiGianVao).seconds / 3600, 1) if r.thoiGianRa else None,
+        })
+    return result
+
+
+# Nhân viên tự xem lịch sử ca làm việc của mình
+@router.get("/me/shift-history")
+def get_my_shift_history(
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_user),
+):
+    """Lấy lịch sử ca làm việc cá nhân của nhân viên đang đăng nhập."""
+    nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == current_user.id_nguoiDung).first()
+    if not nv:
+        return []
+
+    from app.db.database import engine
+    models.LichSuCa.__table__.create(bind=engine, checkfirst=True)
+
+    records = (
+        db.query(models.LichSuCa)
+        .filter(models.LichSuCa.id_nhanVien == nv.id_nhanVien)
+        .order_by(models.LichSuCa.ngay.desc(), models.LichSuCa.thoiGianVao.desc())
+        .limit(50)
+        .all()
+    )
+    result = []
+    for r in records:
+        result.append({
+            "id": r.id_lichSuCa,
+            "ngay": r.ngay.strftime("%d/%m/%Y") if r.ngay else None,
+            "caLamViec": r.caLamViec,
+            "thoiGianVao": r.thoiGianVao.strftime("%H:%M") if r.thoiGianVao else None,
+            "thoiGianRa": r.thoiGianRa.strftime("%H:%M") if r.thoiGianRa else "Chưa tan ca",
+            "soGio": round((r.thoiGianRa - r.thoiGianVao).seconds / 3600, 1) if r.thoiGianRa else None,
+        })
+    return result
+
+

@@ -22,6 +22,7 @@ class UserResponse(BaseModel):
     id_vaiTro: int
     tenVaiTro: Optional[str] = None
     trangThai: Optional[str] = "Hoạt động"
+    caLamViec: Optional[str] = None
     
     class Config:
         from_attributes = True

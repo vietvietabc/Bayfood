@@ -88,6 +88,18 @@ const AdminUsers = () => {
     }
   };
 
+  const handleUpdateShift = async (userId, caLamViec) => {
+    try {
+      await axios.put(`${API}/${userId}/shift`, { caLamViec }, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      showSuccess('Cập nhật ca làm việc thành công!');
+      setUsers(users.map(u => u.id_nguoiDung === userId ? { ...u, caLamViec } : u));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Không thể cập nhật ca làm việc');
+    }
+  };
+
   const showSuccess = (msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 3000);
@@ -132,6 +144,7 @@ const AdminUsers = () => {
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Số Điện Thoại</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Email</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Vai Trò</th>
+                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Ca Làm</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Trạng Thái</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold', textAlign: 'center' }}>Hành Động</th>
               </tr>
@@ -164,6 +177,31 @@ const AdminUsers = () => {
                       }}>
                         {role.icon} {role.label}
                       </span>
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      {user.tenVaiTro === 'Nhân viên nhà bếp' || user.tenVaiTro === 'Nhân viên phục vụ' ? (
+                        <select
+                          value={user.caLamViec || ''}
+                          onChange={(e) => handleUpdateShift(user.id_nguoiDung, e.target.value)}
+                          style={{
+                            padding: '0.35rem 0.5rem',
+                            borderRadius: '0.5rem',
+                            border: '1px solid var(--border)',
+                            background: 'var(--surface)',
+                            color: 'var(--text)',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="">Chưa gán ca</option>
+                          <option value="Ca sáng">Ca sáng (07h-12h)</option>
+                          <option value="Ca chiều">Ca chiều (12h-17h)</option>
+                          <option value="Ca tối">Ca tối (17h-22h)</option>
+                        </select>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
+                      )}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {isBanned ? (
