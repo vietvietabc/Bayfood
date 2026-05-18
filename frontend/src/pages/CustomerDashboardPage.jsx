@@ -587,7 +587,7 @@ const CustomerDashboardPage = () => {
                                                             boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
                                                         }}
                                                     >
-                                                        📱 Quét mã VietQR ({Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫)
+                                                        Quét mã VietQR ({Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫)
                                                     </button>
                                                 </>
                                             )}
@@ -707,6 +707,27 @@ const CustomerDashboardPage = () => {
                                                 const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
                                                 const depositAmount = hasPaidDeposit ? Number(linkedRes.tienCoc || 0) : 0;
                                                 const remainingAmount = Math.max(0, Number(order.tongTien || 0) - depositAmount);
+
+                                                if (remainingAmount <= 0) {
+                                                    return (
+                                                        <span style={{
+                                                            padding: '0.4rem 0.85rem',
+                                                            borderRadius: '0.5rem',
+                                                            background: 'rgba(16,185,129,0.12)',
+                                                            border: '1px solid rgba(16,185,129,0.25)',
+                                                            color: '#34d399',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 'bold',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.35rem',
+                                                            marginRight: 'auto'
+                                                        }}>
+                                                            ✓ Đã thanh toán 100% (Trả trước)
+                                                        </span>
+                                                    );
+                                                }
+
                                                 return (
                                                     <>
                                                         <button
@@ -725,6 +746,7 @@ const CustomerDashboardPage = () => {
                                                                 gap: '0.4rem',
                                                                 boxShadow: '0 2px 8px rgba(0,102,204,0.3)',
                                                             }}
+                                                            className="payment-btn-left"
                                                         >
                                                             {hasPaidDeposit ? `Thanh toán còn lại (${remainingAmount.toLocaleString('vi-VN')} ₫)` : `Thanh toán VNPay (${Number(order.tongTien).toLocaleString('vi-VN')} ₫)`}
                                                         </button>
@@ -749,7 +771,7 @@ const CustomerDashboardPage = () => {
                                                                 boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
                                                             }}
                                                         >
-                                                            📱 Quét mã VietQR ({remainingAmount.toLocaleString('vi-VN')} ₫)
+                                                            Quét mã VietQR ({remainingAmount.toLocaleString('vi-VN')} ₫)
                                                         </button>
                                                     </>
                                                 );
@@ -1016,11 +1038,11 @@ const CustomerDashboardPage = () => {
             {qrModal && (
                 <div onClick={() => setQrModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid var(--border)', width: '100%', maxWidth: '480px', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', color: 'var(--text)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        
+
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
                             <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                📱 Thanh toán qua VietQR
+                                Thanh toán qua VietQR
                             </h2>
                             <button onClick={() => setQrModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
                         </div>
@@ -1046,7 +1068,7 @@ const CustomerDashboardPage = () => {
 
                             {/* Details List */}
                             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '0.75rem', fontSize: '0.9rem' }}>
-                                
+
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chủ tài khoản:</span>
                                     <strong style={{ color: 'var(--text)' }}>NGUYEN VAN A</strong>
