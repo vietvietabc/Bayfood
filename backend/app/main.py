@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import inspect, text
 from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, gio_lam_viec, payment
 from app.db.database import engine, Base
+from app.db.migrations import run_migrations
 import os
 
 # Đảm bảo các models được load đầy đủ để metadata nhận diện
@@ -12,54 +12,8 @@ from app import models
 # Khởi tạo db (chỉ chạy lần đầu nếu chưa có bảng, nhưng vì đã có rồi nên có thể bỏ qua hoặc để lại để sync)
 Base.metadata.create_all(bind=engine)
 
-
-
-def _ensure_datban_arrival_time_column() -> None:
-    inspector = inspect(engine)
-    if not inspector.has_table("DATBAN"):
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("DATBAN")}
-    if "thoiGianDenThucTe" in columns:
-        return
-
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE DATBAN ADD COLUMN thoiGianDenThucTe DATETIME NULL"))
-
-
-def _ensure_datban_deposit_columns() -> None:
-    inspector = inspect(engine)
-    if not inspector.has_table("DATBAN"):
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("DATBAN")}
-    
-    with engine.begin() as connection:
-        if "tienCoc" not in columns:
-            try:
-                connection.execute(text('ALTER TABLE "DATBAN" ADD COLUMN "tienCoc" INTEGER DEFAULT 0'))
-                print("Added Column 'tienCoc' to 'DATBAN' successfully (quoted)!")
-            except Exception as e1:
-                try:
-                    connection.execute(text("ALTER TABLE DATBAN ADD COLUMN tienCoc INTEGER DEFAULT 0"))
-                    print("Added Column 'tienCoc' to 'DATBAN' successfully (unquoted)!")
-                except Exception as e2:
-                    print(f"Failed to add 'tienCoc' column: {e1} / {e2}")
-                    
-        if "trangThaiCoc" not in columns:
-            try:
-                connection.execute(text('ALTER TABLE "DATBAN" ADD COLUMN "trangThaiCoc" VARCHAR(50) DEFAULT \'Chưa cọc\''))
-                print("Added Column 'trangThaiCoc' to 'DATBAN' successfully (quoted)!")
-            except Exception as e1:
-                try:
-                    connection.execute(text("ALTER TABLE DATBAN ADD COLUMN trangThaiCoc VARCHAR(50) DEFAULT 'Chưa cọc'"))
-                    print("Added Column 'trangThaiCoc' to 'DATBAN' successfully (unquoted)!")
-                except Exception as e2:
-                    print(f"Failed to add 'trangThaiCoc' column: {e1} / {e2}")
-
-
-_ensure_datban_arrival_time_column()
-_ensure_datban_deposit_columns()
+# Chạy tự động di chuyển cấu trúc dữ liệu cho môi trường deploy
+run_migrations()
 
 # Tự động seed danh sách vai trò mặc định vào Database
 def _seed_default_roles() -> None:
