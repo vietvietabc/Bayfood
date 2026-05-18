@@ -493,7 +493,7 @@ def get_waiter_history(
     vai_tro = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == current_user.id_vaiTro).first()
     ten_vai_tro = (vai_tro.tenVaiTro if vai_tro else "").strip().lower()
 
-    query = db.query(models.DonHang).filter(models.DonHang.tinhTrang.in_(["Đã thanh toán", "Đã phục vụ"]))
+    query = db.query(models.DonHang).filter(models.DonHang.tinhTrang == "Đã thanh toán")
 
     # Nếu là phục vụ (không phải quản lý), chỉ hiện đơn do chính mình phụ trách
     if ten_vai_tro == "nhân viên phục vụ" and nv:
