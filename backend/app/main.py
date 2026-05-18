@@ -27,7 +27,39 @@ def _ensure_datban_arrival_time_column() -> None:
         connection.execute(text("ALTER TABLE DATBAN ADD COLUMN thoiGianDenThucTe DATETIME NULL"))
 
 
+def _ensure_datban_deposit_columns() -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("DATBAN"):
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("DATBAN")}
+    
+    with engine.begin() as connection:
+        if "tienCoc" not in columns:
+            try:
+                connection.execute(text('ALTER TABLE "DATBAN" ADD COLUMN "tienCoc" INTEGER DEFAULT 0'))
+                print("Added Column 'tienCoc' to 'DATBAN' successfully (quoted)!")
+            except Exception as e1:
+                try:
+                    connection.execute(text("ALTER TABLE DATBAN ADD COLUMN tienCoc INTEGER DEFAULT 0"))
+                    print("Added Column 'tienCoc' to 'DATBAN' successfully (unquoted)!")
+                except Exception as e2:
+                    print(f"Failed to add 'tienCoc' column: {e1} / {e2}")
+                    
+        if "trangThaiCoc" not in columns:
+            try:
+                connection.execute(text('ALTER TABLE "DATBAN" ADD COLUMN "trangThaiCoc" VARCHAR(50) DEFAULT \'Chưa cọc\''))
+                print("Added Column 'trangThaiCoc' to 'DATBAN' successfully (quoted)!")
+            except Exception as e1:
+                try:
+                    connection.execute(text("ALTER TABLE DATBAN ADD COLUMN trangThaiCoc VARCHAR(50) DEFAULT 'Chưa cọc'"))
+                    print("Added Column 'trangThaiCoc' to 'DATBAN' successfully (unquoted)!")
+                except Exception as e2:
+                    print(f"Failed to add 'trangThaiCoc' column: {e1} / {e2}")
+
+
 _ensure_datban_arrival_time_column()
+_ensure_datban_deposit_columns()
 
 # Tự động seed danh sách vai trò mặc định vào Database
 def _seed_default_roles() -> None:
