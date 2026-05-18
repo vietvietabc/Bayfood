@@ -78,6 +78,8 @@ class DonHangDetail(BaseModel):
     id_nhanVien_phucvu: Optional[int] = None
     tenNhanVienPhucVu: Optional[str] = None  # Người phục vụ
     tongTien: Optional[Decimal] = None
+    tienCoc: Optional[Decimal] = None
+    trangThaiCoc: Optional[str] = None
     chi_tiet: List[ChiTietDonHangDetail] = []
     class Config:
         from_attributes = True

@@ -84,6 +84,14 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
             )
         )
 
+    tien_coc = None
+    trang_thai_coc = None
+    if db_order.id_datBan:
+        db_reservation = db.query(models.DatBan).filter(models.DatBan.id_datBan == db_order.id_datBan).first()
+        if db_reservation:
+            tien_coc = db_reservation.tienCoc
+            trang_thai_coc = db_reservation.trangThaiCoc
+
     return schemas.DonHangDetail(
         id_donHang=db_order.id_donHang,
         id_nguoiDung=db_order.id_nguoiDung,
@@ -96,6 +104,8 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
         id_nhanVien_phucvu=db_order.id_nhanVien,
         tenNhanVienPhucVu=ten_phuc_vu,
         tongTien=tong_tien,
+        tienCoc=tien_coc,
+        trangThaiCoc=trang_thai_coc,
         chi_tiet=chi_tiet_list,
     )
 
@@ -148,7 +158,7 @@ def create_order(
     return db_order
 
 
-@router.post("/create-with-booking", response_model=schemas.DonHang)
+@router.post("/create-with-booking")
 def create_order_with_booking(
     req: schemas.OrderWithOptionalBookingCreate,
     db: Session = Depends(get_db),
@@ -189,6 +199,7 @@ def create_order_with_booking(
         db.flush()
 
         # Tạo Chi Tiết Đơn Hàng (Step 3)
+        tong_tien = Decimal("0")
         for item in req.chi_tiet:
             db_order_item = models.ChiTietDonHang(
                 id_donHang=db_order.id_donHang,
@@ -198,10 +209,24 @@ def create_order_with_booking(
                 trangThaiMon="Chờ chế biến",
             )
             db.add(db_order_item)
+            tong_tien += item.giaTaiThoiDiemBan * item.soLuong
 
-        db.commit() # Commit toàn bộ Transaction nếu không có lỗi
+        db.commit()
         db.refresh(db_order)
-        return db_order
+
+        has_reservation = (db_order.id_datBan is not None) or (db_order.thoiGianDen is not None)
+        return {
+            "id_donHang": db_order.id_donHang,
+            "id_nguoiDung": db_order.id_nguoiDung,
+            "id_datBan": db_order.id_datBan,
+            "id_nhanVien": db_order.id_nhanVien,
+            "id_ban": db_order.id_ban,
+            "thoiGianTao": str(db_order.thoiGianTao),
+            "thoiGianDen": str(db_order.thoiGianDen) if db_order.thoiGianDen else None,
+            "tinhTrang": db_order.tinhTrang,
+            "tongTien": float(tong_tien),
+            "hasReservation": has_reservation,
+        }
     except Exception as e:
         db.rollback() # Rollback toàn bộ nếu có lỗi ở bất kỳ bước nào
         raise HTTPException(status_code=400, detail=f"Lỗi khi xử lý đơn hàng: {str(e)}")
@@ -320,7 +345,7 @@ def get_all_orders(db: Session = Depends(get_db), current_admin: models.NguoiDun
 
 
 @router.get("/{id_donHang}/detail", response_model=schemas.DonHangDetail)
-def get_order_detail(id_donHang: int, db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
+def get_order_detail(id_donHang: int, db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_waiter_or_admin)):
     db_order = db.query(models.DonHang).filter(models.DonHang.id_donHang == id_donHang).first()
     if not db_order:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
@@ -346,6 +371,17 @@ def update_order_status(
     db: Session = Depends(get_db),
     current_user: models.NguoiDung = Depends(get_current_waiter_or_admin)
 ):
+    # Kiểm tra ca làm việc đối với nhân viên phục vụ
+    vai_tro = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == current_user.id_vaiTro).first()
+    ten_vai_tro = (vai_tro.tenVaiTro if vai_tro else "").strip().lower()
+    if ten_vai_tro == "nhân viên phục vụ":
+        nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == current_user.id_nguoiDung).first()
+        if not nv or nv.trangThai != "Đang làm":
+            raise HTTPException(
+                status_code=400,
+                detail="Bạn chưa vào ca làm việc! Vui lòng vào ca trước khi thực hiện nhận/phục vụ đơn hàng."
+            )
+
     db_order = db.query(models.DonHang).filter(models.DonHang.id_donHang == id_donHang).first()
     if not db_order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -773,6 +809,17 @@ def update_item_status(
     current_user: models.NguoiDung = Depends(get_current_kitchen_or_admin),
 ):
     """Cập nhật trạng thái chế biến của 1 món ăn (Chờ chế biến → Đang chế biến → Hoàn thành)."""
+    # Kiểm tra ca làm việc đối với nhân viên nhà bếp
+    vai_tro = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == current_user.id_vaiTro).first()
+    ten_vai_tro = (vai_tro.tenVaiTro if vai_tro else "").strip().lower()
+    if ten_vai_tro == "nhân viên nhà bếp":
+        nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == current_user.id_nguoiDung).first()
+        if not nv or nv.trangThai != "Đang làm":
+            raise HTTPException(
+                status_code=400,
+                detail="Bạn chưa vào ca làm việc! Vui lòng vào ca trước khi thực hiện nấu món."
+            )
+
     ct = db.query(models.ChiTietDonHang).filter(models.ChiTietDonHang.id_chiTietDonHang == id_chiTiet).first()
     if not ct:
         raise HTTPException(status_code=404, detail="Không tìm thấy chi tiết đơn hàng")

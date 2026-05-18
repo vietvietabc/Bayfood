@@ -62,6 +62,8 @@ const AdminOrders = () => {
       case 'Đang chế biến': return { bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' };
       case 'Đã phục vụ': return { bg: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' };
       case 'Đã thanh toán': return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' };
+      case 'Vắng mặt': return { bg: 'rgba(239, 68, 68, 0.1)', color: '#dc2626' };
+      case 'Đã hủy': return { bg: 'rgba(239, 68, 68, 0.1)', color: '#dc2626' };
       default: return { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
     }
   };
@@ -344,7 +346,7 @@ const AdminOrders = () => {
                                   onError={e => { e.target.style.display = 'none'; }}
                                 />
                               ) : (
-                                <span style={{ fontSize: '1.5rem' }}>🍽️</span>
+                                <span style={{ fontSize: '1.5rem' }}></span>
                               )}
                             </div>
 

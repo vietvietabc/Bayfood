@@ -41,6 +41,7 @@ const getStatusStyle = (status) => {
         'Đã checkin': { bg: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' },
         'Hoàn thành': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
         'Đã hủy': { bg: 'rgba(239, 68, 68, 0.12)', color: '#dc2626' },
+        'Vắng mặt': { bg: 'rgba(239, 68, 68, 0.18)', color: '#dc2626' },
         'Chờ khách đến': { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c' },
         'Đang chờ món': { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04' },
         'Đang chế biến': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
@@ -71,6 +72,16 @@ const CustomerDashboardPage = () => {
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [reviewForm, setReviewForm] = useState({ id_donHang: null, soSao: 5, noiDung: '' });
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    // QR Payment states
+    const [qrModal, setQrModal] = useState(null);
+    const [copiedField, setCopiedField] = useState(null);
+
+    const handleCopyText = (text, fieldName) => {
+        navigator.clipboard.writeText(text);
+        setCopiedField(fieldName);
+        setTimeout(() => setCopiedField(null), 2000);
+    };
 
     useEffect(() => {
         if (!checkinToast) {
@@ -195,6 +206,19 @@ const CustomerDashboardPage = () => {
         }
     };
 
+    const handleVNPayPayment = async (paymentType, targetId, amount) => {
+        try {
+            const res = await axios.post(`${BASE_URL}/api/payment/create-vnpay-url`, {
+                payment_type: paymentType,
+                target_id: targetId,
+                amount: amount,
+            });
+            window.location.href = res.data.paymentUrl;
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Không thể khởi tạo thanh toán. Vui lòng thử lại.');
+        }
+    };
+
     const handleViewOrder = async (orderId) => {
         setOrderDetailLoading(true);
         setShowOrderModal(true);
@@ -243,10 +267,10 @@ const CustomerDashboardPage = () => {
 
         try {
             await axios.put(`${BASE_URL}/api/donhang/me/${orderId}/checkin`);
-            
+
             const orderRes = await axios.get(`${BASE_URL}/api/donhang/me`);
             setData(current => ({ ...current, orders: orderRes.data }));
-            
+
             setCheckinToast('Đã báo tới thành công!');
             setActionMessage('Bếp đã nhận được thông báo và bắt đầu chuẩn bị món cho bạn!');
         } catch (error) {
@@ -274,6 +298,31 @@ const CustomerDashboardPage = () => {
             alert(err.response?.data?.detail || 'Không thể gửi đánh giá lúc này.');
         } finally {
             setIsSubmittingReview(false);
+        }
+    };
+
+    const handleCreatePaymentUrl = async (paymentType, targetId, amount) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `http://localhost:8000/api/payment/create-mock-vnpay-url`,
+                {
+                    payment_type: paymentType,
+                    target_id: targetId,
+                    amount: parseFloat(amount)
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+            if (response.data && response.data.paymentUrl) {
+                window.location.href = response.data.paymentUrl;
+            }
+        } catch (error) {
+            console.error('Lỗi khi tạo link thanh toán:', error);
+            alert(error.response?.data?.detail || 'Không thể tạo link thanh toán lúc này.');
         }
     };
 
@@ -460,14 +509,81 @@ const CustomerDashboardPage = () => {
                                             <span>Đến thực tế: {formatDateTime(reservation.thoiGianDenThucTe)}</span>
                                             <span>Số người: {reservation.soNguoi}</span>
                                             {reservation.ghiChu ? <span>Ghi chú: {reservation.ghiChu}</span> : null}
+                                            {/* Tiền cọc */}
+                                            {reservation.tienCoc > 0 && (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem' }}>
+                                                    Tiền cọc:
+                                                    <strong style={{ color: reservation.trangThaiCoc === 'Mất cọc' ? '#dc2626' : reservation.trangThaiCoc === 'Đã cọc' ? '#059669' : '#ca8a04' }}>
+                                                        {Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫
+                                                    </strong>
+                                                    <span style={{
+                                                        padding: '0.1rem 0.45rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '700',
+                                                        background: reservation.trangThaiCoc === 'Mất cọc' ? 'rgba(239,68,68,0.12)' : reservation.trangThaiCoc === 'Đã cọc' ? 'rgba(16,185,129,0.12)' : 'rgba(234,179,8,0.12)',
+                                                        color: reservation.trangThaiCoc === 'Mất cọc' ? '#dc2626' : reservation.trangThaiCoc === 'Đã cọc' ? '#059669' : '#ca8a04'
+                                                    }}>
+                                                        {reservation.trangThaiCoc}
+                                                    </span>
+                                                </span>
+                                            )}
+                                            {/* Lý do vắng mặt */}
+                                            {reservation.lyDoHuy && (
+                                                <span style={{ color: '#dc2626', fontSize: '0.875rem', fontStyle: 'italic' }}>Lý do: {reservation.lyDoHuy}</span>
+                                            )}
                                             {orders.some(o => o.id_datBan === reservation.id_datBan) && (
                                                 <span style={{ color: '#2563eb', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                                                    🍽️ Đã đặt món đi kèm
+                                                    Đã đặt món đi kèm
                                                 </span>
                                             )}
                                         </div>
 
                                         <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                            {reservation.tienCoc > 0 && reservation.trangThaiCoc !== 'Đã cọc' && reservation.trangThaiCoc !== 'Mất cọc' && reservation.trangThai !== 'Đã hủy' && reservation.trangThai !== 'Vắng mặt' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleVNPayPayment('datban', reservation.id_datBan, reservation.tienCoc)}
+                                                        style={{
+                                                            padding: '0.5rem 1rem',
+                                                            fontSize: '0.875rem',
+                                                            background: 'linear-gradient(135deg, #0066cc, #004fa3)',
+                                                            color: '#fff',
+                                                            border: 'none',
+                                                            borderRadius: '0.5rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.4rem',
+                                                            boxShadow: '0 2px 8px rgba(0,102,204,0.3)',
+                                                        }}
+                                                    >
+                                                        Thanh toán cọc VNPay ({Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫)
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setQrModal({
+                                                            amount: reservation.tienCoc,
+                                                            addInfo: `DAT BAN DB${reservation.id_datBan}`,
+                                                            label: `Thanh toán cọc đặt bàn #${reservation.id_datBan}`
+                                                        })}
+                                                        style={{
+                                                            padding: '0.5rem 1rem',
+                                                            fontSize: '0.875rem',
+                                                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                            color: '#fff',
+                                                            border: 'none',
+                                                            borderRadius: '0.5rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.4rem',
+                                                            boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+                                                        }}
+                                                    >
+                                                        📱 Quét mã VietQR ({Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫)
+                                                    </button>
+                                                </>
+                                            )}
+
                                             <button className="btn btn-outline" onClick={() => handleViewReservation(reservation)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                 <Eye size={16} /> Xem chi tiết
                                             </button>
@@ -546,11 +662,90 @@ const CustomerDashboardPage = () => {
                                             )}
                                             {order.id_datBan && (
                                                 <span style={{ color: '#10b981', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                                                    🔗 Đã đặt kèm bàn #{order.id_datBan}
+                                                    Đã đặt kèm bàn #{order.id_datBan}
                                                 </span>
                                             )}
+                                            {/* Hiển thị tiền cọc và tiền còn lại */}
+                                            {(() => {
+                                                const linkedRes = reservations.find(r => r.id_datBan === order.id_datBan);
+                                                const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
+                                                const depositAmount = hasPaidDeposit ? Number(linkedRes.tienCoc || 0) : 0;
+                                                const remainingAmount = Math.max(0, Number(order.tongTien || 0) - depositAmount);
+                                                return (
+                                                    <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', marginTop: '0.5rem', display: 'grid', gap: '0.15rem' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                            <span>Tổng hóa đơn món ăn:</span>
+                                                            <strong style={{ color: 'var(--text)' }}>{Number(order.tongTien).toLocaleString('vi-VN')} ₫</strong>
+                                                        </div>
+                                                        {hasPaidDeposit && (
+                                                            <>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                                                                    <span>Đã cọc trước (10% + giữ bàn):</span>
+                                                                    <strong>-{depositAmount.toLocaleString('vi-VN')} ₫</strong>
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f97316', fontSize: '0.95rem' }}>
+                                                                    <span>Số tiền còn lại cần trả:</span>
+                                                                    <strong>{remainingAmount.toLocaleString('vi-VN')} ₫</strong>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                            {order.tinhTrang !== 'Đã thanh toán' && order.tinhTrang !== 'Đã hủy' && (() => {
+                                                const linkedRes = reservations.find(r => r.id_datBan === order.id_datBan);
+                                                const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
+                                                const depositAmount = hasPaidDeposit ? Number(linkedRes.tienCoc || 0) : 0;
+                                                const remainingAmount = Math.max(0, Number(order.tongTien || 0) - depositAmount);
+                                                return (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleVNPayPayment('donhang', order.id_donHang, remainingAmount)}
+                                                            style={{
+                                                                padding: '0.5rem 1rem',
+                                                                fontSize: '0.875rem',
+                                                                background: 'linear-gradient(135deg, #0066cc, #004fa3)',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: '0.5rem',
+                                                                fontWeight: 'bold',
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.4rem',
+                                                                boxShadow: '0 2px 8px rgba(0,102,204,0.3)',
+                                                            }}
+                                                        >
+                                                            {hasPaidDeposit ? `Thanh toán còn lại (${remainingAmount.toLocaleString('vi-VN')} ₫)` : `Thanh toán VNPay (${Number(order.tongTien).toLocaleString('vi-VN')} ₫)`}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setQrModal({
+                                                                amount: remainingAmount,
+                                                                addInfo: `THANH TOAN DH${order.id_donHang}`,
+                                                                label: `Thanh toán đơn hàng #${order.id_donHang}`
+                                                            })}
+                                                            style={{
+                                                                padding: '0.5rem 1rem',
+                                                                fontSize: '0.875rem',
+                                                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: '0.5rem',
+                                                                fontWeight: 'bold',
+                                                                cursor: 'pointer',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.4rem',
+                                                                boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+                                                            }}
+                                                        >
+                                                            📱 Quét mã VietQR ({remainingAmount.toLocaleString('vi-VN')} ₫)
+                                                        </button>
+                                                    </>
+                                                );
+                                            })()}
                                             <button className="btn btn-outline" onClick={() => handleViewOrder(order.id_donHang)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                 <Eye size={16} /> Xem chi tiết
                                             </button>
@@ -576,12 +771,12 @@ const CustomerDashboardPage = () => {
                                                         );
                                                     }
                                                     return (
-                                                        <button 
-                                                            className="btn" 
+                                                        <button
+                                                            className="btn"
                                                             onClick={() => {
                                                                 setReviewForm({ id_donHang: order.id_donHang, soSao: 5, noiDung: '' });
                                                                 setShowReviewModal(true);
-                                                            }} 
+                                                            }}
                                                             style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}
                                                         >
                                                             <Star size={16} /> Đánh giá
@@ -623,26 +818,35 @@ const CustomerDashboardPage = () => {
                                             <span style={{ padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.85rem', background: getStatusStyle(selectedOrder.tinhTrang).bg, color: getStatusStyle(selectedOrder.tinhTrang).color, fontWeight: 600 }}>{selectedOrder.tinhTrang}</span>
                                         </div>
                                     </div>
+                                    {/* Bàn + Thời gian */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: selectedOrder.id_ban ? 'rgba(16,185,129,0.12)' : 'var(--surface-light)', border: `1px solid ${selectedOrder.id_ban ? 'rgba(16,185,129,0.4)' : 'var(--border)'}` }}>
+                                            <div style={{ fontSize: '0.8rem', color: selectedOrder.id_ban ? '#059669' : 'var(--text-muted)', marginBottom: '0.4rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                🪑 BÀN NGỒI
+                                            </div>
+                                            <div style={{ fontWeight: 'bold', fontSize: '1.4rem', color: selectedOrder.id_ban ? '#059669' : 'var(--text-muted)' }}>
+                                                {selectedOrder.id_ban ? `Bàn số ${selectedOrder.id_ban}` : 'Mang về'}
+                                            </div>
+                                        </div>
                                         <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Thời gian tạo</div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Thời gian tạo đơn</div>
                                             <div style={{ fontWeight: 'bold' }}>{formatDateTime(selectedOrder.thoiGianTao)}</div>
                                         </div>
-                                        {selectedOrder.thoiGianDen && (
-                                            <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.2)' }}>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.25rem', fontWeight: 600 }}>Thời gian tới</div>
-                                                <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatDateTime(selectedOrder.thoiGianDen)}</div>
-                                            </div>
-                                        )}
                                     </div>
+                                    {selectedOrder.thoiGianDen && (
+                                        <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(249, 115, 22, 0.08)', border: '1px solid rgba(249, 115, 22, 0.2)', marginBottom: '1.5rem' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginBottom: '0.25rem', fontWeight: 600 }}>🕐 Thời gian dự kiến tới</div>
+                                            <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{formatDateTime(selectedOrder.thoiGianDen)}</div>
+                                        </div>
+                                    )}
                                     {selectedOrder.id_datBan && (
                                         <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                                             <div>
                                                 <div style={{ fontSize: '0.8rem', color: '#059669', marginBottom: '0.25rem', fontWeight: 600 }}>Đã liên kết lịch đặt bàn</div>
                                                 <div style={{ fontWeight: 'bold', color: '#059669' }}>Mã đặt bàn: #{selectedOrder.id_datBan}</div>
                                             </div>
-                                            <button 
-                                                className="btn btn-outline" 
+                                            <button
+                                                className="btn btn-outline"
                                                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#059669', borderColor: '#10b981' }}
                                                 onClick={() => {
                                                     setShowOrderModal(false);
@@ -665,7 +869,7 @@ const CustomerDashboardPage = () => {
                                             {selectedOrder.chi_tiet && selectedOrder.chi_tiet.length > 0 ? selectedOrder.chi_tiet.map((item) => (
                                                 <div key={item.id_chiTietDonHang} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '1rem', alignItems: 'center', padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)' }}>
                                                     <div style={{ width: '52px', height: '52px', borderRadius: '0.5rem', overflow: 'hidden', background: 'var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        {item.hinhAnhMon ? <img src={`${BASE_URL}${item.hinhAnhMon}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} /> : <span style={{ fontSize: '1.5rem' }}>🍽️</span>}
+                                                        {item.hinhAnhMon ? <img src={`${BASE_URL}${item.hinhAnhMon}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} /> : <span style={{ fontSize: '1.5rem' }}></span>}
                                                     </div>
                                                     <div>
                                                         <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>{item.tenMon || `Món #${item.id_monAn}`}</div>
@@ -693,65 +897,65 @@ const CustomerDashboardPage = () => {
             )}
 
             {/* MODAL CHI TIẾT ĐẶT BÀN */}
-                               {showReservationModal && selectedReservation && (() => {
-                                   const linkedOrder = orders.find(o => o.id_datBan === selectedReservation.id_datBan);
-                                   return (
-                                       <div onClick={handleCloseReservationModal} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                                           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
-                                               <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
-                                                   <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}</h2>
-                                                   <button onClick={handleCloseReservationModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}><X size={22} /></button>
-                                               </div>
-                                               <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', overflowY: 'auto' }}>
-                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Trạng thái</span>
-                                                       <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', background: getStatusStyle(selectedReservation.trangThai).bg, color: getStatusStyle(selectedReservation.trangThai).color, fontSize: '0.875rem', fontWeight: 'bold' }}>{selectedReservation.trangThai}</span>
-                                                   </div>
-                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Bàn</span>
-                                                       <strong>{selectedReservation.id_ban ? `Bàn ${selectedReservation.id_ban}` : 'Chưa xếp'}</strong>
-                                                   </div>
-                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Thời gian đến</span>
-                                                       <strong>{formatDateTime(selectedReservation.thoiGianDen)}</strong>
-                                                   </div>
-                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Đến thực tế</span>
-                                                       <strong>{formatDateTime(selectedReservation.thoiGianDenThucTe)}</strong>
-                                                   </div>
-                                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Số người</span>
-                                                       <strong>{selectedReservation.soNguoi}</strong>
-                                                   </div>
-                                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                                                       <span style={{ color: 'var(--text-muted)' }}>Ghi chú</span>
-                                                       <div style={{ padding: '1rem', background: 'var(--surface-light)', borderRadius: '0.5rem', border: '1px solid var(--border)', minHeight: '60px' }}>
-                                                           {selectedReservation.ghiChu || <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>}
-                                                       </div>
-                                                   </div>
-                                                   {linkedOrder && (
-                                                       <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                                           <div>
-                                                               <div style={{ fontSize: '0.8rem', color: '#2563eb', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
-                                                               <div style={{ fontWeight: 'bold', color: '#2563eb' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
-                                                           </div>
-                                                           <button 
-                                                               className="btn btn-outline"
-                                                               style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#2563eb', borderColor: '#3b82f6' }}
-                                                               onClick={() => {
-                                                                   setShowReservationModal(false);
-                                                                   handleViewOrder(linkedOrder.id_donHang);
-                                                               }}
-                                                           >
-                                                               Xem đơn món
-                                                           </button>
-                                                       </div>
-                                                   )}
-                                               </div>
-                                           </div>
-                                       </div>
-                                   );
-                               })()}
+            {showReservationModal && selectedReservation && (() => {
+                const linkedOrder = orders.find(o => o.id_datBan === selectedReservation.id_datBan);
+                return (
+                    <div onClick={handleCloseReservationModal} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+                            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}</h2>
+                                <button onClick={handleCloseReservationModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}><X size={22} /></button>
+                            </div>
+                            <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Trạng thái</span>
+                                    <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', background: getStatusStyle(selectedReservation.trangThai).bg, color: getStatusStyle(selectedReservation.trangThai).color, fontSize: '0.875rem', fontWeight: 'bold' }}>{selectedReservation.trangThai}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Bàn</span>
+                                    <strong>{selectedReservation.id_ban ? `Bàn ${selectedReservation.id_ban}` : 'Chưa xếp'}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Thời gian đến</span>
+                                    <strong>{formatDateTime(selectedReservation.thoiGianDen)}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Đến thực tế</span>
+                                    <strong>{formatDateTime(selectedReservation.thoiGianDenThucTe)}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Số người</span>
+                                    <strong>{selectedReservation.soNguoi}</strong>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Ghi chú</span>
+                                    <div style={{ padding: '1rem', background: 'var(--surface-light)', borderRadius: '0.5rem', border: '1px solid var(--border)', minHeight: '60px' }}>
+                                        {selectedReservation.ghiChu || <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>}
+                                    </div>
+                                </div>
+                                {linkedOrder && (
+                                    <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.8rem', color: '#2563eb', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
+                                            <div style={{ fontWeight: 'bold', color: '#2563eb' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
+                                        </div>
+                                        <button
+                                            className="btn btn-outline"
+                                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#2563eb', borderColor: '#3b82f6' }}
+                                            onClick={() => {
+                                                setShowReservationModal(false);
+                                                handleViewOrder(linkedOrder.id_donHang);
+                                            }}
+                                        >
+                                            Xem đơn món
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* MODAL ĐÁNH GIÁ ĐƠN HÀNG */}
             {showReviewModal && (
@@ -796,6 +1000,104 @@ const CustomerDashboardPage = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL THANH TOÁN QR CODE DÀNH CHO KHÁCH HÀNG */}
+            {qrModal && (
+                <div onClick={() => setQrModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid var(--border)', width: '100%', maxWidth: '480px', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', color: 'var(--text)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        
+                        {/* Header */}
+                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                            <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                📱 Thanh toán qua VietQR
+                            </h2>
+                            <button onClick={() => setQrModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {qrModal.label}
+                            </div>
+
+                            {/* QR Code Container */}
+                            <div style={{ background: '#fff', padding: '1rem', borderRadius: '1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', width: '240px', height: '240px' }}>
+                                <img
+                                    src={`https://img.vietqr.io/image/970419-9704198526191432198-compact.png?amount=${qrModal.amount}&addInfo=${encodeURIComponent(qrModal.addInfo)}&accountName=NGUYEN%20VAN%20A`}
+                                    alt="Mã QR Thanh Toán VietQR"
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
+                            </div>
+
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', margin: 0, maxWidth: '340px' }}>
+                                Mở ứng dụng ngân hàng bất kỳ của bạn, quét mã QR này để tự động điền đầy đủ số tiền &amp; nội dung chuyển khoản.
+                            </p>
+
+                            {/* Details List */}
+                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--surface-light)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '0.75rem', fontSize: '0.9rem' }}>
+                                
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Chủ tài khoản:</span>
+                                    <strong style={{ color: 'var(--text)' }}>NGUYEN VAN A</strong>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: '0.6rem' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Số tài khoản:</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <strong style={{ color: 'var(--text)' }}>9704198526191432198</strong>
+                                        <button
+                                            onClick={() => handleCopyText('9704198526191432198', 'stk')}
+                                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}
+                                        >
+                                            {copiedField === 'stk' ? '✓ Đã chép' : 'Sao chép'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: '0.6rem' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Ngân hàng:</span>
+                                    <strong style={{ color: 'var(--text)' }}>NCB (TMCP Quốc Dân)</strong>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: '0.6rem' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Số tiền chuyển:</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <strong style={{ color: '#f97316', fontSize: '1rem' }}>{formatCurrency(qrModal.amount)}</strong>
+                                        <button
+                                            onClick={() => handleCopyText(qrModal.amount.toString(), 'amount')}
+                                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}
+                                        >
+                                            {copiedField === 'amount' ? '✓ Đã chép' : 'Sao chép'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: '0.6rem' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Nội dung chuyển:</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <strong style={{ color: 'var(--text)', fontSize: '0.85rem', wordBreak: 'break-all' }}>{qrModal.addInfo}</strong>
+                                        <button
+                                            onClick={() => handleCopyText(qrModal.addInfo, 'info')}
+                                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}
+                                        >
+                                            {copiedField === 'info' ? '✓ Đã chép' : 'Sao chép'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ padding: '1rem 1.5rem', background: 'var(--surface-light)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setQrModal(null)} className="btn btn-primary" style={{ width: '100%', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', fontWeight: 'bold' }}>
+                                Đã chuyển khoản xong
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}

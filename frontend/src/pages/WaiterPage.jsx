@@ -10,6 +10,7 @@ const STATUS_FLOW = ['Đang chờ món', 'Đang chế biến', 'Đã phục vụ
 const formatTime = (v) => !v ? '-' : new Date(v).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 const formatDate = (v) => !v ? '-' : new Date(v).toLocaleString('vi-VN');
 const getElapsed = (t) => !t ? 0 : Math.floor((Date.now() - new Date(t).getTime()) / 60000);
+const fmtMoney = (v) => v != null ? Number(v).toLocaleString('vi-VN') + ' ₫' : '0 ₫';
 
 const STATUS_STYLE = {
   'Đang chờ món': { bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.35)', color: '#fbbf24', dot: '#f59e0b' },
@@ -50,6 +51,156 @@ const WaiterPage = () => {
   const [shiftLoading, setShiftLoading] = useState(false);
   const [personalShifts, setPersonalShifts] = useState([]);
   const [personalShiftsLoading, setPersonalShiftsLoading] = useState(false);
+
+  // Checkout/Cashier modal state
+  const [checkoutOrder, setCheckoutOrder] = useState(null);
+  const [checkoutDetails, setCheckoutDetails] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+
+  const handleOpenCheckout = async (order) => {
+    setCheckoutOrder(order);
+    setCheckoutDetails(null);
+    setCheckoutLoading(true);
+    setShowQR(false);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/donhang/${order.id_donHang}/detail`);
+      setCheckoutDetails(res.data);
+    } catch (err) {
+      console.error('Lỗi tải chi tiết thanh toán:', err);
+      alert('Không thể tải chi tiết đơn hàng.');
+      setCheckoutOrder(null);
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handlePrintReceipt = (details) => {
+    if (!details) return;
+    
+    const finalAmount = details.tongTien - (details.trangThaiCoc === 'Đã cọc' ? details.tienCoc : 0);
+    const dateStr = new Date().toLocaleString('vi-VN');
+    
+    const printWindow = window.open('', '_blank', 'width=600,height=800');
+    if (!printWindow) {
+      alert('Vui lòng cho phép trình duyệt hiển thị cửa sổ bật lên (popup) để in hóa đơn.');
+      return;
+    }
+    
+    const itemsHtml = (details.chi_tiet || []).map(item => `
+      <tr>
+        <td style="padding: 4px 0; font-size: 13px;">${item.tenMon || `Món #${item.id_monAn}`}</td>
+        <td style="padding: 4px 0; font-size: 13px; text-align: center;">${item.soLuong}</td>
+        <td style="padding: 4px 0; font-size: 13px; text-align: right;">${item.giaTaiThoiDiemBan.toLocaleString('vi-VN')}</td>
+        <td style="padding: 4px 0; font-size: 13px; text-align: right; font-weight: bold;">${(item.giaTaiThoiDiemBan * item.soLuong).toLocaleString('vi-VN')}</td>
+      </tr>
+    `).join('');
+    
+    const qrImageSrc = `https://img.vietqr.io/image/970419-9704198526191432198-compact.png?amount=${finalAmount}&addInfo=THANH%20TOAN%20DH${details.id_donHang}&accountName=NGUYEN%20VAN%20A`;
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>In Hóa Đơn BayFood</title>
+          <style>
+            @media print {
+              body { margin: 0; padding: 10px; width: 80mm; font-family: 'Courier New', Courier, monospace, Arial, sans-serif; color: #000; background: #fff; }
+              .no-print { display: none; }
+            }
+            body { width: 80mm; margin: 0 auto; padding: 20px; font-family: 'Courier New', Courier, monospace, Arial, sans-serif; color: #000; background: #fff; }
+            .header { text-align: center; margin-bottom: 15px; }
+            .restaurant-name { font-size: 18px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; }
+            .restaurant-info { font-size: 11px; margin-bottom: 2px; }
+            .title { font-size: 15px; font-weight: bold; margin: 10px 0 5px; text-transform: uppercase; }
+            .divider { border-top: 1px dashed #000; margin: 10px 0; }
+            .meta-info { font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+            .table-items { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .table-items th { border-bottom: 1px dashed #000; padding: 5px 0; font-size: 12px; text-align: left; }
+            .totals-container { margin-top: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+            .total-row { display: flex; justify-content: space-between; }
+            .qr-container { text-align: center; margin-top: 20px; margin-bottom: 15px; }
+            .qr-image { width: 120px; height: 120px; object-fit: contain; }
+            .footer { text-align: center; font-size: 11px; margin-top: 20px; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="restaurant-name">BayFood Restaurant</div>
+            <div class="restaurant-info">Địa chỉ: Khu đô thị mới, Cầu Giấy, Hà Nội</div>
+            <div class="restaurant-info">Điện thoại: 0987.654.321</div>
+            <div class="divider"></div>
+            <div class="title">Hóa Đơn Thanh Toán</div>
+          </div>
+          
+          <div class="meta-info">
+            <span>Mã HĐ: HD-${details.id_donHang}</span>
+            <span>Bàn: ${details.id_ban ? `Bàn ${details.id_ban}` : 'Mang về'}</span>
+          </div>
+          <div class="meta-info">
+            <span>Ngày in: ${dateStr}</span>
+          </div>
+          <div class="meta-info">
+            <span>Khách hàng: ${details.tenKhachHang || 'Vãng lai'}</span>
+          </div>
+          
+          <table class="table-items">
+            <thead>
+              <tr>
+                <th style="width: 45%;">Tên món</th>
+                <th style="width: 10%; text-align: center;">SL</th>
+                <th style="width: 20%; text-align: right;">Đơn giá</th>
+                <th style="width: 25%; text-align: right;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div class="divider"></div>
+          
+          <div class="totals-container">
+            <div class="total-row">
+              <span>Tổng tiền món ăn:</span>
+              <span>${details.tongTien.toLocaleString('vi-VN')} đ</span>
+            </div>
+            ${details.tienCoc > 0 && details.trangThaiCoc === 'Đã cọc' ? `
+              <div class="total-row" style="color: #000;">
+                <span>Đã trừ tiền đặt cọc:</span>
+                <span>-${details.tienCoc.toLocaleString('vi-VN')} đ</span>
+              </div>
+            ` : ''}
+            <div class="total-row" style="font-weight: bold; font-size: 15px; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">
+              <span>KHÁCH CẦN TRẢ:</span>
+              <span>${finalAmount.toLocaleString('vi-VN')} đ</span>
+            </div>
+          </div>
+          
+          <div class="qr-container">
+            <img class="qr-image" src="${qrImageSrc}" alt="Mã VietQR" />
+            <div style="font-size: 9px; margin-top: 4px;">Quét mã để chuyển khoản nhanh</div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="footer">
+            Cảm ơn Quý khách và Hẹn gặp lại!<br>
+            Chúc Quý khách ngon miệng!
+          </div>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -134,6 +285,10 @@ const WaiterPage = () => {
   }, [autoRefresh, activeTab, fetchOrders]);
 
   const updateOrderStatus = async (id_donHang, newStatus) => {
+    if (shiftData && shiftData.trangThai !== 'Đang làm') {
+      alert('Bạn chưa vào ca làm việc! Vui lòng vào ca trước khi thực hiện thao tác này.');
+      return;
+    }
     setUpdatingId(id_donHang);
     try {
       await axios.put(`${BASE_URL}/api/donhang/${id_donHang}/status`, { tinhTrang: newStatus });
@@ -161,6 +316,7 @@ const WaiterPage = () => {
   const waitingCount = orders.filter(o => o.tinhTrang === 'Đang chờ món').length;
   const cookingCount = orders.filter(o => o.tinhTrang === 'Đang chế biến').length;
   const readyCount = orders.filter(o => o.tinhTrang === 'Đã phục vụ').length;
+  const isShiftOff = shiftData && shiftData.trangThai !== 'Đang làm';
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)' }}>
@@ -231,138 +387,168 @@ const WaiterPage = () => {
 
         {/* Active orders tab */}
         {activeTab === 'active' && (
-          loading ? (
-            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-              <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-              Đang tải đơn hàng...
-            </div>
-          ) : orders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: '1.25rem', border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🍽️</div>
-              <h2 style={{ margin: '0 0 0.5rem' }}>Không có đơn nào đang hoạt động</h2>
-              <p style={{ color: 'var(--text-muted)', margin: 0 }}>Tất cả đơn hàng đã được phục vụ hoặc chưa có đơn mới.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
-              {orders.map(order => {
-                const elapsed = getElapsed(order.thoiGianTao);
-                const isUrgent = elapsed >= 30 && order.tinhTrang !== 'Đã phục vụ';
-                const isReady = order.tinhTrang === 'Đã phục vụ';
-                const allDone = order.chi_tiet.every(i => i.trangThaiMon === 'Hoàn thành');
-                const isExpanded = expandedOrder === order.id_donHang;
-                const isUpdating = updatingId === order.id_donHang;
+          <>
+            {isShiftOff && (
+              <div style={{
+                background: 'rgba(239,68,68,0.1)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: '1rem',
+                padding: '1.25rem 1.5rem',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                color: '#f87171',
+                boxShadow: '0 4px 12px rgba(239,68,68,0.05)',
+              }}>
+                <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: '0 0 0.25rem', color: '#fff', fontSize: '0.95rem', fontWeight: '700' }}>
+                    Bạn chưa vào ca làm việc!
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', fontWeight: '500' }}>
+                    Vui lòng nhấn nút <strong>"Vào Ca"</strong> ở góc trên bên trái để có thể nhận phục vụ và cập nhật trạng thái đơn hàng.
+                  </p>
+                </div>
+              </div>
+            )}
 
-                return (
-                  <div key={order.id_donHang} style={{
-                    background: 'var(--surface)', borderRadius: '1.25rem',
-                    border: isReady ? '1.5px solid rgba(16,185,129,0.5)' : isUrgent ? '1.5px solid rgba(239,68,68,0.5)' : '1px solid var(--border)',
-                    boxShadow: isReady ? '0 0 0 4px rgba(16,185,129,0.07), 0 8px 24px rgba(0,0,0,0.12)' : isUrgent ? '0 0 0 4px rgba(239,68,68,0.06), 0 8px 24px rgba(0,0,0,0.12)' : '0 4px 20px rgba(0,0,0,0.08)',
-                    overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.25s',
-                  }}>
-                    {/* Card header */}
-                    <div style={{ padding: '1rem 1.25rem', background: isReady ? 'rgba(16,185,129,0.08)' : isUrgent ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: '800', fontSize: '1.1rem', color: '#fff' }}>
-                            {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'}
-                          </span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
-                          {isUrgent && <span style={{ fontSize: '0.72rem', color: '#f87171', fontWeight: '700' }}>⚠ Trễ!</span>}
-                          {order.isMyOrder && (
-                            <span style={{ padding: '0.15rem 0.5rem', borderRadius: '0.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.68rem', fontWeight: '700' }}>
-                              Bạn phục vụ
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
+                <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                Đang tải đơn hàng...
+              </div>
+            ) : orders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: '1.25rem', border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🍽️</div>
+                <h2 style={{ margin: '0 0 0.5rem' }}>Không có đơn nào đang hoạt động</h2>
+                <p style={{ color: 'var(--text-muted)', margin: 0 }}>Tất cả đơn hàng đã được phục vụ hoặc chưa có đơn mới.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                {orders.map(order => {
+                  const elapsed = getElapsed(order.thoiGianTao);
+                  const isUrgent = elapsed >= 30 && order.tinhTrang !== 'Đã phục vụ';
+                  const isReady = order.tinhTrang === 'Đã phục vụ';
+                  const allDone = order.chi_tiet.every(i => i.trangThaiMon === 'Hoàn thành');
+                  const isExpanded = expandedOrder === order.id_donHang;
+                  const isUpdating = updatingId === order.id_donHang;
+
+                  return (
+                    <div key={order.id_donHang} style={{
+                      background: 'var(--surface)', borderRadius: '1.25rem',
+                      border: isReady ? '1.5px solid rgba(16,185,129,0.5)' : isUrgent ? '1.5px solid rgba(239,68,68,0.5)' : '1px solid var(--border)',
+                      boxShadow: isReady ? '0 0 0 4px rgba(16,185,129,0.07), 0 8px 24px rgba(0,0,0,0.12)' : isUrgent ? '0 0 0 4px rgba(239,68,68,0.06), 0 8px 24px rgba(0,0,0,0.12)' : '0 4px 20px rgba(0,0,0,0.08)',
+                      overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.25s',
+                    }}>
+                      {/* Card header */}
+                      <div style={{ padding: '1rem 1.25rem', background: isReady ? 'rgba(16,185,129,0.08)' : isUrgent ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: '800', fontSize: '1.1rem', color: '#fff' }}>
+                              {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'}
                             </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
+                            {isUrgent && <span style={{ fontSize: '0.72rem', color: '#f87171', fontWeight: '700' }}>⚠ Trễ!</span>}
+                            {order.isMyOrder && (
+                              <span style={{ padding: '0.15rem 0.5rem', borderRadius: '0.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.68rem', fontWeight: '700' }}>
+                                Bạn phục vụ
+                              </span>
+                            )}
+                          </div>
+                          {order.tenKhachHang && (
+                            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' }}>Khách: {order.tenKhachHang}</div>
                           )}
                         </div>
-                        {order.tenKhachHang && (
-                          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.45)' }}>Khách: {order.tenKhachHang}</div>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                          <StatusBadge status={order.tinhTrang} />
+                          <span style={{ fontSize: '0.75rem', color: isUrgent ? '#f87171' : 'var(--text-muted)', fontWeight: isUrgent ? '700' : '400' }}>
+                            {elapsed} phút
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                        <StatusBadge status={order.tinhTrang} />
-                        <span style={{ fontSize: '0.75rem', color: isUrgent ? '#f87171' : 'var(--text-muted)', fontWeight: isUrgent ? '700' : '400' }}>
-                          {elapsed} phút
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* Items summary + expand toggle */}
-                    <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        {order.chi_tiet.slice(0, 3).map(item => {
-                          const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'transparent', border: 'var(--border)' };
-                          return (
-                            <span key={item.id_chiTietDonHang} style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', background: s.bg, border: `1px solid ${s.border}`, color: s.color, fontSize: '0.72rem', fontWeight: '600' }}>
-                              {item.tenMon} x{item.soLuong}
-                            </span>
-                          );
-                        })}
-                        {order.chi_tiet.length > 3 && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>+{order.chi_tiet.length - 3} món</span>
-                        )}
+                      {/* Items summary + expand toggle */}
+                      <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          {order.chi_tiet.slice(0, 3).map(item => {
+                            const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'transparent', border: 'var(--border)' };
+                            return (
+                              <span key={item.id_chiTietDonHang} style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', background: s.bg, border: `1px solid ${s.border}`, color: s.color, fontSize: '0.72rem', fontWeight: '600' }}>
+                                {item.tenMon} x{item.soLuong}
+                              </span>
+                            );
+                          })}
+                          {order.chi_tiet.length > 3 && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>+{order.chi_tiet.length - 3} món</span>
+                          )}
+                        </div>
+                        <button onClick={() => setExpandedOrder(isExpanded ? null : order.id_donHang)}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', transition: 'all 0.15s' }}>
+                          {isExpanded ? '▲ Thu gọn' : '▼ Chi tiết'}
+                        </button>
                       </div>
-                      <button onClick={() => setExpandedOrder(isExpanded ? null : order.id_donHang)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', transition: 'all 0.15s' }}>
-                        {isExpanded ? '▲ Thu gọn' : '▼ Chi tiết'}
-                      </button>
-                    </div>
 
-                    {/* Expanded items */}
-                    {isExpanded && (
-                      <div style={{ padding: '0 1.25rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {order.chi_tiet.map(item => {
-                          const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', border: 'var(--border)' };
-                          return (
-                            <div key={item.id_chiTietDonHang} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', borderRadius: '0.75rem', background: s.bg, border: `1px solid ${s.border}` }}>
-                              {item.hinhAnh && (
-                                <div style={{ width: '36px', height: '36px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
-                                  <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                      {/* Expanded items */}
+                      {isExpanded && (
+                        <div style={{ padding: '0 1.25rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {order.chi_tiet.map(item => {
+                            const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', border: 'var(--border)' };
+                            return (
+                              <div key={item.id_chiTietDonHang} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', borderRadius: '0.75rem', background: s.bg, border: `1px solid ${s.border}` }}>
+                                {item.hinhAnh && (
+                                  <div style={{ width: '36px', height: '36px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
+                                    <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                                  </div>
+                                )}
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#fff' }}>{item.tenMon} <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>x{item.soLuong}</span></div>
+                                  <div style={{ fontSize: '0.73rem', color: s.color, fontWeight: '600', marginTop: '0.1rem' }}>{item.trangThaiMon}</div>
                                 </div>
-                              )}
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#fff' }}>{item.tenMon} <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>x{item.soLuong}</span></div>
-                                <div style={{ fontSize: '0.73rem', color: s.color, fontWeight: '600', marginTop: '0.1rem' }}>{item.trangThaiMon}</div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
 
-                    {/* Action footer */}
-                    <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Gọi lúc {formatTime(order.thoiGianTao)} · {order.chi_tiet.length} món
-                      </span>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {/* Nút nhận phục vụ nếu đơn chưa gán */}
-                        {order.isUnassigned && (
-                          <button onClick={() => updateOrderStatus(order.id_donHang, order.tinhTrang)} disabled={isUpdating}
-                            style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: '700', fontSize: '0.78rem', cursor: isUpdating ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
-                            {isUpdating ? '...' : '👋 Nhận phục vụ'}
-                          </button>
-                        )}
-                        {/* Nút phục vụ: chỉ hiện khi Đang chế biến hoặc Đang chờ và allDone */}
-                        {order.isMyOrder && (order.tinhTrang === 'Đang chế biến' || (order.tinhTrang === 'Đang chờ món' && allDone)) && (
-                          <button onClick={() => updateOrderStatus(order.id_donHang, 'Đã phục vụ')} disabled={isUpdating}
-                            style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: isUpdating ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: '0 4px 12px rgba(16,185,129,0.3)', transition: 'all 0.2s' }}>
-                            {isUpdating ? '...' : '✓ Đã phục vụ'}
-                          </button>
-                        )}
-                        {/* Nút thanh toán: chỉ khi Đã phục vụ */}
-                        {order.isMyOrder && order.tinhTrang === 'Đã phục vụ' && (
-                          <button onClick={() => updateOrderStatus(order.id_donHang, 'Đã thanh toán')} disabled={isUpdating}
-                            style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: isUpdating ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: '0 4px 12px rgba(139,92,246,0.3)', transition: 'all 0.2s' }}>
-                            {isUpdating ? '...' : 'Thanh toán'}
-                          </button>
-                        )}
+                      {/* Action footer */}
+                      <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Gọi lúc {formatTime(order.thoiGianTao)} · {order.chi_tiet.length} món
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {/* Nút nhận phục vụ nếu đơn chưa gán */}
+                          {order.isUnassigned && (
+                            <button onClick={() => updateOrderStatus(order.id_donHang, order.tinhTrang)} disabled={isUpdating || isShiftOff}
+                              title={isShiftOff ? 'Vui lòng vào ca để nhận đơn' : ''}
+                              style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: isShiftOff ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(16,185,129,0.4)', background: isShiftOff ? 'rgba(255,255,255,0.04)' : 'rgba(16,185,129,0.15)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#34d399', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}>
+                              {isUpdating ? '...' : '👋 Nhận phục vụ'}
+                            </button>
+                          )}
+                          {/* Nút phục vụ: chỉ hiện khi Đang chế biến hoặc Đang chờ và allDone */}
+                          {order.isMyOrder && (order.tinhTrang === 'Đang chế biến' || (order.tinhTrang === 'Đang chờ món' && allDone)) && (
+                            <button onClick={() => updateOrderStatus(order.id_donHang, 'Đã phục vụ')} disabled={isUpdating || isShiftOff}
+                              title={isShiftOff ? 'Vui lòng vào ca để phục vụ' : ''}
+                              style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(16,185,129,0.3)', transition: 'all 0.2s' }}>
+                              {isUpdating ? '...' : '✓ Đã phục vụ'}
+                            </button>
+                          )}
+                          {/* Nút thanh toán: chỉ khi Đã phục vụ */}
+                          {order.isMyOrder && order.tinhTrang === 'Đã phục vụ' && (
+                            <button onClick={() => handleOpenCheckout(order)} disabled={isUpdating || isShiftOff}
+                              title={isShiftOff ? 'Vui lòng vào ca để thanh toán' : ''}
+                              style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(139,92,246,0.3)', transition: 'all 0.2s' }}>
+                              {isUpdating ? '...' : 'Thanh toán'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
 
         {/* History tab */}
@@ -472,6 +658,129 @@ const WaiterPage = () => {
           )
         )}
       </div>
+
+      {/* MODAL THU NGÂN / CHEKOUT CHO PHỤC VỤ */}
+      {checkoutOrder && (
+        <div onClick={() => setCheckoutOrder(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid var(--border)', width: '100%', maxWidth: '520px', padding: '2rem', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', color: 'var(--text)' }}>
+
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Tính tiền &amp; Thu ngân
+              </h2>
+              <button onClick={() => setCheckoutOrder(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                &times;
+              </button>
+            </div>
+
+            {checkoutLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                <div style={{ width: '36px', height: '36px', border: '3px solid var(--border)', borderTopColor: '#8b5cf6', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                Đang tải chi tiết hóa đơn...
+              </div>
+            ) : checkoutDetails ? (
+              <div>
+                {/* Table & Customer Summary */}
+                <div style={{ background: 'var(--surface-light)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Bàn ăn:</span>
+                    <strong style={{ color: '#fff' }}>{checkoutDetails.id_ban ? `Bàn ${checkoutDetails.id_ban}` : 'Mang về'}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Đơn hàng:</span>
+                    <strong style={{ color: '#fff' }}>#{checkoutDetails.id_donHang}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Khách hàng:</span>
+                    <strong style={{ color: '#fff' }}>{checkoutDetails.tenKhachHang || 'Vãng lai'}</strong>
+                  </div>
+                </div>
+
+                {/* Ordered Items List */}
+                <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '0.75rem' }}>Món ăn đã phục vụ</h3>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem', paddingRight: '0.25rem' }}>
+                  {checkoutDetails.chi_tiet && checkoutDetails.chi_tiet.length > 0 ? (
+                    checkoutDetails.chi_tiet.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', borderRadius: '0.5rem', fontSize: '0.85rem' }}>
+                        <span>{item.tenMon || `Món #${item.id_monAn}`} <strong style={{ color: 'var(--text-muted)' }}>x{item.soLuong}</strong></span>
+                        <strong style={{ color: '#fff' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>Không có chi tiết món ăn.</div>
+                  )}
+                </div>
+
+                {/* Cost Calculations */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Tổng tiền món ăn:</span>
+                    <span>{fmtMoney(checkoutDetails.tongTien)}</span>
+                  </div>
+
+                  {checkoutDetails.tienCoc > 0 && checkoutDetails.trangThaiCoc === 'Đã cọc' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#10b981' }}>
+                      <span>Khấu trừ tiền cọc bàn:</span>
+                      <strong>-{fmtMoney(checkoutDetails.tienCoc)}</strong>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>CẦN THU CỦA KHÁCH:</span>
+                    <strong style={{ fontSize: '1.3rem', color: '#8b5cf6', textShadow: '0 0 10px rgba(139,92,246,0.2)' }}>
+                      {fmtMoney(checkoutDetails.tongTien - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0))}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* VietQR Dynamic Code Display */}
+                {(() => {
+                  const finalAmount = checkoutDetails.tongTien - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0);
+                  const addInfo = `THANH TOAN DH${checkoutDetails.id_donHang}`;
+                  return (
+                    <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--surface-light)', border: '1px solid var(--border)', borderRadius: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Quét mã thanh toán VietQR
+                      </span>
+                      <div style={{ background: '#fff', padding: '0.5rem', borderRadius: '0.75rem', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '180px', height: '180px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        <img
+                          src={`https://img.vietqr.io/image/970419-9704198526191432198-compact.png?amount=${finalAmount}&addInfo=${encodeURIComponent(addInfo)}&accountName=NGUYEN%20VAN%20A`}
+                          alt="Mã QR chuyển khoản"
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', display: 'grid', gap: '0.2rem' }}>
+                        <span>Chủ tài khoản: <strong style={{ color: '#fff' }}>NGUYEN VAN A</strong></span>
+                        <span>Số tài khoản: <strong style={{ color: '#fff' }}>9704198526191432198</strong></span>
+                        <span>Ngân hàng: <strong style={{ color: '#fff' }}>NCB</strong></span>
+                        <span>Nội dung: <strong style={{ color: '#8b5cf6' }}>{addInfo}</strong></span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Cash Confirmation Button */}
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '2rem' }}>
+                  <button onClick={() => setCheckoutOrder(null)} className="btn btn-outline" style={{ flex: 1 }}>Hủy</button>
+                  <button onClick={() => handlePrintReceipt(checkoutDetails)} className="btn" style={{ flex: 1.5, background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#60a5fa', borderRadius: '0.5rem', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}>
+                    🖨️ In hóa đơn
+                  </button>
+                  <button onClick={async () => {
+                    await updateOrderStatus(checkoutOrder.id_donHang, 'Đã thanh toán');
+                    setCheckoutOrder(null);
+                  }} className="btn btn-primary" style={{ flex: 2, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', border: 'none', boxShadow: '0 4px 15px rgba(139,92,246,0.3)', fontWeight: '700' }}>
+                    Đã nhận &amp; Hoàn tất
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: 'red', textAlign: 'center', padding: '1rem' }}>Lỗi tải chi tiết đơn hàng</div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

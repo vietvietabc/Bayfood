@@ -20,6 +20,11 @@ class DatBan(DatBanCreate):
     id_ban: Optional[int] = None
     thoiGianDenThucTe: Optional[datetime] = None
     trangThai: str
+    tienCoc: Optional[float] = None
+    trangThaiCoc: Optional[str] = None
+    lyDoHuy: Optional[str] = None
+    kieuCoc: Optional[str] = None
+    id_donHang: Optional[int] = None
     class Config:
         from_attributes = True
 

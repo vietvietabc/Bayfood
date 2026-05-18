@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import KitchenPage from './pages/KitchenPage';
+import VNPayReturn from './pages/payment/VNPayReturn';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminReservations from './pages/admin/AdminReservations';
@@ -53,6 +54,7 @@ const AppLayout = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
 
           {/* Kitchen route */}
           <Route path="/kitchen" element={<KitchenPage />} />

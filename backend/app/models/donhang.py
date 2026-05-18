@@ -43,3 +43,24 @@ class DanhGia(Base):
     id_donHang = Column(Integer, ForeignKey("DONHANG.id_donHang"))
     soSao = Column(Integer)
     noiDung = Column(Text)
+
+
+class PendingOrder(Base):
+    """
+    Lưu trữ tạm dữ liệu giỏ hàng + đặt bàn của khách.
+    Chỉ tồn tại đến khi VNPay trả về SUCCESS → chuyển thành DatBan + DonHang thật rồi bị xóa.
+    Nếu thất bại → xóa luôn.
+    """
+    __tablename__ = "PENDING_ORDER"
+    id               = Column(Integer, primary_key=True, index=True)
+    id_nguoiDung     = Column(Integer, ForeignKey("NGUOIDUNG.id_nguoiDung"))
+    cart_json        = Column(Text, nullable=False)       # JSON danh sách món
+    dat_ban_json     = Column(Text, nullable=True)        # JSON thông tin đặt bàn mới (None = không đặt bàn mới)
+    id_ban           = Column(Integer, nullable=True)     # Bàn ngồi trực tiếp
+    id_datBan        = Column(Integer, nullable=True)     # Đặt bàn sẵn có
+    thoiGianDen      = Column(String(50), nullable=True)  # ISO string
+    payment_mode     = Column(String(20))                 # "deposit" | "full"
+    tong_tien        = Column(Numeric(12, 2))             # Tổng tiền món ăn
+    so_tien_thanh_toan = Column(Numeric(12, 2))           # Số tiền cần trả ngay
+    txn_ref          = Column(String(100), nullable=True) # VNPay TxnRef (set sau khi tạo URL)
+    thoiGianTao      = Column(DateTime, default=get_vn_time)

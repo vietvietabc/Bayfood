@@ -945,7 +945,7 @@ const KitchenPage = () => {
                                                 alignItems: 'center',
                                                 gap: '0.35rem'
                                             }}>
-                                                {shiftData.caLamViec === 'Ca sáng' ? '🌅 Ca sáng' : shiftData.caLamViec === 'Ca chiều' ? '☀️ Ca chiều' : '🌌 Ca tối'}
+                                                {shiftData.caLamViec === 'Ca sáng' ? ' Ca sáng' : shiftData.caLamViec === 'Ca chiều' ? ' Ca chiều' : ' Ca tối'}
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
