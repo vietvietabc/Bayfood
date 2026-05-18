@@ -407,6 +407,11 @@ def update_order_status(
             if db_res and db_res.trangThai == "Đã checkin":
                 db_res.trangThai = "Hoàn thành"
 
+        # Tự động cập nhật toàn bộ trạng thái món ăn trong đơn hàng thành "Hoàn thành"
+        db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == id_donHang
+        ).update({"trangThaiMon": "Hoàn thành"})
+
     db.commit()
     return {"message": "Cập nhật thành công"}
 
