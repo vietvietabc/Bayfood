@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Users, Clock, AlignLeft, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const ReservationPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -90,7 +92,7 @@ const ReservationPage = () => {
       try {
         const results = await Promise.all(
           dates.map(async (date) => {
-            const response = await axios.get('http://localhost:8000/api/datban/timeline', {
+            const response = await axios.get(`${BASE_URL}/api/datban/timeline`, {
               params: { ngay: date, fromTime: timelineSearch.fromTime }
             });
             return response.data || { ngay: date, workingHours: null, tables: [] };
@@ -126,7 +128,7 @@ const ReservationPage = () => {
     const loadTables = async () => {
       try {
         setLoadingTables(true);
-        const response = await axios.get('http://localhost:8000/api/ban');
+        const response = await axios.get(`${BASE_URL}/api/ban`);
         const loadedTables = response.data || [];
         setTables(loadedTables);
       } catch (error) {
@@ -244,7 +246,7 @@ const ReservationPage = () => {
         soNguoi: parseInt(formData.soNguoi),
         ghiChu: formData.ghiChu
       };
-      const response = await axios.post('http://localhost:8000/api/datban', payload);
+      const response = await axios.post(`${BASE_URL}/api/datban`, payload);
       const newReservationId = response.data.id_datBan;
       setStatus('success');
       setStatusMessage(

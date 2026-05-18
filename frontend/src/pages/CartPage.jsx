@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const pad2 = (value) => String(value).padStart(2, '0');
 const toLocalDateString = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 const todayString = toLocalDateString(new Date());
@@ -74,7 +76,7 @@ const CartPage = () => {
         const loadTables = async () => {
             try {
                 setLoadingTables(true);
-                const response = await axios.get('http://localhost:8000/api/ban');
+                const response = await axios.get(`${BASE_URL}/api/ban`);
                 setTables(response.data || []);
             } catch (error) {
                 console.error('Failed to load tables', error);
@@ -90,7 +92,7 @@ const CartPage = () => {
         if (user && !selectedTableId && !editingOrderId) {
             const fetchUpcomingReservation = async () => {
                 try {
-                    const res = await axios.get('http://localhost:8000/api/datban/me');
+                    const res = await axios.get(`${BASE_URL}/api/datban/me`);
                     const activeRes = res.data.find(r =>
                         ['Chờ xác nhận', 'Đã đặt', 'Đã xác nhận'].includes(r.trangThai) &&
                         new Date(r.thoiGianDen) > new Date()
@@ -121,7 +123,7 @@ const CartPage = () => {
             try {
                 const results = await Promise.all(
                     dates.map(async (date) => {
-                        const response = await axios.get('http://localhost:8000/api/datban/timeline', {
+                        const response = await axios.get(`${BASE_URL}/api/datban/timeline`, {
                             params: { ngay: date, fromTime: timelineSearch.fromTime }
                         });
                         return response.data || { ngay: date, workingHours: null, tables: [] };
@@ -243,7 +245,7 @@ const CartPage = () => {
                 }))
             };
 
-            await axios.put(`http://localhost:8000/api/donhang/me/${editingOrderId}`, payload);
+            await axios.put(`${BASE_URL}/api/donhang/me/${editingOrderId}`, payload);
 
             clearCart();
             setEditingOrderId(null);
@@ -319,7 +321,7 @@ const CartPage = () => {
                 id_datBan:    pendingPayload.id_datBan || null,
                 thoiGianDen:  pendingPayload.thoiGianDen || null,
             };
-            const res = await axios.post('http://localhost:8000/api/payment/initiate-booking', body);
+            const res = await axios.post(`${BASE_URL}/api/payment/initiate-booking`, body);
             clearCart();
             window.location.href = res.data.paymentUrl;
         } catch (err) {
