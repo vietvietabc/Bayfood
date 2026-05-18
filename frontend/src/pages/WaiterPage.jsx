@@ -533,14 +533,33 @@ const WaiterPage = () => {
                               {isUpdating ? '...' : '✓ Đã phục vụ'}
                             </button>
                           )}
-                          {/* Nút thanh toán: chỉ khi Đã phục vụ */}
-                          {order.isMyOrder && order.tinhTrang === 'Đã phục vụ' && (
-                            <button onClick={() => handleOpenCheckout(order)} disabled={isUpdating || isShiftOff}
-                              title={isShiftOff ? 'Vui lòng vào ca để thanh toán' : ''}
-                              style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(139,92,246,0.3)', transition: 'all 0.2s' }}>
-                              {isUpdating ? '...' : 'Thanh toán'}
-                            </button>
-                          )}
+                          {/* Nút thanh toán hoặc hoàn tất trực tiếp nếu đã thanh toán trả trước (0đ) */}
+                          {(() => {
+                            const orderTotal = order.chi_tiet.reduce((sum, item) => sum + item.giaTaiThoiDiemBan * item.soLuong, 0);
+                            const finalBalance = orderTotal - (order.trangThaiCoc === 'Đã cọc' ? order.tienCoc : 0);
+                            const isPrepaid = finalBalance <= 0;
+
+                            if (order.isMyOrder && order.tinhTrang === 'Đã phục vụ') {
+                              return isPrepaid ? (
+                                <button onClick={() => {
+                                  if (window.confirm(`Đơn hàng #${order.id_donHang} này đã được thanh toán online 100% (0đ cần thu). Bạn có muốn hoàn tất đơn và giải phóng bàn ngay không?`)) {
+                                    updateOrderStatus(order.id_donHang, 'Đã thanh toán');
+                                  }
+                                }} disabled={isUpdating || isShiftOff}
+                                  title={isShiftOff ? 'Vui lòng vào ca để hoàn tất' : ''}
+                                  style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(16,185,129,0.3)', transition: 'all 0.2s' }}>
+                                  {isUpdating ? '...' : '✓ Hoàn tất đơn'}
+                                </button>
+                              ) : (
+                                <button onClick={() => handleOpenCheckout(order)} disabled={isUpdating || isShiftOff}
+                                  title={isShiftOff ? 'Vui lòng vào ca để thanh toán' : ''}
+                                  style={{ padding: '0.4rem 1rem', borderRadius: '999px', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(139,92,246,0.3)', transition: 'all 0.2s' }}>
+                                  {isUpdating ? '...' : 'Thanh toán'}
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     </div>

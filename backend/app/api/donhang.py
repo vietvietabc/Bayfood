@@ -464,6 +464,15 @@ def get_waiter_orders(
             models.NguoiDung.id_nguoiDung == order.id_nguoiDung
         ).first()
 
+        # Lấy thông tin cọc đặt bàn tương ứng
+        tien_coc = 0.0
+        trang_thai_coc = None
+        if order.id_datBan:
+            db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == order.id_datBan).first()
+            if db_res:
+                tien_coc = float(db_res.tienCoc) if db_res.tienCoc else 0.0
+                trang_thai_coc = db_res.trangThaiCoc
+
         result.append({
             "id_donHang": order.id_donHang,
             "id_ban": order.id_ban,
@@ -474,6 +483,8 @@ def get_waiter_orders(
             "isMyOrder": is_my_order,
             "isUnassigned": is_unassigned,
             "chi_tiet": items,
+            "tienCoc": tien_coc,
+            "trangThaiCoc": trang_thai_coc,
         })
     return result
 
