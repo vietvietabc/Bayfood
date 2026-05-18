@@ -412,6 +412,14 @@ def checkin_reservation(
 
     create_notification(
         db,
+        vaiTroNhan="Nhân viên phục vụ",
+        tieuDe="Khách đã check-in",
+        noiDung=f"Khách #{current_user.id_nguoiDung} đã check-in cho bàn #{db_res.id_ban or 'chưa gán bàn'} lúc {db_res.thoiGianDenThucTe.strftime('%H:%M %d/%m/%Y')}.",
+        lienKet="/waiter",
+    )
+
+    create_notification(
+        db,
         id_nguoiDung=current_user.id_nguoiDung,
         tieuDe="Bạn đã check-in thành công",
         noiDung=f"Bạn đã check-in cho bàn #{db_res.id_ban or 'chưa gán bàn'} lúc {db_res.thoiGianDenThucTe.strftime('%H:%M %d/%m/%Y')}.",

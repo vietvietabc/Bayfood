@@ -281,22 +281,6 @@ def vnpay_return(
         amount_paid = int(amount_raw) // 100
         order.tinhTrang = "Đã thanh toán"
         
-        # Giải phóng bàn và cập nhật đặt bàn tương ứng
-        if order.id_ban is not None:
-            db_ban = db.query(models.Ban).filter(models.Ban.id_ban == order.id_ban).first()
-            if db_ban:
-                db_ban.trangThai = "Trống"
-
-        if order.id_datBan is not None:
-            db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == order.id_datBan).first()
-            if db_res and db_res.trangThai == "Đã checkin":
-                db_res.trangThai = "Hoàn thành"
-
-        # Tự động cập nhật toàn bộ trạng thái món ăn trong đơn hàng thành "Hoàn thành"
-        db.query(models.ChiTietDonHang).filter(
-            models.ChiTietDonHang.id_donHang == order.id_donHang
-        ).update({"trangThaiMon": "Hoàn thành"})
-
         # Thêm lịch sử thanh toán
         db.add(models.ThanhToan(
             id_donHang=order.id_donHang,
@@ -412,9 +396,12 @@ def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_
             existing.trangThai    = "Đã xác nhận"
 
     # --- Tạo DonHang ---
-    tinh_trang = "Đã thanh toán" if pending.payment_mode == "full" else "Chờ khách đến"
+    # Ngay cả khi thanh toán trả trước (payment_mode == "full"), đơn hàng vẫn phải trải qua luồng Chờ phục vụ/Chế biến.
+    # Nếu có đặt bàn -> Chờ khách đến check-in mới kích hoạt "Đang chờ món".
+    # Nếu không đặt bàn (ngồi tại bàn trực tiếp) -> Chuyển ngay sang "Đang chờ món" để bếp làm.
+    tinh_trang = "Chờ khách đến"
     if not has_reservation:
-        tinh_trang = "Đã thanh toán" if pending.payment_mode == "full" else "Đang chờ món"
+        tinh_trang = "Đang chờ món"
 
     db_order = models.DonHang(
         id_nguoiDung=pending.id_nguoiDung,
