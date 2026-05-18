@@ -95,37 +95,45 @@ const CustomerDashboardPage = () => {
         return () => window.clearTimeout(timerId);
     }, [checkinToast]);
 
+    const fetchCustomerData = async (isSilent = false) => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+
+        if (!isSilent) setLoading(true);
+        setError('');
+
+        try {
+            const [reservationRes, orderRes, reviewRes] = await Promise.all([
+                axios.get(`${BASE_URL}/api/datban/me`),
+                axios.get(`${BASE_URL}/api/donhang/me`),
+                axios.get(`${BASE_URL}/api/danhgia/me`),
+            ]);
+
+            setData({
+                reservations: reservationRes.data || [],
+                orders: orderRes.data || []
+            });
+            setReviews(reviewRes.data || []);
+        } catch (fetchError) {
+            console.error('Failed to load customer dashboard', fetchError);
+            if (!isSilent) setError('Không thể tải dữ liệu khách hàng. Vui lòng thử lại sau.');
+        } finally {
+            if (!isSilent) setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchCustomerData = async () => {
-            if (!user) {
-                setLoading(false);
-                return;
-            }
+        fetchCustomerData(false);
+    }, [user]);
 
-            setLoading(true);
-            setError('');
-
-            try {
-                const [reservationRes, orderRes, reviewRes] = await Promise.all([
-                    axios.get(`${BASE_URL}/api/datban/me`),
-                    axios.get(`${BASE_URL}/api/donhang/me`),
-                    axios.get(`${BASE_URL}/api/danhgia/me`),
-                ]);
-
-                setData({
-                    reservations: reservationRes.data || [],
-                    orders: orderRes.data || []
-                });
-                setReviews(reviewRes.data || []);
-            } catch (fetchError) {
-                console.error('Failed to load customer dashboard', fetchError);
-                setError('Không thể tải dữ liệu khách hàng. Vui lòng thử lại sau.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCustomerData();
+    useEffect(() => {
+        if (!user) return;
+        const interval = setInterval(() => {
+            fetchCustomerData(true);
+        }, 10000);
+        return () => clearInterval(interval);
     }, [user]);
 
     if (authLoading || (loading && user)) {

@@ -564,32 +564,100 @@ const WaiterPage = () => {
               <p style={{ color: 'var(--text-muted)', margin: 0 }}>Chưa có đơn hàng nào hoàn thành.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-              {historyOrders.map(order => (
-                <div key={order.id_donHang} style={{ background: 'var(--surface)', borderRadius: '1rem', border: order.isMyOrder ? '1.5px solid rgba(16,185,129,0.35)' : '1px solid var(--border)', overflow: 'hidden' }}>
-                  <div style={{ padding: '1rem 1.25rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '1rem', color: '#fff', marginBottom: '0.2rem' }}>
-                        {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'} <span style={{ color: 'var(--text-muted)', fontWeight: '400', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
+              {historyOrders.map(order => {
+                const isExpanded = expandedOrder === order.id_donHang;
+                return (
+                  <div key={order.id_donHang} style={{
+                    background: 'var(--surface)',
+                    borderRadius: '1.25rem',
+                    border: order.isMyOrder ? '1.5px solid rgba(16,185,129,0.35)' : '1px solid var(--border)',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                    transition: 'all 0.25s'
+                  }}>
+                    <div style={{ padding: '1rem 1.25rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#fff', marginBottom: '0.2rem' }}>
+                          {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'} <span style={{ color: 'var(--text-muted)', fontWeight: '400', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
+                        </div>
+                        {order.tenKhachHang && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>Khách: {order.tenKhachHang}</div>}
                       </div>
-                      {order.tenKhachHang && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>Khách: {order.tenKhachHang}</div>}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                        <StatusBadge status={order.tinhTrang} />
+                        {order.isMyOrder && <span style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: '700' }}>Bạn phục vụ</span>}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                      <StatusBadge status={order.tinhTrang} />
-                      {order.isMyOrder && <span style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: '700' }}>Bạn phục vụ</span>}
+
+                    {/* Summary row with toggle */}
+                    <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {(order.chi_tiet || []).slice(0, 3).map((item, idx) => {
+                          const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'transparent', border: 'var(--border)' };
+                          return (
+                            <span key={idx} style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', background: s.bg, border: `1px solid ${s.border}`, color: s.color, fontSize: '0.72rem', fontWeight: '600' }}>
+                              {item.tenMon} x{item.soLuong}
+                            </span>
+                          );
+                        })}
+                        {(order.chi_tiet || []).length > 3 && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>+{(order.chi_tiet || []).length - 3} món</span>
+                        )}
+                      </div>
+                      <button onClick={() => setExpandedOrder(isExpanded ? null : order.id_donHang)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', transition: 'all 0.15s' }}>
+                        {isExpanded ? '▲ Thu gọn' : '▼ Chi tiết'}
+                      </button>
+                    </div>
+
+                    {/* Expanded details */}
+                    {isExpanded && (
+                      <div style={{ padding: '0 1.25rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {(order.chi_tiet || []).map((item, idx) => {
+                          const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', border: 'var(--border)' };
+                          return (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', borderRadius: '0.75rem', background: s.bg, border: `1px solid ${s.border}` }}>
+                              {item.hinhAnh && (
+                                <div style={{ width: '36px', height: '36px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
+                                  <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                                </div>
+                              )}
+                              <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontWeight: '600', fontSize: '0.88rem', color: '#fff' }}>{item.tenMon} <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}>x{item.soLuong}</span></div>
+                                  <div style={{ fontSize: '0.73rem', color: s.color, fontWeight: '600', marginTop: '0.1rem' }}>{item.trangThaiMon}</div>
+                                </div>
+                                <strong style={{ color: '#fff', fontSize: '0.88rem' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Bill Total in Expanded view */}
+                        <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>TỔNG HÓA ĐƠN:</span>
+                          <strong style={{ fontSize: '1rem', color: '#10b981' }}>{fmtMoney(order.tongTien)}</strong>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer with dates */}
+                    <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'grid', gap: '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Đặt: {formatDate(order.thoiGianTao)}</span>
+                        <span>{order.soMon} món</span>
+                      </div>
+                      {order.thoiGianHoanThanh && (
+                        <div style={{ color: '#34d399', fontWeight: '500' }}>
+                          Hoàn thành: {formatDate(order.thoiGianHoanThanh)}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div style={{ padding: '0.75rem 1.25rem', fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Đặt: {formatDate(order.thoiGianTao)}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>{order.soMon} món</span>
-                  </div>
-                  {order.thoiGianHoanThanh && (
-                    <div style={{ padding: '0 1.25rem 0.75rem', fontSize: '0.75rem', color: '#34d399' }}>
-                      Hoàn thành: {formatDate(order.thoiGianHoanThanh)}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         )}

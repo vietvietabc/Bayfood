@@ -511,11 +511,19 @@ def get_waiter_history(
             models.ChiTietDonHang.id_donHang == order.id_donHang
         ).all()
         items = []
+        tong_tien = Decimal("0")
         for ct in chi_tiets:
             mon = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
+            gia = ct.giaTaiThoiDiemBan or Decimal("0")
+            so_luong = ct.soLuong or 0
+            tong_tien += gia * so_luong
             items.append({
+                "id_chiTietDonHang": ct.id_chiTietDonHang,
+                "id_monAn": ct.id_monAn,
                 "tenMon": mon.tenMon if mon else f"Món #{ct.id_monAn}",
-                "soLuong": ct.soLuong,
+                "hinhAnh": mon.hinhAnh if mon else None,
+                "soLuong": so_luong,
+                "giaTaiThoiDiemBan": float(gia),
                 "trangThaiMon": ct.trangThaiMon,
             })
         khach = db.query(models.NguoiDung).filter(
@@ -530,6 +538,8 @@ def get_waiter_history(
             "tinhTrang": order.tinhTrang,
             "isMyOrder": is_mine,
             "soMon": len(items),
+            "tongTien": float(tong_tien),
+            "chi_tiet": items,
         })
     return result
 
