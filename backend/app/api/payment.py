@@ -128,6 +128,34 @@ def initiate_booking(
     if body.payment_mode not in ("deposit", "full"):
         raise HTTPException(status_code=400, detail="payment_mode không hợp lệ (deposit | full)")
 
+    # Kiểm tra tính hợp lệ của thời gian đến nếu có
+    thoi_gian_den_str = None
+    if body.dat_ban:
+        thoi_gian_den_str = body.dat_ban.thoiGianDen
+    elif body.thoiGianDen:
+        thoi_gian_den_str = body.thoiGianDen
+
+    if thoi_gian_den_str:
+        try:
+            dt_den = datetime.fromisoformat(thoi_gian_den_str.replace("Z", ""))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Định dạng thời gian đến không hợp lệ")
+
+        from app.api.datban import _normalize_datetime, _now_utc_naive, _business_day_window
+        from datetime import timedelta
+
+        reservation_time = _normalize_datetime(dt_den)
+        business_start, business_end, working_hours = _business_day_window(db, reservation_time.date())
+
+        if working_hours["isNghi"]:
+            raise HTTPException(status_code=400, detail="Nhà hàng nghỉ vào ngày bạn đã chọn")
+
+        if reservation_time <= _now_utc_naive():
+            raise HTTPException(status_code=400, detail="Thời gian đến phải lớn hơn thời gian hiện tại")
+
+        if reservation_time < business_start or reservation_time > (business_end - timedelta(hours=2)):
+            raise HTTPException(status_code=400, detail=f"Thời gian đến nằm ngoài giờ mở cửa của nhà hàng ({working_hours['gioMoCua']} - {working_hours['gioDongCua']})")
+
     # Tính tổng tiền món ăn
     tong_tien = sum(Decimal(str(item.giaTaiThoiDiemBan)) * item.soLuong for item in body.cart)
     tong_tien_float = float(tong_tien)

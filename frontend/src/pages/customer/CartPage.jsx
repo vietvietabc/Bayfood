@@ -272,15 +272,15 @@ const CartPage = () => {
     const submitOrder = (isBookingTable) => {
         const payload = {
             cart: cart.map(item => ({
-                id_monAn:          item.id_monAn,
-                soLuong:           item.quantity,
+                id_monAn: item.id_monAn,
+                soLuong: item.quantity,
                 giaTaiThoiDiemBan: item.giaTien,
             })),
-            id_ban:     selectedTableId ? parseInt(selectedTableId) : null,
-            id_datBan:  (!selectedTableId && !isBookingTable && upcomingReservation && !isEditingTime)
-                            ? upcomingReservation.id_datBan : null,
+            id_ban: selectedTableId ? parseInt(selectedTableId) : null,
+            id_datBan: (!selectedTableId && !isBookingTable && upcomingReservation && !isEditingTime)
+                ? upcomingReservation.id_datBan : null,
             thoiGianDen: null,
-            dat_ban:    null,
+            dat_ban: null,
         };
 
         if (!selectedTableId && !isBookingTable && orderDate && orderTime) {
@@ -291,10 +291,10 @@ const CartPage = () => {
             const thoiGianDen = `${bookingForm.date}T${bookingForm.time}:00`;
             payload.thoiGianDen = thoiGianDen;
             payload.dat_ban = {
-                id_ban:      bookingForm.id_ban ? parseInt(bookingForm.id_ban) : null,
+                id_ban: bookingForm.id_ban ? parseInt(bookingForm.id_ban) : null,
                 thoiGianDen: thoiGianDen,
-                soNguoi:     parseInt(bookingForm.soNguoi),
-                ghiChu:      bookingForm.ghiChu,
+                soNguoi: parseInt(bookingForm.soNguoi),
+                ghiChu: bookingForm.ghiChu,
             };
         }
 
@@ -314,12 +314,12 @@ const CartPage = () => {
         setPayingMode(mode);
         try {
             const body = {
-                cart:         pendingPayload.cart,
-                dat_ban:      pendingPayload.dat_ban || null,
+                cart: pendingPayload.cart,
+                dat_ban: pendingPayload.dat_ban || null,
                 payment_mode: mode,
-                id_ban:       pendingPayload.id_ban || null,
-                id_datBan:    pendingPayload.id_datBan || null,
-                thoiGianDen:  pendingPayload.thoiGianDen || null,
+                id_ban: pendingPayload.id_ban || null,
+                id_datBan: pendingPayload.id_datBan || null,
+                thoiGianDen: pendingPayload.thoiGianDen || null,
             };
             const res = await axios.post(`${BASE_URL}/api/payment/initiate-booking`, body);
             clearCart();
@@ -347,10 +347,10 @@ const CartPage = () => {
 
             {/* ===== MÀN HÌNH CHỌN THANH TOÁN (trước khi tạo đơn) ===== */}
             {showPaymentChoice && pendingPayload && (() => {
-                const TABLE_FEE  = 50_000;
-                const billTotal  = pendingPayload.cart.reduce((s, i) => s + i.giaTaiThoiDiemBan * i.soLuong, 0);
+                const TABLE_FEE = 50_000;
+                const billTotal = pendingPayload.cart.reduce((s, i) => s + i.giaTaiThoiDiemBan * i.soLuong, 0);
                 const depositAmt = Math.ceil(billTotal * 0.1) + TABLE_FEE;  // 10% + 50k phí giữ bàn
-                const fullAmt    = Math.ceil(billTotal);                      // 100% bill, miễn phí giữ bàn
+                const fullAmt = Math.ceil(billTotal);                      // 100% bill, miễn phí giữ bàn
 
                 return (
                     <div style={{ maxWidth: '620px', margin: '0 auto' }}>

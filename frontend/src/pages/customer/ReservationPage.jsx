@@ -385,15 +385,20 @@ const ReservationPage = () => {
               </div>
               <div className="input-group">
                 <label className="input-label flex items-center gap-2"><Clock size={16} /> Từ giờ</label>
-                <input
-                  type="time"
+                <select
                   name="fromTime"
                   value={timelineSearch.fromTime}
                   onChange={handleTimelineRangeChange}
                   className="input-field"
-                  min={timelineOpenTime}
-                  max={timelineCloseTime === '24:00' ? '23:59' : timelineCloseTime}
-                />
+                  style={{ background: 'var(--surface)', color: 'var(--text-main)' }}
+                >
+                  {Array.from({ length: 96 }).map((_, index) => {
+                    const hour = Math.floor(index / 4);
+                    const min = (index % 4) * 15;
+                    const tStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+                    return <option key={tStr} value={tStr}>{tStr}</option>;
+                  })}
+                </select>
               </div>
               <div className="input-group">
               </div>
