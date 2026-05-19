@@ -153,6 +153,11 @@ const CustomerDashboard = () => {
                                             {orders.some((o) => o.id_datBan === reservation.id_datBan) && (
                                                 <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem' }}>Đã đặt món đi kèm</span>
                                             )}
+                                            {reservation.soPhutGiuChoConLai !== undefined && reservation.soPhutGiuChoConLai !== null && reservation.soPhutGiuChoConLai > 0 && (
+                                                <span style={{ color: '#dc2626', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                    <Clock3 size={14} /> Thời gian giữ chỗ còn lại: {reservation.soPhutGiuChoConLai} phút
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div style={{ marginTop: '0.9rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone, date, time
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -7,12 +8,14 @@ from app import models
 from app import schemas
 from app.api.auth import get_current_admin, get_current_user
 from app.api.thongbao import create_notification
+from app.api.giolamviec import serialize_working_hours, DEFAULT_OPEN_TIME, DEFAULT_CLOSE_TIME
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/datban", tags=["Đặt Bàn"])
 
 SERVICE_DURATION = timedelta(hours=3)
 TIMELINE_SLOT_MINUTES = 60
-DEFAULT_OPEN_TIME = "07:00"
-DEFAULT_CLOSE_TIME = "24:00"
 
 
 def _clock_to_minutes(value: str) -> int:
@@ -52,7 +55,19 @@ def _normalize_datetime(value: datetime) -> datetime:
 
 
 def _now_utc_naive() -> datetime:
-    return datetime.now().replace(second=0, microsecond=0)
+    # Luôn sử dụng giờ Việt Nam (GMT+7) độc lập với múi giờ của server
+    return datetime.now(timezone(timedelta(hours=7))).replace(tzinfo=None, second=0, microsecond=0)
+
+
+def _calculate_remaining_hold_minutes(db_res: models.DatBan) -> int | None:
+    if db_res.trangThai not in ["Đã xác nhận", "Chờ xác nhận", "Đã đặt"]:
+        return None
+    
+    now = _now_utc_naive()
+    limit_time = db_res.thoiGianDen + timedelta(hours=3)
+    if now >= limit_time:
+        return 0
+    return int((limit_time - now).total_seconds() / 60)
 
 
 def _reservation_window(thoiGianDen: datetime) -> tuple[datetime, datetime]:
@@ -63,31 +78,8 @@ def _get_working_hours_record(db: Session, ngay: date):
     return db.query(models.GioLamViec).filter(models.GioLamViec.ngay == ngay).first()
 
 
-def _serialize_working_hours(record, ngay: date) -> dict:
-    if record is None:
-        return {
-            "id_gioLamViec": None,
-            "ngay": ngay,
-            "gioMoCua": DEFAULT_OPEN_TIME,
-            "gioDongCua": DEFAULT_CLOSE_TIME,
-            "isNghi": False,
-            "ghiChu": None,
-            "source": "default",
-        }
-
-    return {
-        "id_gioLamViec": record.id_gioLamViec,
-        "ngay": record.ngay,
-        "gioMoCua": record.gioMoCua or DEFAULT_OPEN_TIME,
-        "gioDongCua": record.gioDongCua or DEFAULT_CLOSE_TIME,
-        "isNghi": bool(record.isNghi),
-        "ghiChu": record.ghiChu,
-        "source": "custom",
-    }
-
-
 def _business_day_window(db: Session, ngay: date) -> tuple[datetime, datetime, dict]:
-    working_hours = _serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
+    working_hours = serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
     if working_hours["isNghi"]:
         day_start = datetime.combine(ngay, time.min)
         return day_start, day_start, working_hours
@@ -101,6 +93,7 @@ def _business_day_window(db: Session, ngay: date) -> tuple[datetime, datetime, d
 
 def _has_time_overlap(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datetime) -> bool:
     return start_a < end_b and start_b < end_a
+
 
 
 def _get_active_reservations_for_table(db: Session, id_ban: int):
@@ -308,16 +301,26 @@ def _is_checkin_allowed(thoiGianDen: datetime) -> bool:
 
 @router.post("/", response_model=schemas.DatBan)
 def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
+    logger.info("User %s yêu cầu đặt bàn lúc %s, số người: %s, bàn chỉ định: %s", 
+                current_user.id_nguoiDung, reservation.thoiGianDen, reservation.soNguoi, reservation.id_ban)
+    
+    if reservation.soNguoi <= 0:
+        logger.warning("Đặt bàn thất bại: Số người không hợp lệ (%s)", reservation.soNguoi)
+        raise HTTPException(status_code=400, detail="Số lượng người đặt phải lớn hơn 0")
+
     reservation_time = _normalize_datetime(reservation.thoiGianDen)
     business_start, business_end, working_hours = _business_day_window(db, reservation_time.date())
 
     if working_hours["isNghi"]:
+        logger.warning("Đặt bàn thất bại: Nhà hàng nghỉ ngày %s", reservation_time.date())
         raise HTTPException(status_code=400, detail="Nhà hàng nghỉ vào ngày bạn đã chọn")
 
     if reservation_time <= _now_utc_naive():
+        logger.warning("Đặt bàn thất bại: Thời gian đặt %s ở quá khứ (giờ hiện tại: %s)", reservation_time, _now_utc_naive())
         raise HTTPException(status_code=400, detail="Thời gian đặt bàn phải lớn hơn thời gian hiện tại")
 
     if reservation_time < business_start or reservation_time > (business_end - timedelta(hours=2)):
+        logger.warning("Đặt bàn thất bại: Thời gian %s nằm ngoài giờ nhận khách", reservation_time)
         raise HTTPException(status_code=400, detail="Nhà hàng chỉ nhận đặt muộn nhất là 22:00")
 
     # Nếu đặt muộn (sau 21h), thời gian dùng bữa sẽ bị giới hạn bởi giờ đóng cửa
@@ -326,14 +329,24 @@ def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = 
          raise HTTPException(status_code=400, detail="Thời gian đặt không hợp lệ")
 
     if reservation.id_ban is not None:
-        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == reservation.id_ban).first()
+        # Áp dụng Pessimistic Locking (.with_for_update()) để ngăn chặn tuyệt đối double-booking khi chịu tải cao
+        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == reservation.id_ban).with_for_update().first()
         if not db_ban:
+            logger.warning("Đặt bàn thất bại: Không tìm thấy bàn #%s", reservation.id_ban)
             raise HTTPException(status_code=404, detail="Không tìm thấy bàn")
+        
+        if reservation.soNguoi > db_ban.sucChua:
+            logger.warning("Đặt bàn thất bại: Số người (%s) vượt quá sức chứa bàn #%s (max %s)", 
+                           reservation.soNguoi, db_ban.id_ban, db_ban.sucChua)
+            raise HTTPException(status_code=400, detail=f"Bàn này chỉ chứa tối đa {db_ban.sucChua} người")
+
         schedule = _get_table_schedule(db, reservation.id_ban)
         classification = _classify_table_time(schedule, reservation_time)
         if classification["status"] == "occupied":
+            logger.warning("Đặt bàn thất bại: Bàn #%s đã có khách đặt vào lúc %s", reservation.id_ban, reservation_time)
             raise HTTPException(status_code=400, detail="Bàn này đã có khách đặt trong khoảng thời gian đó")
         if classification["status"] == "blocked":
+            logger.warning("Đặt bàn thất bại: Bàn #%s không đủ thời gian trống trước lượt kế tiếp", reservation.id_ban)
             raise HTTPException(status_code=400, detail="Bàn này không còn đủ thời gian trống")
 
     db_reservation = models.DatBan(
@@ -346,18 +359,30 @@ def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = 
     )
     db.add(db_reservation)
 
-    db.commit()
-    db.refresh(db_reservation)
+    try:
+        db.commit()
+        db.refresh(db_reservation)
+        logger.info("User %s đặt bàn thành công! Mã đơn: #%s, Bàn: #%s", 
+                    current_user.id_nguoiDung, db_reservation.id_datBan, db_reservation.id_ban)
+    except Exception as exc:
+        logger.error("Lỗi hệ thống khi commit đặt bàn của User %s: %s", current_user.id_nguoiDung, str(exc))
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Lỗi hệ thống khi xử lý đặt bàn") from exc
+
+    db_reservation.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(db_reservation)
     return db_reservation
 
 @router.get("/me", response_model=list[schemas.DatBan])
 def get_my_reservations(db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
-    return (
+    res_list = (
         db.query(models.DatBan)
         .filter(models.DatBan.id_nguoiDung == current_user.id_nguoiDung)
         .order_by(models.DatBan.id_datBan.desc())
         .all()
     )
+    for res in res_list:
+        res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(res)
+    return res_list
 
 
 @router.post("/{id_datBan}/checkin", response_model=schemas.DatBan)
@@ -366,6 +391,7 @@ def checkin_reservation(
     db: Session = Depends(get_db),
     current_user: models.NguoiDung = Depends(get_current_user),
 ):
+    logger.info("User %s yêu cầu check-in đặt bàn #%s", current_user.id_nguoiDung, id_datBan)
     db_res = (
         db.query(models.DatBan)
         .filter(
@@ -375,15 +401,19 @@ def checkin_reservation(
         .first()
     )
     if not db_res:
+        logger.warning("Check-in thất bại: Không tìm thấy đặt bàn #%s cho user %s", id_datBan, current_user.id_nguoiDung)
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn đặt bàn của bạn")
 
     if db_res.trangThai == "Đã checkin":
+        logger.warning("Check-in thất bại: Đặt bàn #%s đã được checkin từ trước", id_datBan)
         raise HTTPException(status_code=400, detail="Bạn đã check-in cho bàn này rồi")
 
     if db_res.trangThai != "Đã xác nhận":
+        logger.warning("Check-in thất bại: Trạng thái hiện tại (%s) không hợp lệ", db_res.trangThai)
         raise HTTPException(status_code=400, detail="Chỉ có thể check-in khi đặt bàn đã được xác nhận")
 
     if not _is_checkin_allowed(db_res.thoiGianDen):
+        logger.warning("Check-in thất bại: Chưa đến giờ check-in (%s)", db_res.thoiGianDen)
         raise HTTPException(status_code=400, detail="Chưa đến thời gian check-in cho bàn này")
 
     db_res.trangThai = "Đã checkin"
@@ -426,14 +456,23 @@ def checkin_reservation(
         lienKet="/account",
     )
 
-    db.commit()
-    db.refresh(db_res)
+    try:
+        db.commit()
+        db.refresh(db_res)
+        logger.info("User %s check-in thành công đặt bàn #%s", current_user.id_nguoiDung, id_datBan)
+    except Exception as exc:
+        logger.error("Lỗi commit check-in cho đặt bàn #%s: %s", id_datBan, str(exc))
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Lỗi hệ thống khi check-in") from exc
+
+    db_res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(db_res)
     return db_res
 
 @router.get("/all/list", response_model=list[schemas.DatBan])
 def get_all_reservations(db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
     reservations = db.query(models.DatBan).order_by(models.DatBan.id_datBan.desc()).all()
     for res in reservations:
+        res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(res)
         db_order = db.query(models.DonHang).filter(models.DonHang.id_datBan == res.id_datBan).first()
         if db_order:
             res.id_donHang = db_order.id_donHang
@@ -470,7 +509,7 @@ def get_available_tables(thoiGianDen: datetime | None = Query(default=None), db:
 @router.get("/timeline")
 def get_table_timeline(ngay: date = Query(...), fromTime: str | None = Query(default=None), db: Session = Depends(get_db)):
     tables = db.query(models.Ban).order_by(models.Ban.id_ban.asc()).all()
-    working_hours = _serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
+    working_hours = serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
     return {
         "ngay": ngay,
         "workingHours": working_hours,
@@ -483,6 +522,7 @@ def get_reservation(id_datBan: int, db: Session = Depends(get_db)):
     db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == id_datBan).first()
     if not db_res:
         raise HTTPException(status_code=404, detail="Reservation not found")
+    db_res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(db_res)
     return db_res
 
 from pydantic import BaseModel

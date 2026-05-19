@@ -25,6 +25,7 @@ class DatBan(DatBanCreate):
     lyDoHuy: Optional[str] = None
     kieuCoc: Optional[str] = None
     id_donHang: Optional[int] = None
+    soPhutGiuChoConLai: Optional[int] = None
     class Config:
         from_attributes = True
 
