@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingCart, Utensils, CalendarDays, User, LogOut, LayoutDashboard, ChevronDown, Bell, CheckCheck } from 'lucide-react';
 import axios from 'axios';
@@ -20,9 +20,9 @@ const Navbar = () => {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
-    setAccountMenuOpen(false);
-    setNotificationMenuOpen(false);
-  }, [location.pathname]);
+    // Only close if there's significant reason or it's handled by link clicks.
+    // Menu state should not be bound directly to location pathname this way to avoid excessive re-renders.
+  }, [location]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -88,7 +88,7 @@ const Navbar = () => {
       <div className="nav-container">
         <Link to="/" className="flex items-center gap-2" style={{ textDecoration: 'none' }}>
           <Utensils size={28} color="var(--primary)" />
-          <h1 className="text-gradient" style={{ fontSize: '1.5rem', margin: 0 }}>BayFood</h1>
+          <h1 style={{ color: "var(--ink)", fontSize: '1.5rem', margin: 0, fontWeight: '600' }}>BayFood</h1>
         </Link>
 
         <div className="nav-links flex items-center gap-8">
@@ -104,8 +104,8 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={() => setNotificationMenuOpen((prev) => !prev)}
-                className="btn btn-outline flex items-center gap-2"
-                style={{ padding: '0.5rem 1rem', position: 'relative' }}
+                className="nav-link flex items-center gap-2"
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: '0.5rem 1rem', position: 'relative', color: 'var(--ink)' }}
               >
                 <Bell size={18} />
                 Thông báo
@@ -138,8 +138,8 @@ const Navbar = () => {
                   right: 0,
                   width: '360px',
                   maxWidth: 'calc(100vw - 2rem)',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
+                  background: 'var(--surface-card)',
+                  border: '1px solid var(--hairline)',
                   borderRadius: '1rem',
                   boxShadow: '0 24px 50px rgba(0,0,0,0.18)',
                   padding: '0.75rem',
@@ -147,11 +147,11 @@ const Navbar = () => {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.25rem 0.75rem', borderBottom: '1px solid var(--border)', marginBottom: '0.75rem' }}>
                     <div style={{ fontWeight: 'bold' }}>Thông báo</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{unreadCount} chưa đọc</div>
+                    <div style={{ color: 'var(--muted)', fontSize: '0.875rem' }}>{unreadCount} chưa đọc</div>
                   </div>
 
                   {notifications.length === 0 ? (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '0.75rem' }}>Chưa có thông báo nào.</div>
+                    <div style={{ color: 'var(--muted)', fontSize: '0.9rem', padding: '0.75rem' }}>Chưa có thông báo nào.</div>
                   ) : (
                     <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '340px', overflowY: 'auto' }}>
                       {notifications.slice(0, 6).map((notification) => (
@@ -165,9 +165,9 @@ const Navbar = () => {
                           }}
                         >
                           <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.92rem' }}>{notification.tieuDe}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '0.86rem', marginBottom: '0.6rem', lineHeight: 1.45 }}>{notification.noiDung}</div>
+                          <div style={{ color: 'var(--muted)', fontSize: '0.86rem', marginBottom: '0.6rem', lineHeight: 1.45 }}>{notification.noiDung}</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                            <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>
                               {notification.thoiGianTao ? new Date(notification.thoiGianTao).toLocaleString('vi-VN') : ''}
                             </div>
                             {!notification.daDoc ? (
@@ -204,8 +204,8 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={() => setAccountMenuOpen((prev) => !prev)}
-                className="btn btn-outline flex items-center gap-2"
-                style={{ padding: '0.5rem 1rem', fontWeight: 'bold', position: 'relative' }}
+                className="nav-link flex items-center gap-2"
+                style={{ background: "transparent", border: "none", cursor: "pointer", padding: '0.5rem 1rem', fontWeight: 'bold', position: 'relative', color: 'var(--ink)' }}
               >
                 <User size={18} /> {user.hoTen}
                 <ChevronDown size={16} style={{ transform: accountMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
@@ -218,8 +218,8 @@ const Navbar = () => {
                     top: 'calc(100% + 0.75rem)',
                     right: 0,
                     minWidth: '240px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
+                    background: 'var(--surface-card)',
+                    border: '1px solid var(--hairline)',
                     borderRadius: '1rem',
                     boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
                     padding: '0.5rem',
@@ -227,8 +227,8 @@ const Navbar = () => {
                   }}
                 >
                   <div style={{ padding: '0.75rem 0.75rem 0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                    <div style={{ fontWeight: 'bold', color: 'var(--text)' }}>{user.hoTen}</div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{user.email}</div>
+                    <div style={{ fontWeight: 'bold', color: 'var(--ink)' }}>{user.hoTen}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>{user.email}</div>
                   </div>
 
                   <Link
@@ -253,8 +253,8 @@ const Navbar = () => {
                       setAccountMenuOpen(false);
                       logout();
                     }}
-                    className="btn btn-outline flex items-center gap-2"
-                    style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem', border: 'none', background: 'transparent', color: 'var(--danger)' }}
+                    className="nav-link flex items-center gap-2"
+                    style={{ width: '100%', justifyContent: 'flex-start', padding: '0.75rem', border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer' }}
                   >
                     <LogOut size={18} /> Đăng xuất
                   </button>
@@ -262,15 +262,15 @@ const Navbar = () => {
               )}
             </div>
           ) : (
-            <Link to="/login" className="btn btn-outline flex items-center gap-2" style={{ padding: '0.5rem 1rem' }}>
+            <Link to="/login" className="nav-link flex items-center gap-2" style={{ background: "transparent", border: "none", cursor: "pointer", padding: '0.5rem 1rem', color: 'var(--ink)' }}>
               <User size={18} /> Đăng Nhập
             </Link>
           )}
 
           <button
             onClick={() => navigate('/cart')}
-            className="btn btn-primary flex items-center gap-2"
-            style={{ position: 'relative' }}
+            className="nav-link flex items-center gap-2"
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: '0.5rem 1rem', position: 'relative', color: 'var(--ink)' }}
           >
             <ShoppingCart size={18} />
             Giỏ Hàng

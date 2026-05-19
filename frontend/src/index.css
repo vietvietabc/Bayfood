@@ -1,22 +1,35 @@
 :root {
-  /* Colors */
+  /* Linear.app Design System */
+  --canvas: #0e0f11;
+  --surface-card: #161719;
+  --surface-soft: #222326;
+  --hairline: #2d2d30;
+  --ink: #f1f1f2;
+  --muted: #8a8f98;
+  --muted-soft: #6b7280;
+
   --primary: #f97316;
-  /* Orange 500 */
-  --primary-hover: #ea580c;
-  --secondary: #10b981;
-  /* Emerald 500 */
-  --background: #111827;
-  /* Gray 900 - Dark mode default */
-  --surface: #1f2937;
-  /* Gray 800 */
-  --surface-light: #374151;
-  --text-main: #f9fafb;
-  /* Gray 50 */
-  --text-muted: #9ca3af;
-  /* Gray 400 */
-  --border: #374151;
-  /* Gray 700 */
+  --primary-hover: #fb923c;
+  --brand-teal: #10b981;
+  --brand-lavender: #f59e0b;
+
   --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  --rounded-sm: 4px;
+  --rounded-md: 6px;
+  --rounded-lg: 8px;
+  --rounded-xl: 12px;
+  --rounded-pill: 9999px;
+
+  /* Overwrite existing for compatibility */
+  --background: var(--canvas);
+  --surface: var(--surface-card);
+  --surface-light: var(--surface-soft);
+  --text-main: var(--ink);
+  --text-muted: var(--muted);
+  --border: var(--hairline);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -25,8 +38,8 @@
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --glass-bg: rgba(31, 41, 55, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(22, 23, 25, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.05);
 }
 
 html {
@@ -63,7 +76,7 @@ h6 {
 }
 
 .text-gradient {
-  background: linear-gradient(to right, var(--primary), #fbbf24);
+  background: linear-gradient(to right, var(--primary), var(--brand-lavender), var(--brand-teal));
   -webkit-background-clip: text;
   color: transparent;
 }
@@ -382,4 +395,29 @@ h6 {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Sleek High-End Modern Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
 }

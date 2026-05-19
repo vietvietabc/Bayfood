@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -12,19 +12,19 @@ const getItemStatusStyle = (status) => {
         case 'Chờ chế biến':
             return { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04', border: '1px solid rgba(234,179,8,0.3)', label: 'Chờ chế biến' };
         case 'Đang chế biến':
-            return { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c', border: '1px solid rgba(249,115,22,0.3)', label: 'Đang chế biến' };
+            return { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c', border: '1px solid rgba(94,106,210,0.3)', label: 'Đang chế biến' };
         case 'Hoàn thành':
             return { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16,185,129,0.3)', label: 'Hoàn thành' };
         default:
-            return { bg: 'var(--surface-light)', color: 'var(--text-muted)', border: '1px solid var(--border)', label: status };
+            return { bg: 'var(--surface-soft)', color: 'var(--muted)', border: '1px solid var(--hairline)', label: status };
     }
 };
 
 const getOrderStatusStyle = (status) => {
     switch (status) {
         case 'Đang chờ món': return { bg: 'rgba(234,179,8,0.12)', color: '#ca8a04' };
-        case 'Đang chế biến': return { bg: 'rgba(249,115,22,0.12)', color: '#ea580c' };
-        default: return { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
+        case 'Đang chế biến': return { bg: 'rgba(94,106,210,0.12)', color: '#ea580c' };
+        default: return { bg: 'var(--surface-soft)', color: 'var(--muted)' };
     }
 };
 
@@ -216,7 +216,7 @@ const KitchenPage = () => {
     if (authLoading) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ width: '42px', height: '42px', border: '4px solid var(--border)', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                <div style={{ width: '42px', height: '42px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             </div>
         );
     }
@@ -240,11 +240,11 @@ const KitchenPage = () => {
         sum + o.chi_tiet.filter(i => i.trangThaiMon === 'Hoàn thành').length, 0);
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '0' }}>
+        <div style={{ minHeight: '100vh', background: 'var(--canvas)', padding: '0' }}>
             {/* Sub-header bar: ca làm việc + stats + controls */}
             <div style={{
-                background: 'rgba(30,20,10,0.92)',
-                borderBottom: '1px solid rgba(249,115,22,0.18)',
+                background: 'var(--canvas)',
+                borderBottom: '1px solid rgba(94,106,210,0.18)',
                 padding: '0.6rem 2rem',
                 position: 'sticky',
                 top: '60px',
@@ -257,21 +257,21 @@ const KitchenPage = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {shiftData.trangThai === 'Đang làm' ? (
                                 <>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#34d399', fontSize: '0.78rem', fontWeight: '700' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#34d399', fontSize: '0.78rem', fontWeight: '700' }}>
                                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
                                         {shiftData.caLamViec}
                                     </span>
-                                    <button onClick={handleShiftCheckOut} disabled={shiftLoading} style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer' }}>
+                                    <button onClick={handleShiftCheckOut} disabled={shiftLoading} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer' }}>
                                         Tan Ca
                                     </button>
                                 </>
                             ) : (
                                 <>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)', fontSize: '0.78rem', fontWeight: '600' }}>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', color: 'var(--muted)', fontSize: '0.78rem', fontWeight: '600' }}>
                                         <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', display: 'inline-block' }} />
                                         Chưa vào ca
                                     </span>
-                                    <button onClick={() => setShowShiftModal(true)} disabled={shiftLoading} style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', border: '1px solid rgba(249,115,22,0.5)', background: 'rgba(249,115,22,0.15)', color: '#fb923c', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer' }}>
+                                    <button onClick={() => setShowShiftModal(true)} disabled={shiftLoading} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(94,106,210,0.5)', background: 'rgba(94,106,210,0.15)', color: '#fb923c', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer' }}>
                                         Vào Ca
                                     </button>
                                 </>
@@ -281,20 +281,20 @@ const KitchenPage = () => {
 
                     {/* Stats + Controls */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(234,179,8,0.15)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24', fontSize: '0.78rem', fontWeight: '700' }}>
+                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(234,179,8,0.15)', border: '1px solid rgba(234,179,8,0.3)', color: '#fbbf24', fontSize: '0.78rem', fontWeight: '700' }}>
                             {pendingCount} chờ
                         </div>
-                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', color: '#fb923c', fontSize: '0.78rem', fontWeight: '700' }}>
+                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(94,106,210,0.15)', border: '1px solid rgba(94,106,210,0.3)', color: '#fb923c', fontSize: '0.78rem', fontWeight: '700' }}>
                             {cookingCount} đang làm
                         </div>
-                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.78rem', fontWeight: '700' }}>
+                        <div style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.78rem', fontWeight: '700' }}>
                             {doneCount} xong
                         </div>
                         <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)', margin: '0 0.25rem' }} />
-                        <button onClick={() => setAutoRefresh(v => !v)} style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', border: `1px solid ${autoRefresh ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`, background: autoRefresh ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', color: autoRefresh ? '#34d399' : 'rgba(255,255,255,0.35)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <button onClick={() => setAutoRefresh(v => !v)} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: `1px solid ${autoRefresh ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`, background: autoRefresh ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', color: autoRefresh ? '#34d399' : 'rgba(255,255,255,0.35)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
                             {autoRefresh ? '● Auto ON' : '○ Auto OFF'}
                         </button>
-                        <button onClick={fetchOrders} style={{ padding: '0.3rem 0.75rem', borderRadius: '999px', border: '1px solid rgba(249,115,22,0.4)', background: 'rgba(249,115,22,0.12)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <button onClick={fetchOrders} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(94,106,210,0.4)', background: 'rgba(94,106,210,0.12)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
                             Làm mới · {formatTime(lastRefresh)}
                         </button>
                     </div>
@@ -311,15 +311,15 @@ const KitchenPage = () => {
                         onClick={() => setActiveTab('active')}
                         style={{
                             padding: '0.55rem 1.4rem',
-                            borderRadius: '999px',
-                            border: activeTab === 'active' ? '1px solid rgba(249,115,22,0.5)' : '1px solid var(--border)',
-                            background: activeTab === 'active' ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'var(--surface)',
-                            color: activeTab === 'active' ? '#fff' : 'var(--text-muted)',
+                            borderRadius: 'var(--rounded-pill)',
+                            border: activeTab === 'active' ? 'none' : '1px solid var(--hairline)',
+                            background: activeTab === 'active' ? 'var(--primary)' : 'var(--surface-card)',
+                            color: activeTab === 'active' ? '#fff' : 'var(--muted)',
                             fontWeight: '700',
                             fontSize: '0.875rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: activeTab === 'active' ? '0 4px 14px rgba(249,115,22,0.3)' : 'none',
+                            boxShadow: activeTab === 'active' ? '0 4px 14px rgba(94,106,210,0.3)' : 'none',
                         }}
                     >
                         Đang chế biến ({orders.length})
@@ -328,15 +328,15 @@ const KitchenPage = () => {
                         onClick={() => { setActiveTab('history'); fetchHistory(); }}
                         style={{
                             padding: '0.55rem 1.4rem',
-                            borderRadius: '999px',
-                            border: activeTab === 'history' ? '1px solid rgba(249,115,22,0.5)' : '1px solid var(--border)',
-                            background: activeTab === 'history' ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'var(--surface)',
-                            color: activeTab === 'history' ? '#fff' : 'var(--text-muted)',
+                            borderRadius: 'var(--rounded-pill)',
+                            border: activeTab === 'history' ? 'none' : '1px solid var(--hairline)',
+                            background: activeTab === 'history' ? 'var(--primary)' : 'var(--surface-card)',
+                            color: activeTab === 'history' ? '#fff' : 'var(--muted)',
                             fontWeight: '700',
                             fontSize: '0.875rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: activeTab === 'history' ? '0 4px 14px rgba(249,115,22,0.3)' : 'none',
+                            boxShadow: activeTab === 'history' ? '0 4px 14px rgba(94,106,210,0.3)' : 'none',
                         }}
                     >
                         Lịch sử đơn
@@ -345,15 +345,15 @@ const KitchenPage = () => {
                         onClick={() => { setActiveTab('shifts'); fetchPersonalShifts(); }}
                         style={{
                             padding: '0.55rem 1.4rem',
-                            borderRadius: '999px',
-                            border: activeTab === 'shifts' ? '1px solid rgba(249,115,22,0.5)' : '1px solid var(--border)',
-                            background: activeTab === 'shifts' ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'var(--surface)',
-                            color: activeTab === 'shifts' ? '#fff' : 'var(--text-muted)',
+                            borderRadius: 'var(--rounded-pill)',
+                            border: activeTab === 'shifts' ? 'none' : '1px solid var(--hairline)',
+                            background: activeTab === 'shifts' ? 'var(--primary)' : 'var(--surface-card)',
+                            color: activeTab === 'shifts' ? '#fff' : 'var(--muted)',
                             fontWeight: '700',
                             fontSize: '0.875rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: activeTab === 'shifts' ? '0 4px 14px rgba(249,115,22,0.3)' : 'none',
+                            boxShadow: activeTab === 'shifts' ? '0 4px 14px rgba(94,106,210,0.3)' : 'none',
                         }}
                     >
                         Lịch sử ca làm
@@ -368,10 +368,10 @@ const KitchenPage = () => {
                                 padding: '2.5rem 2rem',
                                 textAlign: 'center',
                                 background: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(255,255,255,1))',
-                                border: '1px solid rgba(249,115,22,0.2)',
-                                borderRadius: '1rem',
+                                border: '1px solid rgba(94,106,210,0.2)',
+                                borderRadius: 'var(--rounded-lg)',
                                 marginBottom: '2rem',
-                                boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+                                boxShadow: 'none',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
@@ -381,7 +381,7 @@ const KitchenPage = () => {
                                     width: '60px',
                                     height: '60px',
                                     borderRadius: '50%',
-                                    background: 'rgba(249, 115, 22, 0.1)',
+                                    background: 'rgba(94, 106, 210, 0.1)',
                                     color: 'var(--primary)',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -391,16 +391,16 @@ const KitchenPage = () => {
                                 }}>
 
                                 </div>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem', color: 'var(--text)' }}>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem', color: 'var(--ink)' }}>
                                     Chào đầu bếp {user.hoTen}! Bạn đang ở trạng thái nghỉ
                                 </h2>
-                                <p style={{ color: 'var(--text-muted)', maxWidth: '540px', margin: '0 0 1.5rem', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                                <p style={{ color: 'var(--muted)', maxWidth: '540px', margin: '0 0 1.5rem', fontSize: '0.95rem', lineHeight: '1.5' }}>
                                     Vui lòng chọn ca và bấm <strong>"Vào Ca"</strong> để thông báo cho hệ thống rằng bạn đã sẵn sàng làm việc và bắt đầu nấu nướng các món ăn ngon!
                                 </p>
                                 <button
                                     onClick={() => setShowShiftModal(true)}
                                     className="btn btn-primary"
-                                    style={{ padding: '0.75rem 2rem', fontSize: '0.95rem', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(249,115,22,0.2)' }}
+                                    style={{ padding: '0.75rem 2rem', fontSize: '0.95rem', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(94,106,210,0.2)' }}
                                 >
                                     Chọn Ca & Bắt Đầu Làm Việc
                                 </button>
@@ -408,18 +408,18 @@ const KitchenPage = () => {
                         )}
 
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                                <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                                <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
                                 Đang tải danh sách đơn bếp...
                             </div>
                         ) : orders.length === 0 ? (
                             <div style={{
                                 textAlign: 'center', padding: '5rem 2rem',
-                                borderRadius: '1rem', border: '2px dashed var(--border)',
-                                background: 'var(--surface)',
+                                borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)',
+                                background: 'var(--surface-card)',
                             }}>
-                                <h2 style={{ margin: '0 0 0.5rem', color: 'var(--text)' }}>Không có đơn nào trong bếp</h2>
-                                <p style={{ color: 'var(--text-muted)' }}>Tất cả các đơn hàng đã được phục vụ hoặc chưa có đơn mới.</p>
+                                <h2 style={{ margin: '0 0 0.5rem', color: 'var(--ink)' }}>Không có đơn nào trong bếp</h2>
+                                <p style={{ color: 'var(--muted)' }}>Tất cả các đơn hàng đã được phục vụ hoặc chưa có đơn mới.</p>
                             </div>
                         ) : (
                             <div style={{
@@ -437,12 +437,10 @@ const KitchenPage = () => {
                                         <div
                                             key={order.id_donHang}
                                             style={{
-                                                background: 'var(--surface)',
-                                                borderRadius: '1.25rem',
-                                                border: isUrgent ? '1.5px solid rgba(239,68,68,0.6)' : allDone ? '1.5px solid rgba(16,185,129,0.4)' : '1px solid var(--border)',
-                                                boxShadow: isUrgent
-                                                    ? '0 0 0 4px rgba(239,68,68,0.07), 0 8px 24px rgba(0,0,0,0.12)'
-                                                    : '0 4px 20px rgba(0,0,0,0.08)',
+                                                background: 'var(--surface-card)',
+                                                borderRadius: 'var(--rounded-xl)',
+                                                border: isUrgent ? '1.5px solid rgba(239,68,68,0.6)' : allDone ? '1.5px solid rgba(16,185,129,0.4)' : '1px solid var(--hairline)',
+                                                boxShadow: 'none',
                                                 overflow: 'hidden',
                                                 display: 'flex',
                                                 flexDirection: 'column',
@@ -456,8 +454,8 @@ const KitchenPage = () => {
                                                     ? 'rgba(16,185,129,0.08)'
                                                     : isUrgent
                                                         ? 'rgba(239,68,68,0.08)'
-                                                        : 'var(--surface-light)',
-                                                borderBottom: '1px solid var(--border)',
+                                                        : 'var(--surface-soft)',
+                                                borderBottom: '1px solid var(--hairline)',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
                                                 alignItems: 'center',
@@ -468,7 +466,7 @@ const KitchenPage = () => {
                                                     <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
                                                         {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'}
                                                     </span>
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                    <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
                                                         #{order.id_donHang}
                                                     </span>
                                                 </div>
@@ -481,7 +479,7 @@ const KitchenPage = () => {
                                                     )}
                                                     <span style={{
                                                         padding: '0.2rem 0.6rem',
-                                                        borderRadius: '999px',
+                                                        borderRadius: 'var(--rounded-pill)',
                                                         fontSize: '0.8rem',
                                                         background: orderStyle.bg,
                                                         color: orderStyle.color,
@@ -491,7 +489,7 @@ const KitchenPage = () => {
                                                     </span>
                                                     <span style={{
                                                         fontSize: '0.8rem',
-                                                        color: isUrgent ? '#dc2626' : 'var(--text-muted)',
+                                                        color: isUrgent ? '#dc2626' : 'var(--muted)',
                                                         fontWeight: isUrgent ? 'bold' : 'normal',
                                                     }}>
                                                         {elapsed} phút
@@ -516,7 +514,7 @@ const KitchenPage = () => {
                                                                 alignItems: 'center',
                                                                 gap: '0.75rem',
                                                                 padding: '0.75rem',
-                                                                borderRadius: '0.75rem',
+                                                                borderRadius: 'var(--rounded-md)',
                                                                 background: style.bg,
                                                                 border: style.border,
                                                                 transition: 'all 0.2s',
@@ -526,7 +524,7 @@ const KitchenPage = () => {
                                                             <div style={{
                                                                 width: '44px', height: '44px', borderRadius: '0.5rem',
                                                                 overflow: 'hidden', flexShrink: 0,
-                                                                background: 'var(--border)',
+                                                                background: 'var(--hairline)',
                                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                             }}>
                                                                 {item.hinhAnh ? (
@@ -537,7 +535,7 @@ const KitchenPage = () => {
                                                                         onError={e => { e.target.style.display = 'none'; }}
                                                                     />
                                                                 ) : (
-                                                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Ảnh</span>
+                                                                    <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Ảnh</span>
                                                                 )}
                                                             </div>
 
@@ -555,7 +553,7 @@ const KitchenPage = () => {
                                                                     <span style={{
                                                                         marginLeft: '0.5rem',
                                                                         fontWeight: 'normal',
-                                                                        color: 'var(--text-muted)',
+                                                                        color: 'var(--muted)',
                                                                         fontSize: '0.85rem',
                                                                     }}>
                                                                         x{item.soLuong}
@@ -585,19 +583,19 @@ const KitchenPage = () => {
                                                                     style={{
                                                                         flexShrink: 0,
                                                                         padding: '0.45rem 1rem',
-                                                                        borderRadius: '999px',
+                                                                        borderRadius: 'var(--rounded-pill)',
                                                                         border: 'none',
                                                                         cursor: isUpdating ? 'not-allowed' : 'pointer',
                                                                         background: item.trangThaiMon === 'Chờ chế biến'
-                                                                            ? 'linear-gradient(135deg, #f97316, #ea580c)'
-                                                                            : 'linear-gradient(135deg, #10b981, #059669)',
-                                                                        color: '#fff',
+                                                                            ? 'var(--primary)'
+                                                                            : 'var(--brand-teal)',
+                                                                        color: 'var(--ink)',
                                                                         fontWeight: '700',
                                                                         fontSize: '0.78rem',
                                                                         letterSpacing: '0.02em',
                                                                         opacity: isUpdating ? 0.6 : 1,
                                                                         boxShadow: item.trangThaiMon === 'Chờ chế biến'
-                                                                            ? '0 4px 12px rgba(249,115,22,0.35)'
+                                                                            ? '0 4px 12px rgba(94,106,210,0.35)'
                                                                             : '0 4px 12px rgba(16,185,129,0.35)',
                                                                         transition: 'all 0.2s',
                                                                     }}
@@ -626,13 +624,13 @@ const KitchenPage = () => {
                                             {/* Card footer */}
                                             <div style={{
                                                 padding: '0.75rem 1.25rem',
-                                                borderTop: '1px solid var(--border)',
+                                                borderTop: '1px solid var(--hairline)',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
                                                 alignItems: 'center',
-                                                background: 'var(--surface-light)',
+                                                background: 'var(--surface-soft)',
                                                 fontSize: '0.8rem',
-                                                color: 'var(--text-muted)',
+                                                color: 'var(--muted)',
                                             }}>
                                                 <span>Gọi lúc {formatTime(order.thoiGianTao)}</span>
                                                 <span>
@@ -650,18 +648,18 @@ const KitchenPage = () => {
 
                 {activeTab === 'history' && (
                     historyLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
                             Đang tải lịch sử đơn hàng đã làm...
                         </div>
                     ) : historyOrders.length === 0 ? (
                         <div style={{
                             textAlign: 'center', padding: '5rem 2rem',
-                            borderRadius: '1rem', border: '2px dashed var(--border)',
-                            background: 'var(--surface)',
+                            borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)',
+                            background: 'var(--surface-card)',
                         }}>
-                            <h2 style={{ margin: '0 0 0.5rem', color: 'var(--text)' }}>Chưa làm đơn hàng nào</h2>
-                            <p style={{ color: 'var(--text-muted)' }}>Bạn chưa hoàn thành chế biến món ăn nào hoặc chưa có đơn hàng nào hoàn thành gần đây.</p>
+                            <h2 style={{ margin: '0 0 0.5rem', color: 'var(--ink)' }}>Chưa làm đơn hàng nào</h2>
+                            <p style={{ color: 'var(--muted)' }}>Bạn chưa hoàn thành chế biến món ăn nào hoặc chưa có đơn hàng nào hoàn thành gần đây.</p>
                         </div>
                     ) : (
                         <div style={{
@@ -673,10 +671,10 @@ const KitchenPage = () => {
                                 <div
                                     key={order.id_donHang}
                                     style={{
-                                        background: 'var(--surface)',
-                                        borderRadius: '1rem',
-                                        border: order.hasCookedItem ? '1.5px solid rgba(16,185,129,0.3)' : '1px solid var(--border)',
-                                        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                                        background: 'var(--surface-card)',
+                                        borderRadius: 'var(--rounded-lg)',
+                                        border: order.hasCookedItem ? '1.5px solid rgba(16,185,129,0.3)' : '1px solid var(--hairline)',
+                                        boxShadow: 'none',
                                         overflow: 'hidden',
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -705,8 +703,8 @@ const KitchenPage = () => {
                                     {/* Order Card Header */}
                                     <div style={{
                                         padding: '1rem 1.25rem',
-                                        background: 'var(--surface-light)',
-                                        borderBottom: '1px solid var(--border)',
+                                        background: 'var(--surface-soft)',
+                                        borderBottom: '1px solid var(--hairline)',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '0.25rem',
@@ -715,11 +713,11 @@ const KitchenPage = () => {
                                             <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
                                                 {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'}
                                             </span>
-                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                            <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
                                                 #{order.id_donHang}
                                             </span>
                                         </div>
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                                             Đặt lúc: {new Date(order.thoiGianTao).toLocaleString('vi-VN')}
                                         </div>
                                         {order.thoiGianHoanThanh && (
@@ -740,15 +738,15 @@ const KitchenPage = () => {
                                                     alignItems: 'center',
                                                     gap: '0.75rem',
                                                     padding: '0.6rem',
-                                                    borderRadius: '0.75rem',
-                                                    background: item.isMyItem ? 'rgba(16,185,129,0.05)' : 'var(--surface-light)',
-                                                    border: item.isMyItem ? '1px solid rgba(16,185,129,0.2)' : '1px solid var(--border)',
+                                                    borderRadius: 'var(--rounded-md)',
+                                                    background: item.isMyItem ? 'rgba(16,185,129,0.05)' : 'var(--surface-soft)',
+                                                    border: item.isMyItem ? '1px solid rgba(16,185,129,0.2)' : '1px solid var(--hairline)',
                                                 }}
                                             >
                                                 <div style={{
                                                     width: '40px', height: '40px', borderRadius: '0.4rem',
                                                     overflow: 'hidden', flexShrink: 0,
-                                                    background: 'var(--border)',
+                                                    background: 'var(--hairline)',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 }}>
                                                     {item.hinhAnh ? (
@@ -759,7 +757,7 @@ const KitchenPage = () => {
                                                             onError={e => { e.target.style.display = 'none'; }}
                                                         />
                                                     ) : (
-                                                        <span style={{ fontSize: '1rem' }}>🍽️</span>
+                                                        <span style={{ fontSize: '1rem' }}></span>
                                                     )}
                                                 </div>
 
@@ -772,12 +770,12 @@ const KitchenPage = () => {
                                                         textOverflow: 'ellipsis',
                                                     }}>
                                                         {item.tenMon}
-                                                        <span style={{ marginLeft: '0.4rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                                                        <span style={{ marginLeft: '0.4rem', color: 'var(--muted)', fontWeight: 'normal' }}>
                                                             x{item.soLuong}
                                                         </span>
                                                     </div>
 
-                                                    <div style={{ fontSize: '0.75rem', marginTop: '0.15rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                    <div style={{ fontSize: '0.75rem', marginTop: '0.15rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
 
                                                         {item.isMyItem ? (
                                                             <strong style={{ color: '#059669' }}>Bạn chế biến</strong>
@@ -804,13 +802,13 @@ const KitchenPage = () => {
                                     {/* Footer */}
                                     <div style={{
                                         padding: '0.75rem 1.25rem',
-                                        borderTop: '1px solid var(--border)',
+                                        borderTop: '1px solid var(--hairline)',
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
-                                        background: 'var(--surface-light)',
+                                        background: 'var(--surface-soft)',
                                         fontSize: '0.8rem',
-                                        color: 'var(--text-muted)',
+                                        color: 'var(--muted)',
                                     }}>
                                         <span style={{
                                             padding: '0.2rem 0.5rem',
@@ -832,40 +830,40 @@ const KitchenPage = () => {
                 {/* Shifts tab */}
                 {activeTab === 'shifts' && (
                     personalShiftsLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--border)', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
                             Đang tải lịch sử ca làm...
                         </div>
                     ) : personalShifts.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: '1.25rem', border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-xl)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏰</div>
                             <h2 style={{ margin: '0 0 0.5rem' }}>Chưa có lịch sử ca làm</h2>
-                            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Lịch sử check-in và tan ca của bạn sẽ được hiển thị tại đây.</p>
+                            <p style={{ color: 'var(--muted)', margin: 0 }}>Lịch sử check-in và tan ca của bạn sẽ được hiển thị tại đây.</p>
                         </div>
                     ) : (
-                        <div style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-xl)', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
                                     <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Ngày</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Ca làm</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Giờ vào ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Giờ tan ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Thời lượng</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)' }}>Trạng thái</th>
+                                        <tr style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--surface-soft)' }}>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ngày</th>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ca làm</th>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ vào ca</th>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ tan ca</th>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Thời lượng</th>
+                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Trạng thái</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {personalShifts.map(s => (
-                                            <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <td style={{ padding: '1.1rem 1.5rem', fontWeight: '600', color: '#fff' }}>{s.ngay}</td>
+                                            <tr key={s.id} style={{ borderBottom: '1px solid var(--hairline)' }}>
+                                                <td style={{ padding: '1.1rem 1.5rem', fontWeight: '600', color: 'var(--ink)' }}>{s.ngay}</td>
                                                 <td style={{ padding: '1.1rem 1.5rem' }}>
-                                                    <span style={{ padding: '0.25rem 0.65rem', borderRadius: '0.5rem', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
+                                                    <span style={{ padding: '0.25rem 0.65rem', borderRadius: '0.5rem', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(94,106,210,0.25)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
                                                         {s.caLamViec}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: '#fff', fontSize: '0.9rem', fontWeight: '600' }}>{s.thoiGianVao}</td>
+                                                <td style={{ padding: '1.1rem 1.5rem', color: 'var(--ink)', fontSize: '0.9rem', fontWeight: '600' }}>{s.thoiGianVao}</td>
                                                 <td style={{ padding: '1.1rem 1.5rem', color: s.thoiGianRa === 'Chưa tan ca' ? 'rgba(255,255,255,0.3)' : '#fff', fontSize: '0.9rem', fontWeight: '600' }}>
                                                     {s.thoiGianRa}
                                                 </td>
@@ -874,12 +872,12 @@ const KitchenPage = () => {
                                                 </td>
                                                 <td style={{ padding: '1.1rem 1.5rem' }}>
                                                     {s.thoiGianRa === 'Chưa tan ca' ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: '999px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.35)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(94,106,210,0.15)', border: '1px solid rgba(94,106,210,0.35)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
+                                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }} />
                                                             Đang làm
                                                         </span>
                                                     ) : (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: '999px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700' }}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', color: 'var(--muted)', fontSize: '0.75rem', fontWeight: '700' }}>
                                                             Đã hoàn thành
                                                         </span>
                                                     )}
@@ -897,17 +895,17 @@ const KitchenPage = () => {
             {/* SHIFT VERIFICATION MODAL */}
             {showShiftModal && (
                 <div onClick={() => setShowShiftModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-soft)' }}>
                             <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0 }}>Xác Nhận Vào Ca Làm</h2>
-                            <button onClick={() => setShowShiftModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>✕</button>
+                            <button onClick={() => setShowShiftModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '1.2rem' }}>✕</button>
                         </div>
                         <div style={{ padding: '1.5rem' }}>
                             {!shiftData?.caLamViec ? (
                                 <div style={{ textAlign: 'center', padding: '1rem 0' }}>
                                     <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>⚠️</div>
                                     <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 0.5rem', color: '#dc2626' }}>Chưa được gán ca làm việc!</h3>
-                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                                         Bạn chưa được Quản lý phân chia ca làm việc trong hệ thống.<br />
                                         Vui lòng liên hệ Quản lý để được xếp lịch ca làm việc trước khi thực hiện nhận ca.
                                     </p>
@@ -917,26 +915,26 @@ const KitchenPage = () => {
                                 </div>
                             ) : (
                                 <div>
-                                    <p style={{ margin: '0 0 1.25rem', fontSize: '0.95rem', color: 'var(--text)', lineHeight: '1.5' }}>
+                                    <p style={{ margin: '0 0 1.25rem', fontSize: '0.95rem', color: 'var(--ink)', lineHeight: '1.5' }}>
                                         Hệ thống sẽ thực hiện kiểm tra và check-in vào ca làm việc được gán bởi Quản lý cho tài khoản của bạn:
                                     </p>
 
                                     <div style={{
                                         padding: '1.25rem',
-                                        borderRadius: '0.75rem',
-                                        border: '1px solid var(--border)',
-                                        background: 'var(--surface-light)',
+                                        borderRadius: 'var(--rounded-md)',
+                                        border: '1px solid var(--hairline)',
+                                        background: 'var(--surface-soft)',
                                         marginBottom: '1.5rem',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '0.75rem'
                                     }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Đầu bếp:</span>
+                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Đầu bếp:</span>
                                             <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{user.hoTen}</span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Ca làm được gán:</span>
+                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Ca làm được gán:</span>
                                             <span style={{
                                                 fontSize: '0.9rem',
                                                 fontWeight: 'bold',
@@ -949,13 +947,13 @@ const KitchenPage = () => {
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Khung giờ ca:</span>
+                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Khung giờ ca:</span>
                                             <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>
                                                 {shiftData.caLamViec === 'Ca sáng' ? '07:00 - 12:00' : shiftData.caLamViec === 'Ca chiều' ? '12:00 - 17:00' : '17:00 - 22:00'}
                                             </span>
                                         </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Giờ hiện tại:</span>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: '0.75rem' }}>
+                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Giờ hiện tại:</span>
                                             <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10b981' }}>{formatTime(new Date())}</span>
                                         </div>
                                     </div>
@@ -996,13 +994,13 @@ const KitchenPage = () => {
                     padding: '1rem'
                 }}>
                     <div style={{
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '1.25rem',
+                        background: 'var(--surface-card)',
+                        border: '1px solid var(--hairline)',
+                        borderRadius: 'var(--rounded-xl)',
                         width: '100%',
                         maxWidth: '480px',
                         padding: '2rem',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '1.25rem',
@@ -1022,10 +1020,10 @@ const KitchenPage = () => {
                                 🚪
                             </div>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--text)' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--ink)' }}>
                                     {isEarlyCheckout ? 'Tan Ca Làm Sớm' : 'Xác Nhận Tan Ca'}
                                 </h3>
-                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
                                     {isEarlyCheckout ? 'Bạn đang muốn rời ca khi chưa kết thúc thời gian làm việc' : 'Xác nhận kết thúc ca làm việc của bạn'}
                                 </p>
                             </div>
@@ -1037,7 +1035,7 @@ const KitchenPage = () => {
                                     padding: '0.85rem 1rem',
                                     background: 'rgba(239,68,68,0.05)',
                                     border: '1px solid rgba(239,68,68,0.15)',
-                                    borderRadius: '0.75rem',
+                                    borderRadius: 'var(--rounded-md)',
                                     fontSize: '0.85rem',
                                     color: '#b91c1c',
                                     lineHeight: '1.4'
@@ -1045,7 +1043,7 @@ const KitchenPage = () => {
                                     ⚠️ <strong>Lưu ý:</strong> Ca làm việc của bạn là <strong>{shiftData?.caLamViec}</strong> (kết thúc lúc {shiftData?.caLamViec === 'Ca chiều' ? '17' : shiftData?.caLamViec === 'Ca tối' ? '22' : '12'}:00). Bạn đang tan ca sớm!
                                 </div>
 
-                                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text)' }}>
+                                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--ink)' }}>
                                     Lý do tan ca sớm của bạn: <span style={{ color: '#ef4444' }}>*</span>
                                 </label>
                                 <textarea
@@ -1059,10 +1057,10 @@ const KitchenPage = () => {
                                         width: '100%',
                                         height: '100px',
                                         padding: '0.75rem',
-                                        borderRadius: '0.75rem',
-                                        border: earlyCheckoutError ? '1px solid #ef4444' : '1px solid var(--border)',
-                                        background: 'var(--surface-light)',
-                                        color: 'var(--text)',
+                                        borderRadius: 'var(--rounded-md)',
+                                        border: earlyCheckoutError ? '1px solid #ef4444' : '1px solid var(--hairline)',
+                                        background: 'var(--surface-soft)',
+                                        color: 'var(--ink)',
                                         fontSize: '0.9rem',
                                         outline: 'none',
                                         resize: 'none',
@@ -1077,7 +1075,7 @@ const KitchenPage = () => {
                                 )}
                             </div>
                         ) : (
-                            <div style={{ fontSize: '0.92rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                            <div style={{ fontSize: '0.92rem', color: 'var(--muted)', lineHeight: '1.5' }}>
                                 Bạn có chắc chắn muốn tan ca làm việc hiện tại không? Hệ thống sẽ ghi nhận thời điểm bạn tan ca và cập nhật trạng thái hoạt động của bạn thành <strong>Nghỉ</strong>.
                             </div>
                         )}
@@ -1088,10 +1086,10 @@ const KitchenPage = () => {
                                 style={{
                                     flex: 1,
                                     padding: '0.75rem',
-                                    borderRadius: '0.75rem',
-                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--rounded-md)',
+                                    border: '1px solid var(--hairline)',
                                     background: 'transparent',
-                                    color: 'var(--text-muted)',
+                                    color: 'var(--muted)',
                                     fontWeight: 'bold',
                                     fontSize: '0.9rem',
                                     cursor: 'pointer',
@@ -1106,14 +1104,14 @@ const KitchenPage = () => {
                                 style={{
                                     flex: 1,
                                     padding: '0.75rem',
-                                    borderRadius: '0.75rem',
+                                    borderRadius: 'var(--rounded-md)',
                                     border: 'none',
                                     background: isEarlyCheckout ? '#ef4444' : 'var(--primary)',
-                                    color: '#fff',
+                                    color: 'var(--ink)',
                                     fontWeight: 'bold',
                                     fontSize: '0.9rem',
                                     cursor: shiftLoading ? 'not-allowed' : 'pointer',
-                                    boxShadow: isEarlyCheckout ? '0 4px 12px rgba(239,68,68,0.2)' : '0 4px 12px rgba(249,115,22,0.2)',
+                                    boxShadow: isEarlyCheckout ? '0 4px 12px rgba(239,68,68,0.2)' : '0 4px 12px rgba(94,106,210,0.2)',
                                     transition: 'opacity 0.2s'
                                 }}
                             >

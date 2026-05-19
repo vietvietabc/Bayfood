@@ -6,3 +6,8 @@ backend/.env
 *.pyd
 frontend/node_modules/
 frontend/dist/
+.agents/
+**/.agents/
+skills-lock.json
+**/skills-lock.json
+

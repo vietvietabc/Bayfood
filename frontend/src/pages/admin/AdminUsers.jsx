@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Shield, UserPlus, Lock, Unlock, X, ChefHat, UtensilsCrossed, User } from 'lucide-react';
 
@@ -7,7 +7,7 @@ const API = 'http://localhost:8000/api/users';
 const ROLE_CONFIG = {
   'Quản lý': { label: 'Quản lý', color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Shield size={13} /> },
   'Nhân viên phục vụ': { label: 'Phục vụ', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', icon: <UtensilsCrossed size={13} /> },
-  'Nhân viên nhà bếp': { label: 'Nhà bếp', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)', icon: <ChefHat size={13} /> },
+  'Nhân viên nhà bếp': { label: 'Nhà bếp', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: <ChefHat size={13} /> },
   default: { label: 'Khách hàng', color: 'var(--text-muted)', bg: 'rgba(100,100,100,0.08)', icon: <User size={13} /> },
 };
 
@@ -26,8 +26,30 @@ const AdminUsers = () => {
 
   const getToken = () => localStorage.getItem('token') || '';
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  useEffect(() => {
+    let active = true;
+    const loadUsers = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API}/all/list`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (active) setUsers(res.data);
+      } catch (err) {
+        if (active) console.error('Lỗi tải danh sách người dùng', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadUsers();
+    return () => { active = false; };
+  }, []);
+
+  const handleFormChange = (e) => {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const fetchUsersRef = async () => {
     try {
       const res = await axios.get(`${API}/all/list`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -35,14 +57,8 @@ const AdminUsers = () => {
       setUsers(res.data);
     } catch (err) {
       console.error('Lỗi tải danh sách người dùng', err);
-    } finally {
-      setLoading(false);
     }
   };
-
-  useEffect(() => { fetchUsers(); }, []);
-
-  const handleFormChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleCreateStaff = async (e) => {
     e.preventDefault();
@@ -55,7 +71,7 @@ const AdminUsers = () => {
       setShowModal(false);
       setForm({ hoTen: '', email: '', soDienThoai: '', matKhau: '', vaiTro: 'nv_phuc_vu' });
       showSuccess('Tạo tài khoản nhân viên thành công!');
-      fetchUsers();
+      fetchUsersRef();
     } catch (err) {
       setError(err.response?.data?.detail || 'Có lỗi xảy ra');
     } finally {
@@ -70,7 +86,7 @@ const AdminUsers = () => {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       showSuccess(`Đã khóa tài khoản ${user.hoTen}`);
-      fetchUsers();
+      fetchUsersRef();
     } catch (err) {
       alert(err.response?.data?.detail || 'Không thể khóa tài khoản');
     }
@@ -82,7 +98,7 @@ const AdminUsers = () => {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       showSuccess(`Đã mở khóa tài khoản ${user.hoTen}`);
-      fetchUsers();
+      fetchUsersRef();
     } catch (err) {
       alert(err.response?.data?.detail || 'Không thể mở khóa tài khoản');
     }
@@ -134,7 +150,7 @@ const AdminUsers = () => {
       {/* Table */}
       <div className="card" style={{ overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu...</div>
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu…</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
@@ -296,7 +312,7 @@ const AdminUsers = () => {
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   {[
                     { value: 'nv_phuc_vu', label: 'Nhân viên phục vụ', icon: <UtensilsCrossed size={16} />, color: '#3b82f6' },
-                    { value: 'nv_bep', label: 'Nhân viên nhà bếp', icon: <ChefHat size={16} />, color: '#8b5cf6' },
+                    { value: 'nv_bep', label: 'Nhân viên nhà bếp', icon: <ChefHat size={16} />, color: '#f59e0b' },
                   ].map(opt => (
                     <label
                       key={opt.value}

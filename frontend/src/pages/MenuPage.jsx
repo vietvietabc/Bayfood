@@ -8,9 +8,9 @@ import { useCart } from '../context/CartContext';
 const initialState = { menuItems: [], categories: [], loading: true, error: null };
 function reducer(state, action) {
   switch (action.type) {
-    case 'FETCH_SUCCESS': 
+    case 'FETCH_SUCCESS':
       return { ...state, menuItems: action.payload.menuItems, categories: action.payload.categories, loading: false };
-    case 'FETCH_ERROR': 
+    case 'FETCH_ERROR':
       return { ...state, error: action.payload, loading: false };
     default: return state;
   }
@@ -43,14 +43,6 @@ const MenuPage = () => {
         // Fallback data for visual testing if backend is not running
         dispatch({
           type: 'FETCH_SUCCESS',
-          payload: {
-            categories: [{ id_danhMuc: 1, tenDanhMuc: 'Món Chính' }, { id_danhMuc: 2, tenDanhMuc: 'Đồ Uống' }],
-            menuItems: [
-              { id_monAn: 1, id_danhMuc: 1, tenMon: 'Bò Bít Tết', giaTien: 250000, hinhAnh: 'https://images.unsplash.com/photo-1600891964092-4316c288032e?w=800' },
-              { id_monAn: 2, id_danhMuc: 1, tenMon: 'Cá Hồi Nướng', giaTien: 180000, hinhAnh: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800' },
-              { id_monAn: 3, id_danhMuc: 2, tenMon: 'Nước Ép Cam', giaTien: 450000, hinhAnh: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?w=800' },
-            ]
-          }
         });
       }
     };
@@ -69,7 +61,7 @@ const MenuPage = () => {
           {selectedTableId ? (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100/10 text-primary text-sm font-bold">
               Bàn đang gọi món: #{selectedTableId}
-              <button 
+              <button
                 onClick={() => setSelectedTableId(null)}
                 className="ml-2 flex items-center justify-center bg-red-100/10 text-red-500 border-none rounded-full w-5 h-5 cursor-pointer text-xs"
                 title="Bỏ chọn bàn"
