@@ -1,12 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
 
 class ChiTietDonHangCreate(BaseModel):
     id_monAn: int
-    soLuong: int
-    giaTaiThoiDiemBan: Decimal
+    soLuong: int = Field(..., gt=0)
+    giaTaiThoiDiemBan: Decimal = Field(..., ge=0)
 
 class ChiTietDonHang(ChiTietDonHangCreate):
     id_chiTietDonHang: int
@@ -21,8 +21,8 @@ class ChiTietDonHangDetail(BaseModel):
     id_monAn: int
     tenMon: Optional[str] = None
     hinhAnhMon: Optional[str] = None
-    soLuong: int
-    giaTaiThoiDiemBan: Decimal
+    soLuong: int = Field(..., gt=0)
+    giaTaiThoiDiemBan: Decimal = Field(..., ge=0)
     trangThaiMon: str
     id_nhanVien_bep: Optional[int] = None
     tenNhanVienBep: Optional[str] = None   # Người chế biến
@@ -44,8 +44,8 @@ class DonHangCreateCustomer(BaseModel):
 class DatBanCreateForOrder(BaseModel):
     id_ban: Optional[int] = None
     thoiGianDen: datetime
-    soNguoi: int
-    ghiChu: Optional[str] = None
+    soNguoi: int = Field(..., gt=0)
+    ghiChu: Optional[str] = Field(None, max_length=255)
 
 class OrderWithOptionalBookingCreate(BaseModel):
     id_ban: Optional[int] = None
@@ -69,24 +69,25 @@ class DonHang(BaseModel):
 class DonHangDetail(BaseModel):
     id_donHang: int
     id_nguoiDung: int
-    tenKhachHang: Optional[str] = None     # Người đặt
+    tenKhachHang: Optional[str] = None 
     id_datBan: Optional[int] = None
     id_ban: Optional[int] = None
     thoiGianTao: datetime
     thoiGianDen: Optional[datetime] = None
     tinhTrang: str
     id_nhanVien_phucvu: Optional[int] = None
-    tenNhanVienPhucVu: Optional[str] = None  # Người phục vụ
+    tenNhanVienPhucVu: Optional[str] = None  
     tongTien: Optional[Decimal] = None
     tienCoc: Optional[Decimal] = None
     trangThaiCoc: Optional[str] = None
+    tongThanhToan: Optional[Decimal] = 0.0 # Tổng số tiền đã thanh toán (từ bảng THANHTOAN)
     chi_tiet: List[ChiTietDonHangDetail] = []
     class Config:
         from_attributes = True
 
 class DanhGiaBase(BaseModel):
     id_donHang: int
-    soSao: int
+    soSao: int = Field(..., ge=1, le=5)
     noiDung: Optional[str] = None
 
 class DanhGiaCreate(DanhGiaBase):

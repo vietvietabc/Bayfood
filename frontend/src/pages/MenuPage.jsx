@@ -78,6 +78,7 @@ const MenuPage = () => {
             type="text"
             placeholder="Tìm kiếm món ăn..."
             className="input-field pl-10"
+            aria-label="Tìm kiếm món ăn"
           />
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>

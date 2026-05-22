@@ -35,9 +35,13 @@ const VNPayReturn = () => {
             iconBg: 'linear-gradient(135deg, #10b981, #059669)',
             iconShadow: '0 0 0 16px rgba(16,185,129,0.12)',
             title: 'Thanh toán thành công!',
-            subtitle: type === 'booking'
-                ? 'Đặt bàn và đơn hàng đã được xác nhận thành công.'
-                : 'Giao dịch hoàn tất.',
+            subtitle: type === 'order_edit'
+                ? 'Bổ sung thanh toán thành công. Đơn hàng đã được cập nhật thêm món!'
+                : type === 'booking'
+                    ? (id_donHang
+                        ? 'Đặt bàn và đơn hàng đã được xác nhận thành công.'
+                        : 'Bàn đã được đặt cọc và xác nhận. Bạn có thể chọn món ngay bây giờ!')
+                    : 'Giao dịch hoàn tất.',
             color: '#10b981',
         },
         // Fallback khi VNPay redirect thẳng về frontend (RETURN_URL cũ)
@@ -165,7 +169,6 @@ const VNPayReturn = () => {
                     </div>
                 )}
 
-                {/* Thông tin đơn hàng sau khi thành công */}
                 {isSuccess && (
                     <div style={{
                         padding: '1rem 1.25rem', borderRadius: '0.75rem', marginBottom: '1.5rem',
@@ -173,14 +176,29 @@ const VNPayReturn = () => {
                         color: '#059669', fontSize: '0.9rem', textAlign: 'left',
                         display: 'grid', gap: '0.4rem',
                     }}>
-                        {id_donHang && <div>Đơn hàng <strong>#DH{id_donHang}</strong> đã được tạo và ghi nhận</div>}
+                        {type === 'order_edit' && id_donHang && (
+                            <div>Đơn hàng <strong>#{id_donHang}</strong> đã được cập nhật món mới thành công</div>
+                        )}
+                        {type !== 'order_edit' && id_donHang && <div>Đơn hàng <strong>#DH{id_donHang}</strong> đã được tạo và ghi nhận</div>}
                         {id_datBan && <div>Lịch đặt bàn <strong>#DB{id_datBan}</strong> đã xác nhận</div>}
                         {id_ban && <div>Bàn số <strong>{id_ban}</strong></div>}
                         <div>
-                            {mode === 'deposit'
-                                ? 'Đã đặt cọc — phần còn lại thanh toán khi đến ăn'
-                                : 'Đã thanh toán toàn bộ — không cần trả thêm khi đến'}
+                            {mode === 'supplement_deposit'
+                                ? 'Đã cọc thêm 10% phần tăng — phần còn lại thanh toán khi đến ăn'
+                                : mode === 'supplement_full'
+                                    ? 'Đã thanh toán toàn bộ phần tăng thêm'
+                                    : mode === 'supplement'
+                                        ? 'Thanh toán bổ sung phần tăng thêm thành công'
+                                        : mode === 'deposit'
+                                            ? 'Đã đặt cọc — phần còn lại thanh toán khi đến ăn'
+                                            : 'Đã thanh toán toàn bộ — không cần trả thêm khi đến'}
                         </div>
+                        {/* Gợi ý đặt món nếu chỉ đặt bàn thuần */}
+                        {type === 'booking' && id_datBan && !id_donHang && (
+                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed rgba(16,185,129,0.3)', fontSize: '0.85rem' }}>
+                                Ấn vào nút bên dưới để chọn món trước và không phải chờ khi tới nơi.
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -196,6 +214,16 @@ const VNPayReturn = () => {
                     <Link to="/account" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                         Xem tài khoản
                     </Link>
+                    {/* Nếu đặt bàn thuần (không kèm món): gợi ý đặt món ngay */}
+                    {isSuccess && type === 'booking' && id_datBan && !id_donHang && (
+                        <Link
+                            to={`/menu?reservationId=${id_datBan}&tableId=${id_ban || ''}`}
+                            className="btn btn-primary"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+                        >
+                            🍽️ Chọn món ngay
+                        </Link>
+                    )}
                     {!isSuccess && (
                         <button onClick={() => navigate(-1)} className="btn btn-outline">
                             Thử lại

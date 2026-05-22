@@ -17,7 +17,8 @@ const AdminTables = () => {
     sucChua: 4,
     viTri: 'Tầng 1',
     hinhAnh: '',
-    trangThai: 'Trống'
+    trangThai: 'Trống',
+    tienCocMacDinh: 0
   });
 
   // Preview ảnh trong form
@@ -64,7 +65,7 @@ const AdminTables = () => {
   const handleOpenAddModal = () => {
     setIsEditing(false);
     setCurrentId(null);
-    setFormData({ tenBan: '', sucChua: 4, viTri: 'Tầng 1', hinhAnh: '', trangThai: 'Trống' });
+    setFormData({ tenBan: '', sucChua: 4, viTri: 'Tầng 1', hinhAnh: '', trangThai: 'Trống', tienCocMacDinh: 0 });
     setImagePreview('');
     setIsModalOpen(true);
   };
@@ -77,7 +78,8 @@ const AdminTables = () => {
       sucChua: table.sucChua,
       viTri: table.viTri,
       hinhAnh: table.hinhAnh || '',
-      trangThai: table.trangThai
+      trangThai: table.trangThai,
+      tienCocMacDinh: table.tienCocMacDinh ?? 0
     });
     setImagePreview(table.hinhAnh || '');
     setIsModalOpen(true);
@@ -180,6 +182,7 @@ const AdminTables = () => {
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tên Bàn</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Sức Chứa</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Vị Trí</th>
+                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tiền Cọc Mặc Định</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Hình Ảnh View</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã QR</th>
                 <th style={{ padding: '1rem', fontWeight: 'bold' }}>Trạng Thái</th>
@@ -192,6 +195,15 @@ const AdminTables = () => {
                   <td style={{ padding: '1rem', fontWeight: 'bold' }}>{table.tenBan}</td>
                   <td style={{ padding: '1rem' }}>{table.sucChua} người</td>
                   <td style={{ padding: '1rem' }}>{table.viTri}</td>
+                  <td style={{ padding: '1rem' }}>
+                    {table.tienCocMacDinh > 0 ? (
+                      <span style={{ fontWeight: 'bold', color: '#f97316' }}>
+                        {Number(table.tienCocMacDinh).toLocaleString('vi-VN')} ₫
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Miễn cọc</span>
+                    )}
+                  </td>
                   <td style={{ padding: '1rem' }}>
                     {table.hinhAnh ? (
                       <img src={getImageUrl(table.hinhAnh)} alt="View" style={{ width: '80px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
@@ -248,7 +260,7 @@ const AdminTables = () => {
               ))}
               {tables.length === 0 && (
                 <tr>
-                  <td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     Không có bàn nào trong hệ thống.
                   </td>
                 </tr>
@@ -306,7 +318,7 @@ const AdminTables = () => {
                   required placeholder="VD: Bàn 01, Bàn VIP 2, Bàn Sân Thượng..." />
               </div>
 
-              {/* Sức chứa & Trạng thái */}
+              {/* Sức chứa & Tiền cọc & Trạng thái */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Sức Chứa (Người) <span style={{ color: '#ef4444' }}>*</span></label>
@@ -328,6 +340,34 @@ const AdminTables = () => {
                     <option value="Bảo trì">Bảo trì</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Tiền cọc mặc định */}
+              <div className="form-group">
+                <label className="form-label">Tiền Cọc Mặc Định (VNĐ)</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={formData.tienCocMacDinh}
+                    onChange={e => setFormData({ ...formData, tienCocMacDinh: parseFloat(e.target.value) || 0 })}
+                    min="0"
+                    step="10000"
+                    placeholder="0 = miễn cọc"
+                    style={{ paddingRight: '3rem' }}
+                  />
+                  <span style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}>₫</span>
+                </div>
+                {formData.tienCocMacDinh > 0 && (
+                  <p style={{ fontSize: '0.8rem', color: '#f97316', margin: '0.25rem 0 0' }}>
+                    Khách đặt bàn này sẽ được yêu cầu đặt cọc: <strong>{Number(formData.tienCocMacDinh).toLocaleString('vi-VN')} ₫</strong>
+                  </p>
+                )}
+                {formData.tienCocMacDinh === 0 && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                    Để 0 nếu không yêu cầu đặt cọc.
+                  </p>
+                )}
               </div>
 
               {/* Vị trí */}

@@ -50,8 +50,9 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label className="input-label">Email</label>
+            <label className="input-label" htmlFor="login-email">Email</label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -61,9 +62,10 @@ const LoginPage = () => {
           </div>
           <div className="input-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <label className="input-label" style={{ marginBottom: 0 }}>Mật khẩu</label>
+              <label className="input-label" htmlFor="login-password" style={{ marginBottom: 0 }}>Mật khẩu</label>
             </div>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

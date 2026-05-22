@@ -153,18 +153,6 @@ const AdminReservations = () => {
                                 {res.trangThaiCoc}
                               </span>
                             )}
-                            {res.kieuCoc && res.kieuCoc !== 'Chưa cọc' && (
-                              <span style={{
-                                padding: '0.15rem 0.5rem',
-                                borderRadius: '999px',
-                                fontSize: '0.72rem',
-                                fontWeight: '700',
-                                background: res.kieuCoc === 'Cọc hết đơn' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                                color: res.kieuCoc === 'Cọc hết đơn' ? '#2563eb' : '#059669'
-                              }}>
-                                {res.kieuCoc}
-                              </span>
-                            )}
                           </div>
                         </div>
                       ) : (
@@ -282,7 +270,7 @@ const AdminReservations = () => {
                 <div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Thông tin cọc</div>
                   <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#059669' }}>
-                    {detailModal.tienCoc ? `${fmtMoney(detailModal.tienCoc)} (${detailModal.kieuCoc})` : 'Chưa đặt cọc'}
+                    {detailModal.tienCoc ? fmtMoney(detailModal.tienCoc) : 'Chưa đặt cọc'}
                   </div>
                 </div>
               </div>

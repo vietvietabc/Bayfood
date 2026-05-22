@@ -2,7 +2,7 @@ import React from 'react';
 import { Plus } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
-const FoodCard = ({ item }) => {
+const FoodCard = ({ item, onViewDetail }) => {
   const { addToCart } = useCart();
 
   // Hình ảnh placeholder đẹp mắt từ Unsplash theo chủ đề ẩm thực nếu không có ảnh
@@ -11,7 +11,10 @@ const FoodCard = ({ item }) => {
 
   return (
     <div className="card">
-      <div style={{ height: '200px', overflow: 'hidden' }}>
+      <div 
+        style={{ height: '200px', overflow: 'hidden', cursor: 'pointer' }}
+        onClick={() => onViewDetail && onViewDetail(item)}
+      >
         <img
           src={imageUrl}
           alt={item.tenMon}
@@ -21,7 +24,12 @@ const FoodCard = ({ item }) => {
         />
       </div>
       <div style={{ padding: '1.5rem' }}>
-        <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{item.tenMon}</h3>
+        <h2 
+            style={{ fontSize: '1.25rem', marginBottom: '0.5rem', cursor: 'pointer' }}
+            onClick={() => onViewDetail && onViewDetail(item)}
+        >
+            {item.tenMon}
+        </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem', minHeight: '40px' }}>
           {item.moTa || 'Món ăn thơm ngon chuẩn vị BayFood.'}
         </p>
@@ -31,8 +39,12 @@ const FoodCard = ({ item }) => {
           </span>
           <button
             className="btn btn-primary"
-            style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0 }}
-            onClick={() => addToCart(item)}
+            style={{ borderRadius: '50%', width: '40px', height: '40px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={(e) => {
+                e.stopPropagation();
+                addToCart(item);
+            }}
+            aria-label={`Thêm ${item.tenMon} vào giỏ hàng`}
           >
             <Plus size={20} />
           </button>

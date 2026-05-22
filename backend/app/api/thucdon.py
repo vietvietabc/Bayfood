@@ -22,6 +22,36 @@ def get_menu_items_by_category(id_danhMuc: int, db: Session = Depends(get_db)):
         models.ThucDon.trangThai == "Đang bán"
     ).all()
 
+@router.get("/{id_monAn}/chi-tiet", response_model=schemas.ThucDon)
+def get_menu_item_detail(id_monAn: int, db: Session = Depends(get_db)):
+    item = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == id_monAn).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Không tìm thấy món ăn")
+    return item
+
+@router.get("/{id_monAn}/danhgia", response_model=List[schemas.MonAnDanhGia])
+def get_food_reviews(id_monAn: int, limit: int = 10, db: Session = Depends(get_db)):
+    # Join DanhGia -> DonHang -> ChiTietDonHang -> NguoiDung
+    # Lấy các đánh giá thuộc về đơn hàng có chứa món ăn này
+    reviews = (
+        db.query(
+            models.DanhGia.id_danhGia,
+            models.DanhGia.id_nguoiDung,
+            models.NguoiDung.hoTen.label("tenNguoiDung"),
+            models.DanhGia.soSao,
+            models.DanhGia.noiDung
+        )
+        .join(models.NguoiDung, models.DanhGia.id_nguoiDung == models.NguoiDung.id_nguoiDung)
+        .join(models.DonHang, models.DanhGia.id_donHang == models.DonHang.id_donHang)
+        .join(models.ChiTietDonHang, models.DonHang.id_donHang == models.ChiTietDonHang.id_donHang)
+        .filter(models.ChiTietDonHang.id_monAn == id_monAn)
+        .distinct(models.DanhGia.id_danhGia)
+        .order_by(models.DanhGia.id_danhGia.desc())
+        .limit(limit)
+        .all()
+    )
+    return reviews
+
 class ThucDonCreate(schemas.ThucDonBase):
     pass
 

@@ -34,7 +34,7 @@ const OrderModal = ({
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>
                         Chi Tiết Đơn Hàng {selectedOrder ? `#DH${selectedOrder.id_donHang}` : ''}
                     </h2>
-                    <button onClick={handleCloseOrderModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}>
+                    <button onClick={handleCloseOrderModal} aria-label="Đóng chi tiết đơn hàng" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}>
                         <X size={22} />
                     </button>
                 </div>
@@ -47,8 +47,8 @@ const OrderModal = ({
                         <>
                             {/* Nhân viên & Trạng thái */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#a855f7' }}>
+                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(192, 132, 252, 0.08)', border: '1px solid rgba(192, 132, 252, 0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', color: '#c084fc' }}>
                                         <Star size={16} /><span style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}>Nhân viên phục vụ</span>
                                     </div>
                                     <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>
@@ -65,11 +65,11 @@ const OrderModal = ({
 
                             {/* Bàn + Thời gian tạo */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: selectedOrder.id_ban ? 'rgba(16,185,129,0.12)' : 'var(--surface-light)', border: `1px solid ${selectedOrder.id_ban ? 'rgba(16,185,129,0.4)' : 'var(--border)'}` }}>
-                                    <div style={{ fontSize: '0.8rem', color: selectedOrder.id_ban ? '#059669' : 'var(--text-muted)', marginBottom: '0.4rem', fontWeight: 700 }}>
+                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: selectedOrder.id_ban ? 'rgba(52, 211, 153, 0.08)' : 'var(--surface-light)', border: `1px solid ${selectedOrder.id_ban ? 'rgba(52, 211, 153, 0.3)' : 'var(--border)'}` }}>
+                                    <div style={{ fontSize: '0.8rem', color: selectedOrder.id_ban ? '#34d399' : 'var(--text-muted)', marginBottom: '0.4rem', fontWeight: 700 }}>
                                         🪑 BÀN NGỒI
                                     </div>
-                                    <div style={{ fontWeight: 'bold', fontSize: '1.4rem', color: selectedOrder.id_ban ? '#059669' : 'var(--text-muted)' }}>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1.4rem', color: selectedOrder.id_ban ? '#34d399' : 'var(--text-muted)' }}>
                                         {selectedOrder.id_ban ? `Bàn số ${selectedOrder.id_ban}` : selectedOrder.id_datBan ? 'Đã đặt bàn (chờ xếp chỗ)' : 'Chưa đặt bàn'}
                                     </div>
                                 </div>
@@ -89,14 +89,14 @@ const OrderModal = ({
 
                             {/* Liên kết đặt bàn */}
                             {selectedOrder.id_datBan && (
-                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.2)', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                                     <div>
-                                        <div style={{ fontSize: '0.8rem', color: '#059669', marginBottom: '0.25rem', fontWeight: 600 }}>Đã liên kết lịch đặt bàn</div>
-                                        <div style={{ fontWeight: 'bold', color: '#059669' }}>Mã đặt bàn: #{selectedOrder.id_datBan}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#34d399', marginBottom: '0.25rem', fontWeight: 600 }}>Đã liên kết lịch đặt bàn</div>
+                                        <div style={{ fontWeight: 'bold', color: '#34d399' }}>Mã đặt bàn: #{selectedOrder.id_datBan}</div>
                                     </div>
                                     <button
                                         className="btn btn-outline"
-                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#059669', borderColor: '#10b981' }}
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#34d399', borderColor: '#34d399' }}
                                         onClick={() => {
                                             setShowOrderModal(false);
                                             const res = reservations.find((r) => r.id_datBan === selectedOrder.id_datBan);

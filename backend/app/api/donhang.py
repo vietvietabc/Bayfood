@@ -1,6 +1,6 @@
 from decimal import Decimal
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -92,6 +92,10 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
             tien_coc = db_reservation.tienCoc
             trang_thai_coc = db_reservation.trangThaiCoc
 
+    # Tính tổng số tiền đã thanh toán từ bảng THANHTOAN
+    payments = db.query(models.ThanhToan).filter(models.ThanhToan.id_donHang == db_order.id_donHang).all()
+    tong_thanh_toan = sum(p.soTienThanhToan for p in payments) if payments else Decimal("0")
+
     return schemas.DonHangDetail(
         id_donHang=db_order.id_donHang,
         id_nguoiDung=db_order.id_nguoiDung,
@@ -106,6 +110,7 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
         tongTien=tong_tien,
         tienCoc=tien_coc,
         trangThaiCoc=trang_thai_coc,
+        tongThanhToan=tong_thanh_toan,
         chi_tiet=chi_tiet_list,
     )
 
@@ -132,6 +137,10 @@ def create_order(
             id_ban = db_reservation.id_ban
         elif db_reservation.id_ban is not None and db_reservation.id_ban != id_ban:
             raise HTTPException(status_code=400, detail="Bàn đặt không khớp với đặt bàn đã chọn")
+
+    if order.thoiGianDen:
+        from app.api.datban import validate_restaurant_hours
+        validate_restaurant_hours(db, order.thoiGianDen, is_booking=False)
 
     db_order = models.DonHang(
         id_nguoiDung=current_user.id_nguoiDung,
@@ -167,6 +176,12 @@ def create_order_with_booking(
     try:
         id_datBan = req.id_datBan
         id_ban = req.id_ban
+
+        from app.api.datban import validate_restaurant_hours
+        if req.dat_ban:
+            validate_restaurant_hours(db, req.dat_ban.thoiGianDen, is_booking=True)
+        elif req.thoiGianDen:
+            validate_restaurant_hours(db, req.thoiGianDen, is_booking=False)
 
         if req.dat_ban:
             # Tạo Đặt Bàn (Step 1)
@@ -232,8 +247,151 @@ def create_order_with_booking(
         raise HTTPException(status_code=400, detail=f"Lỗi khi xử lý đơn hàng: {str(e)}")
 
 
+class QROrderRequest(BaseModel):
+    chi_tiet: list[schemas.ChiTietDonHangCreate]
+
+@router.post("/table/{id_ban}/qr-order")
+def create_or_append_qr_order(
+    id_ban: int,
+    req: QROrderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_user),
+):
+    """
+    Xử lý gọi món qua mã QR tại bàn.
+    - Nếu bàn đang có đơn của khách này -> gộp chung (không cọc).
+    - Nếu bàn đang có đơn của khách khác -> chặn.
+    - Nếu bàn trống -> tạo đơn mới (không cọc).
+    """
+    active_order = db.query(models.DonHang).filter(
+        models.DonHang.id_ban == id_ban,
+        models.DonHang.tinhTrang.in_(["Đang chờ món", "Đang phục vụ", "Chờ khách đến"])
+    ).first()
+
+    tong_tien_them = Decimal("0")
+    auto_checked_in = False
+
+    if active_order:
+        if active_order.id_nguoiDung != current_user.id_nguoiDung:
+            raise HTTPException(status_code=400, detail="Bàn này đang được sử dụng bởi một khách hàng khác. Vui lòng sử dụng điện thoại của người đã đặt để gọi thêm món, hoặc nhờ nhân viên hỗ trợ.")
+        
+        if active_order.tinhTrang == "Chờ khách đến":
+            from app.api.datban import _now_utc_naive
+            from datetime import timedelta
+            if _now_utc_naive() < (active_order.thoiGianDen - timedelta(minutes=15)):
+                raise HTTPException(status_code=400, detail="Chưa đến thời gian nhận bàn (sớm nhất trước 15 phút). Vui lòng đợi thêm hoặc liên hệ nhân viên để check-in sớm.")
+            
+            # Tự động checkin
+            active_order.tinhTrang = "Đang chờ món"
+            if active_order.id_datBan:
+                db_datban = db.query(models.DatBan).filter(models.DatBan.id_datBan == active_order.id_datBan).first()
+                if db_datban:
+                    db_datban.trangThai = "Đã checkin"
+            
+            db_ban = db.query(models.Ban).filter(models.Ban.id_ban == id_ban).first()
+            if db_ban:
+                db_ban.trangThai = "Đang phục vụ"
+            
+            auto_checked_in = True
+
+        for item in req.chi_tiet:
+            db_order_item = models.ChiTietDonHang(
+                id_donHang=active_order.id_donHang,
+                id_monAn=item.id_monAn,
+                soLuong=item.soLuong,
+                giaTaiThoiDiemBan=item.giaTaiThoiDiemBan,
+                trangThaiMon="Chờ chế biến",
+            )
+            db.add(db_order_item)
+            tong_tien_them += item.giaTaiThoiDiemBan * item.soLuong
+        
+        db.commit()
+        return {
+            "status": "appended", 
+            "id_donHang": active_order.id_donHang, 
+            "message": "Đã tự động check-in và gọi thêm món thành công." if auto_checked_in else "Đã thêm món vào đơn hàng hiện tại"
+        }
+    else:
+        # Kiểm tra xem bàn có đang được đặt trước (DatBan) nhưng chưa check-in không
+        pending_reservation = db.query(models.DatBan).filter(
+            models.DatBan.id_ban == id_ban,
+            models.DatBan.trangThai.in_(["Chờ xác nhận", "Đã xác nhận"])
+        ).first()
+
+        if pending_reservation:
+            if pending_reservation.id_nguoiDung == current_user.id_nguoiDung:
+                if pending_reservation.trangThai == "Chờ xác nhận":
+                    raise HTTPException(status_code=400, detail="Lịch đặt bàn của bạn chưa được nhà hàng xác nhận.")
+                
+                from app.api.datban import _now_utc_naive
+                from datetime import timedelta
+                if _now_utc_naive() < (pending_reservation.thoiGianDen - timedelta(minutes=15)):
+                    raise HTTPException(status_code=400, detail="Chưa đến thời gian nhận bàn (sớm nhất trước 15 phút). Vui lòng đợi thêm hoặc liên hệ nhân viên để check-in sớm.")
+                
+                # Tự động check-in
+                pending_reservation.trangThai = "Đã checkin"
+                
+                # Tạo đơn hàng mới liên kết với datban này
+                db_order = models.DonHang(
+                    id_nguoiDung=current_user.id_nguoiDung,
+                    id_ban=id_ban,
+                    id_datBan=pending_reservation.id_datBan,
+                    tinhTrang="Đang chờ món",
+                    thoiGianDen=pending_reservation.thoiGianDen,
+                )
+                db.add(db_order)
+                db.flush()
+
+                # Cập nhật bàn
+                db_ban = db.query(models.Ban).filter(models.Ban.id_ban == id_ban).first()
+                if db_ban:
+                    db_ban.trangThai = "Đang phục vụ"
+                
+                auto_checked_in = True
+
+            else:
+                raise HTTPException(status_code=400, detail="Bàn này đã được đặt trước bởi người khác. Vui lòng chọn bàn khác hoặc nhờ nhân viên hỗ trợ.")
+        else:
+            db_order = models.DonHang(
+                id_nguoiDung=current_user.id_nguoiDung,
+                id_ban=id_ban,
+                tinhTrang="Đang chờ món",
+            )
+            db.add(db_order)
+            db.flush()
+
+            # Khi khách đến tận nơi quét QR tạo đơn mới, cập nhật trạng thái bàn thành Đang phục vụ luôn
+            db_ban = db.query(models.Ban).filter(models.Ban.id_ban == id_ban).first()
+            if db_ban:
+                db_ban.trangThai = "Đang phục vụ"
+
+
+        for item in req.chi_tiet:
+            db_order_item = models.ChiTietDonHang(
+                id_donHang=db_order.id_donHang,
+                id_monAn=item.id_monAn,
+                soLuong=item.soLuong,
+                giaTaiThoiDiemBan=item.giaTaiThoiDiemBan,
+                trangThaiMon="Chờ chế biến",
+            )
+            db.add(db_order_item)
+            tong_tien_them += item.giaTaiThoiDiemBan * item.soLuong
+
+        # Khi khách đến tận nơi quét QR tạo đơn mới, cập nhật trạng thái bàn thành Đang phục vụ luôn
+        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == id_ban).first()
+        if db_ban:
+            db_ban.trangThai = "Đang phục vụ"
+
+        db.commit()
+        return {"status": "created", "id_donHang": db_order.id_donHang, "message": "Đã tạo đơn hàng mới tại bàn"}
+
+
 @router.get("/me", response_model=list[schemas.DonHangDetail])
 def get_my_orders(db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
+    # Tự động xử lý đơn hàng (+ đặt bàn) quá hạn trước khi trả kết quả
+    from app.api.auto_noshow import auto_mark_no_show
+    auto_mark_no_show(db)
+
     orders = (
         db.query(models.DonHang)
         .filter(models.DonHang.id_nguoiDung == current_user.id_nguoiDung)
@@ -280,11 +438,15 @@ def edit_my_order(
     if not db_order:
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-    if db_order.tinhTrang not in ["Đang chờ món", "Chờ khách đến"]:
-        raise HTTPException(status_code=400, detail="Đơn hàng đã được tiếp nhận, không thể chỉnh sửa")
+    if db_order.tinhTrang != "Chờ khách đến":
+        raise HTTPException(status_code=400, detail="Đơn hàng đã check-in hoặc đang được phục vụ, không thể chỉnh sửa")
 
     if not req.chi_tiet:
         raise HTTPException(status_code=400, detail="Đơn hàng phải có ít nhất 1 món")
+
+    if req.thoiGianDen:
+        from app.api.datban import validate_restaurant_hours
+        validate_restaurant_hours(db, req.thoiGianDen, is_booking=False)
 
     if req.thoiGianDen:
         db_order.thoiGianDen = req.thoiGianDen
@@ -307,6 +469,155 @@ def edit_my_order(
 
     db.commit()
     return _build_order_detail(db, db_order)
+
+
+class DonHangEditInitiateRequest(BaseModel):
+    """Body cho endpoint initiate-edit: danh sách món mới."""
+    chi_tiet: list
+
+
+@router.post("/me/{id_donHang}/initiate-edit")
+def initiate_order_edit(
+    id_donHang: int,
+    req: DonHangEditInitiateRequest,
+    http_req: Request,
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_user),
+):
+    """
+    Bước 1 của chỉnh sửa đơn hàng đã cọc.
+    - Nếu tổng mới <= tổng cũ HOẶC đơn không có cọc → áp dụng ngay, trả {"status": "updated"}.
+    - Nếu tổng mới > tổng cũ VÀ đơn đã cọc → tạo PendingOrderEdit + trả VNPay URL cho chênh lệch.
+    """
+    from fastapi import Request as FastRequest
+    import json
+    from decimal import Decimal
+
+    db_order = (
+        db.query(models.DonHang)
+        .filter(
+            models.DonHang.id_donHang == id_donHang,
+            models.DonHang.id_nguoiDung == current_user.id_nguoiDung,
+        )
+        .first()
+    )
+    if not db_order:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
+
+    if db_order.tinhTrang != "Chờ khách đến":
+        raise HTTPException(status_code=400, detail="Đơn hàng đã check-in hoặc đang được phục vụ, không thể chỉnh sửa")
+
+    if not req.chi_tiet:
+        raise HTTPException(status_code=400, detail="Đơn hàng phải có ít nhất 1 món")
+
+    # Tính tổng đơn CŨ
+    old_items = db.query(models.ChiTietDonHang).filter(
+        models.ChiTietDonHang.id_donHang == db_order.id_donHang
+    ).all()
+    old_total = sum(
+        (ct.giaTaiThoiDiemBan or Decimal("0")) * (ct.soLuong or 0)
+        for ct in old_items
+    )
+
+    # Tính tổng đơn MỚI
+    new_total = sum(
+        Decimal(str(item["giaTaiThoiDiemBan"])) * int(item["soLuong"])
+        for item in req.chi_tiet
+    )
+
+    # Kiem tra xem don co coc khong va lay thong tin datBan
+    has_deposit = False
+    original_payment_mode = "full"
+    reservation = None
+    if db_order.id_datBan:
+        reservation = db.query(models.DatBan).filter(
+            models.DatBan.id_datBan == db_order.id_datBan
+        ).first()
+        if reservation and reservation.trangThaiCoc == "Da coc":
+            has_deposit = True
+        elif reservation and reservation.trangThaiCoc == "Đã cọc":
+            has_deposit = True
+
+    # Xac dinh payment_mode goc: neu tienCoc < 50% tong don cu → deposit (10%)
+    if has_deposit and reservation and reservation.tienCoc is not None:
+        if float(reservation.tienCoc) < float(old_total) * 0.5:
+            original_payment_mode = "deposit"   # da coc 10% + phi ban
+        else:
+            original_payment_mode = "full"      # da tra full 100%
+
+    # Neu khong tang gia tri hoac khong co coc → ap dung ngay
+    if not has_deposit or new_total <= old_total:
+        db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == db_order.id_donHang
+        ).delete()
+        for item in req.chi_tiet:
+            db.add(models.ChiTietDonHang(
+                id_donHang=db_order.id_donHang,
+                id_monAn=item["id_monAn"],
+                soLuong=item["soLuong"],
+                giaTaiThoiDiemBan=Decimal(str(item["giaTaiThoiDiemBan"])),
+                trangThaiMon="Chờ chế biến",
+            ))
+        db.commit()
+        return {
+            "status": "updated",
+            "id_donHang": db_order.id_donHang,
+            "old_total": float(old_total),
+            "new_total": float(new_total),
+        }
+
+    # Tong moi > tong cu VA don da coc → yeu cau thanh toan chenh lech
+    diff = new_total - old_total
+
+    if original_payment_mode == "deposit":
+        # Khi dat coc 10% thi phan chenh cung chi can coc 10%
+        so_tien_them = max(1000, int(float(diff) * 0.1))
+    else:
+        # Da tra full thi phan chenh cung phai tra full
+        so_tien_them = int(float(diff))
+
+    # Xoa PendingOrderEdit cu neu con ton tai cho don nay (don dep)
+    db.query(models.PendingOrderEdit).filter(
+        models.PendingOrderEdit.id_donHang == db_order.id_donHang,
+        models.PendingOrderEdit.id_nguoiDung == current_user.id_nguoiDung,
+    ).delete()
+
+    new_cart_json = json.dumps(req.chi_tiet, ensure_ascii=False)
+    pending_edit = models.PendingOrderEdit(
+        id_nguoiDung=current_user.id_nguoiDung,
+        id_donHang=db_order.id_donHang,
+        new_cart_json=new_cart_json,
+        old_total=old_total,
+        new_total=new_total,
+        so_tien_them=so_tien_them,
+        hinhThucThanhToan=original_payment_mode,
+    )
+    db.add(pending_edit)
+    db.commit()
+    db.refresh(pending_edit)
+
+    # Tao VNPay URL cho khoan chenh lech
+    from app.api.payment import _build_vnpay_url
+    from datetime import datetime as _dt
+    txn_ref = f"OE{pending_edit.id}_{int(_dt.now().timestamp())}"
+    ip_addr = http_req.client.host if http_req.client else "127.0.0.1"
+    order_info = f"BayFood bo sung don hang #{id_donHang} {so_tien_them}VND"
+    payment_url = _build_vnpay_url(so_tien_them, txn_ref, order_info, ip_addr)
+
+    pending_edit.txn_ref = txn_ref
+    db.commit()
+
+    return {
+        "status": "payment_required",
+        "paymentUrl": payment_url,
+        "pendingEditId": pending_edit.id,
+        "txnRef": txn_ref,
+        "hinhThucThanhToan": original_payment_mode,
+        "old_total": float(old_total),
+        "new_total": float(new_total),
+        "diff": float(diff),
+        "so_tien_them": so_tien_them,
+    }
 
 
 @router.put("/me/{id_donHang}/checkin", response_model=schemas.DonHangDetail)
@@ -341,6 +652,10 @@ def checkin_my_order(
 
 @router.get("/all/list", response_model=list[schemas.DonHang])
 def get_all_orders(db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
+    # Tự động xử lý đơn hàng (+ đặt bàn) quá hạn trước khi trả kết quả
+    from app.api.auto_noshow import auto_mark_no_show
+    auto_mark_no_show(db)
+
     return db.query(models.DonHang).order_by(models.DonHang.id_donHang.desc()).all()
 
 
@@ -449,14 +764,20 @@ def get_waiter_orders(
             models.ChiTietDonHang.id_donHang == order.id_donHang
         ).all()
         items = []
+        tong_tien = Decimal("0")
         for ct in chi_tiets:
             mon = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
+            gia = ct.giaTaiThoiDiemBan or Decimal("0")
+            so_luong = ct.soLuong or 0
+            tong_tien += gia * so_luong
+            
             items.append({
                 "id_chiTietDonHang": ct.id_chiTietDonHang,
                 "id_monAn": ct.id_monAn,
                 "tenMon": mon.tenMon if mon else f"Món #{ct.id_monAn}",
                 "hinhAnh": mon.hinhAnh if mon else None,
-                "soLuong": ct.soLuong,
+                "soLuong": so_luong,
+                "giaTaiThoiDiemBan": float(gia),
                 "trangThaiMon": ct.trangThaiMon,
             })
 
@@ -483,6 +804,7 @@ def get_waiter_orders(
             "isMyOrder": is_my_order,
             "isUnassigned": is_unassigned,
             "chi_tiet": items,
+            "tongTien": float(tong_tien),
             "tienCoc": tien_coc,
             "trangThaiCoc": trang_thai_coc,
         })

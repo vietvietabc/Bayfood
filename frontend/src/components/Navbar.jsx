@@ -4,6 +4,7 @@ import { ShoppingCart, Utensils, CalendarDays, User, LogOut, LayoutDashboard, Ch
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -62,6 +63,14 @@ const Navbar = () => {
 
     fetchNotifications();
   }, [user, location.pathname]);
+
+  // Listen to WebSocket for real-time notifications
+  useWebSocket((newNoti) => {
+    if (newNoti && newNoti.type === 'NEW_NOTIFICATION') {
+      setNotifications(prev => [newNoti, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    }
+  });
 
   const handleMarkNotificationRead = async (notificationId, lienKet) => {
     try {
@@ -181,7 +190,7 @@ const Navbar = () => {
                           <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--ink)' }}>{notification.tieuDe}</div>
                           <div style={{ color: 'var(--muted)', fontSize: '0.82rem', marginBottom: '0.6rem', lineHeight: 1.4 }}>{notification.noiDung}</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                            <div style={{ color: 'var(--muted-soft)', fontSize: '0.72rem' }}>
+                            <div style={{ color: '#a1a1aa', fontSize: '0.72rem' }}>
                               {notification.thoiGianTao ? new Date(notification.thoiGianTao).toLocaleString('vi-VN') : ''}
                             </div>
                             {!notification.daDoc ? (

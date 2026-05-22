@@ -74,10 +74,10 @@ const CustomerDashboard = () => {
             {actionMessage && <div style={{ padding: '1rem', marginBottom: '1.5rem', borderRadius: '0.75rem', border: '1px solid var(--primary)', background: 'rgba(249,115,22,0.08)', color: 'var(--text)' }}>{actionMessage}</div>}
 
             {/* Hero */}
-            <div className="card" style={{ padding: '2rem', marginBottom: '1.5rem', background: 'linear-gradient(135deg, rgba(249,115,22,0.12), rgba(255,247,237,0.8))' }}>
+            <div className="card" style={{ padding: '2rem', marginBottom: '1.5rem', background: 'linear-gradient(135deg, rgba(249,115,22,0.15), rgba(22,23,25,0.9))' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                     <div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '999px', background: 'rgba(255,255,255,0.7)', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1rem', fontSize: '0.875rem', color: '#fb923c' }}>
                             <UserCircle2 size={16} /> Khu vực khách hàng
                         </div>
                         <h1 style={{ fontSize: '2.25rem', marginBottom: '0.5rem' }}>Xin chào, {user.hoTen}</h1>
@@ -98,7 +98,7 @@ const CustomerDashboard = () => {
                     <div style={{ color: 'var(--text-muted)' }}>{activeOrders} đơn đang xử lý</div>
                 </div>
                 <div className="card" style={{ padding: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', color: '#2563eb' }}><MapPin size={22} /><strong>Đặt bàn</strong></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', color: '#60a5fa' }}><MapPin size={22} /><strong>Đặt bàn</strong></div>
                     <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>{reservations.length}</div>
                     <div style={{ color: 'var(--text-muted)' }}>{activeReservations} đang chờ hoặc đã xác nhận</div>
                 </div>
@@ -141,17 +141,17 @@ const CustomerDashboard = () => {
                                             {reservation.tienCoc > 0 && (
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem' }}>
                                                     Tiền cọc:
-                                                    <strong style={{ color: reservation.trangThaiCoc === 'Mất cọc' ? '#dc2626' : reservation.trangThaiCoc === 'Đã cọc' ? '#059669' : '#ca8a04' }}>
+                                                    <strong style={{ color: reservation.trangThaiCoc === 'Mất cọc' ? '#f87171' : reservation.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24' }}>
                                                         {Number(reservation.tienCoc).toLocaleString('vi-VN')} ₫
                                                     </strong>
-                                                    <span style={{ padding: '0.1rem 0.45rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '700', background: reservation.trangThaiCoc === 'Mất cọc' ? 'rgba(239,68,68,0.12)' : reservation.trangThaiCoc === 'Đã cọc' ? 'rgba(16,185,129,0.12)' : 'rgba(234,179,8,0.12)', color: reservation.trangThaiCoc === 'Mất cọc' ? '#dc2626' : reservation.trangThaiCoc === 'Đã cọc' ? '#059669' : '#ca8a04' }}>
+                                                    <span style={{ padding: '0.1rem 0.45rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: '700', background: reservation.trangThaiCoc === 'Mất cọc' ? 'rgba(248, 113, 113, 0.15)' : reservation.trangThaiCoc === 'Đã cọc' ? 'rgba(52, 211, 153, 0.15)' : 'rgba(251, 191, 36, 0.15)', color: reservation.trangThaiCoc === 'Mất cọc' ? '#f87171' : reservation.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24' }}>
                                                         {reservation.trangThaiCoc}
                                                     </span>
                                                 </span>
                                             )}
-                                            {reservation.lyDoHuy && <span style={{ color: '#dc2626', fontSize: '0.875rem', fontStyle: 'italic' }}>Lý do: {reservation.lyDoHuy}</span>}
+                                            {reservation.lyDoHuy && <span style={{ color: '#f87171', fontSize: '0.875rem', fontStyle: 'italic' }}>Lý do: {reservation.lyDoHuy}</span>}
                                             {orders.some((o) => o.id_datBan === reservation.id_datBan) && (
-                                                <span style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem' }}>Đã đặt món đi kèm</span>
+                                                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem' }}>Đã đặt món đi kèm</span>
                                             )}
                                             {reservation.soPhutGiuChoConLai !== undefined && reservation.soPhutGiuChoConLai !== null && reservation.soPhutGiuChoConLai > 0 && (
                                                 <span style={{ color: '#dc2626', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.2rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -211,7 +211,16 @@ const CustomerDashboard = () => {
                                 const linkedRes = reservations.find((r) => r.id_datBan === order.id_datBan);
                                 const depositAmount = linkedRes && linkedRes.tienCoc > 0 ? Number(linkedRes.tienCoc || 0) : 0;
                                 const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
-                                const remainingAmount = Math.max(0, Number(order.tongTien || 0) - (hasPaidDeposit ? depositAmount : 0));
+                                // Tổng thực tế đã thanh toán = max(tienCoc, tongThanhToan)
+                                // vì tongThanhToan đã bao gồm cả cọc ban đầu + các lần thanh toán bổ sung sau chỉnh sửa
+                                const totalActuallyPaid = Number(order.tongThanhToan || 0);
+                                const effectivePaid = hasPaidDeposit
+                                    ? Math.max(depositAmount, totalActuallyPaid)
+                                    : totalActuallyPaid;
+                                const remainingAmount = Math.max(0, Number(order.tongTien || 0) - effectivePaid);
+                                const extraPaid = hasPaidDeposit && totalActuallyPaid > depositAmount
+                                    ? totalActuallyPaid - depositAmount
+                                    : 0;
 
                                 return (
                                     <div key={order.id_donHang} style={{ padding: '1rem', borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--surface-light)' }}>
@@ -236,10 +245,22 @@ const CustomerDashboard = () => {
                                                             <span>Tiền cọc {hasPaidDeposit ? '(Đã thanh toán)' : '(Chờ thanh toán)'}:</span>
                                                             <strong>-{depositAmount.toLocaleString('vi-VN')} ₫</strong>
                                                         </div>
-                                                        {hasPaidDeposit && (
+                                                        {extraPaid > 0 && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                                                                <span>Đã thanh toán bổ sung:</span>
+                                                                <strong>-{extraPaid.toLocaleString('vi-VN')} ₫</strong>
+                                                            </div>
+                                                        )}
+                                                        {hasPaidDeposit && remainingAmount > 0 && (
                                                             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f97316', fontWeight: 'bold' }}>
                                                                 <span>Còn lại cần trả tại nhà hàng:</span>
                                                                 <strong>{remainingAmount.toLocaleString('vi-VN')} ₫</strong>
+                                                            </div>
+                                                        )}
+                                                        {hasPaidDeposit && remainingAmount === 0 && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontWeight: 'bold' }}>
+                                                                <span>Còn lại cần trả tại nhà hàng:</span>
+                                                                <strong>0 ₫ ✓</strong>
                                                             </div>
                                                         )}
                                                     </>
@@ -251,13 +272,13 @@ const CustomerDashboard = () => {
                                             <button className="btn btn-outline" onClick={() => handleViewOrder(order.id_donHang)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                 <Eye size={16} /> Xem chi tiết
                                             </button>
-                                            {(order.tinhTrang === 'Đang chờ món' || order.tinhTrang === 'Chờ khách đến') && (
+                                            {order.tinhTrang === 'Chờ khách đến' && (
                                                 <button className="btn btn-primary" onClick={() => handleEditOrder(order)} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                     <Edit3 size={16} /> Chỉnh sửa
                                                 </button>
                                             )}
                                             {order.tinhTrang === 'Chờ khách đến' && !order.id_datBan && (
-                                                <button className="btn" onClick={() => handleCheckinOrder(order.id_donHang)} disabled={checkinLoadingId === order.id_donHang} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#10b981', color: '#fff', border: 'none' }}>
+                                                <button className="btn" onClick={() => handleCheckinOrder(order.id_donHang)} disabled={checkinLoadingId === order.id_donHang} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#047857', color: '#fff', border: 'none' }}>
                                                     <CheckCheck size={16} /> {checkinLoadingId === order.id_donHang ? 'Đang xử lý...' : 'Báo đã tới'}
                                                 </button>
                                             )}
@@ -265,7 +286,7 @@ const CustomerDashboard = () => {
                                                 const hasReview = reviews.some((r) => r.id_donHang === order.id_donHang);
                                                 if (hasReview) {
                                                     const review = reviews.find((r) => r.id_donHang === order.id_donHang);
-                                                    return <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#10b981', background: 'rgba(16,185,129,0.08)', borderRadius: '0.5rem', fontWeight: 'bold' }}><Star size={16} fill="#10b981" /> Đã đánh giá ({review.soSao}★)</div>;
+                                                    return <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem', fontSize: '0.875rem', color: '#34d399', background: 'rgba(52,211,153,0.08)', borderRadius: '0.5rem', fontWeight: 'bold' }}><Star size={16} fill="#34d399" style={{ color: '#34d399' }} /> Đã đánh giá ({review.soSao}★)</div>;
                                                 }
                                                 return (
                                                     <button className="btn" onClick={() => { setReviewForm({ id_donHang: order.id_donHang, soSao: 5, noiDung: '' }); setShowReviewModal(true); }} style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#eab308', color: '#000', border: 'none', fontWeight: 'bold' }}>
@@ -274,6 +295,22 @@ const CustomerDashboard = () => {
                                                 );
                                             })()}
                                         </div>
+                                        {/* Banner liên hệ nhân viên khi vắng mặt có tiền cọc */}
+                                        {order.tinhTrang === 'Vắng mặt' && depositAmount > 0 && (
+                                            <div style={{ marginTop: '0.75rem', padding: '0.85rem 1rem', borderRadius: '0.75rem', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 'bold', color: '#d97706', fontSize: '0.875rem' }}>
+                                                    <span>⚠️</span>
+                                                    <span>Bạn vắng mặt nhưng có tiền cọc liên quan</span>
+                                                </div>
+                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                                                    Vui lòng liên hệ trực tiếp nhân viên nhà hàng để được hỗ trợ và thương lượng hoàn cọc.
+                                                </div>
+                                                <div style={{ marginTop: '0.15rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', color: '#f97316', fontWeight: 'bold' }}>
+                                                    <span>📞</span>
+                                                    <span>Hotline: 1900 xxxx</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

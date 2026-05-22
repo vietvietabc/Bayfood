@@ -28,7 +28,7 @@ const ReservationModal = ({
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>
                         Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}
                     </h2>
-                    <button onClick={handleCloseReservationModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}>
+                    <button onClick={handleCloseReservationModal} aria-label="Đóng chi tiết đặt bàn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}>
                         <X size={22} />
                     </button>
                 </div>
@@ -71,14 +71,14 @@ const ReservationModal = ({
                     </div>
                     {/* Liên kết đơn món */}
                     {linkedOrder && (
-                        <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ padding: '1rem', background: 'rgba(96, 165, 250, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(96, 165, 250, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                             <div>
-                                <div style={{ fontSize: '0.8rem', color: '#2563eb', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
-                                <div style={{ fontWeight: 'bold', color: '#2563eb' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#60a5fa', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
+                                <div style={{ fontWeight: 'bold', color: '#60a5fa' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
                             </div>
                             <button
                                 className="btn btn-outline"
-                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#2563eb', borderColor: '#3b82f6' }}
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#60a5fa', borderColor: '#60a5fa' }}
                                 onClick={() => {
                                     setShowReservationModal(false);
                                     handleViewOrder(linkedOrder.id_donHang);

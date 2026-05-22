@@ -55,20 +55,20 @@ const RegisterPage = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label className="input-label">Họ và Tên</label>
-            <input type="text" name="hoTen" value={formData.hoTen} onChange={handleChange} className="input-field" required />
+            <label className="input-label" htmlFor="register-hoTen">Họ và Tên</label>
+            <input id="register-hoTen" type="text" name="hoTen" value={formData.hoTen} onChange={handleChange} className="input-field" required />
           </div>
           <div className="input-group">
-            <label className="input-label">Email</label>
-            <input type="email" name="email" value={formData.email} onChange={handleChange} className="input-field" required />
+            <label className="input-label" htmlFor="register-email">Email</label>
+            <input id="register-email" type="email" name="email" value={formData.email} onChange={handleChange} className="input-field" required />
           </div>
           <div className="input-group">
-            <label className="input-label">Số điện thoại</label>
-            <input type="tel" name="soDienThoai" value={formData.soDienThoai} onChange={handleChange} className="input-field" required />
+            <label className="input-label" htmlFor="register-soDienThoai">Số điện thoại</label>
+            <input id="register-soDienThoai" type="tel" name="soDienThoai" value={formData.soDienThoai} onChange={handleChange} className="input-field" required />
           </div>
           <div className="input-group">
-            <label className="input-label">Mật khẩu</label>
-            <input type="password" name="matKhau" value={formData.matKhau} onChange={handleChange} className="input-field" required minLength="6" />
+            <label className="input-label" htmlFor="register-matKhau">Mật khẩu</label>
+            <input id="register-matKhau" type="password" name="matKhau" value={formData.matKhau} onChange={handleChange} className="input-field" required minLength="6" />
           </div>
           <button type="submit" className="btn btn-primary w-full mt-4" style={{ padding: '0.75rem' }}>
             Đăng Ký

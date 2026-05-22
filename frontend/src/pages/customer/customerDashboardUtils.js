@@ -22,18 +22,18 @@ export const getMonStatusColor = (status) => {
 
 export const getStatusStyle = (status) => {
     const mapping = {
-        'Chờ xác nhận': { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04' },
-        'Đã đặt': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
-        'Đã xác nhận': { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669' },
-        'Đã checkin': { bg: 'rgba(124, 58, 237, 0.12)', color: '#7c3aed' },
-        'Hoàn thành': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
-        'Đã hủy': { bg: 'rgba(239, 68, 68, 0.12)', color: '#dc2626' },
-        'Vắng mặt': { bg: 'rgba(239, 68, 68, 0.18)', color: '#dc2626' },
-        'Chờ khách đến': { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c' },
-        'Đang chờ món': { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04' },
-        'Đang chế biến': { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
-        'Đã phục vụ': { bg: 'rgba(168, 85, 247, 0.12)', color: '#7c3aed' },
-        'Đã thanh toán': { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669' },
+        'Chờ xác nhận': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
+        'Đã đặt': { bg: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' },
+        'Đã xác nhận': { bg: 'rgba(52, 211, 153, 0.15)', color: '#34d399' },
+        'Đã checkin': { bg: 'rgba(192, 132, 252, 0.15)', color: '#c084fc' },
+        'Hoàn thành': { bg: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' },
+        'Đã hủy': { bg: 'rgba(248, 113, 113, 0.15)', color: '#f87171' },
+        'Vắng mặt': { bg: 'rgba(248, 113, 113, 0.18)', color: '#f87171' },
+        'Chờ khách đến': { bg: 'rgba(251, 146, 60, 0.15)', color: '#fb923c' },
+        'Đang chờ món': { bg: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24' },
+        'Đang chế biến': { bg: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' },
+        'Đã phục vụ': { bg: 'rgba(192, 132, 252, 0.15)', color: '#c084fc' },
+        'Đã thanh toán': { bg: 'rgba(52, 211, 153, 0.15)', color: '#34d399' },
     };
     return mapping[status] || { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
 };

@@ -17,7 +17,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                 {/* Header */}
                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
                     <h2 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: 0 }}>Thanh toán qua VietQR</h2>
-                    <button onClick={() => setQrModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                    <button onClick={() => setQrModal(null)} aria-label="Đóng thanh toán" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                         <X size={22} />
                     </button>
                 </div>
@@ -53,7 +53,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Số tài khoản:</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: 'var(--text)' }}>9704198526191432198</strong>
-                                <button onClick={() => handleCopyText('9704198526191432198', 'stk')} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
+                                <button onClick={() => handleCopyText('9704198526191432198', 'stk')} aria-label="Sao chép số tài khoản" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
                                     {copiedField === 'stk' ? '✓ Đã chép' : 'Sao chép'}
                                 </button>
                             </div>
@@ -68,7 +68,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Số tiền chuyển:</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: '#f97316', fontSize: '1rem' }}>{formatCurrency(qrModal.amount)}</strong>
-                                <button onClick={() => handleCopyText(qrModal.amount.toString(), 'amount')} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
+                                <button onClick={() => handleCopyText(qrModal.amount.toString(), 'amount')} aria-label="Sao chép số tiền chuyển" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
                                     {copiedField === 'amount' ? '✓ Đã chép' : 'Sao chép'}
                                 </button>
                             </div>
@@ -78,7 +78,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Nội dung chuyển:</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: 'var(--text)', fontSize: '0.85rem', wordBreak: 'break-all' }}>{qrModal.addInfo}</strong>
-                                <button onClick={() => handleCopyText(qrModal.addInfo, 'info')} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
+                                <button onClick={() => handleCopyText(qrModal.addInfo, 'info')} aria-label="Sao chép nội dung chuyển" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
                                     {copiedField === 'info' ? '✓ Đã chép' : 'Sao chép'}
                                 </button>
                             </div>

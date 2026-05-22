@@ -25,7 +25,7 @@ const ReviewModal = ({
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>
                         Đánh Giá Đơn Hàng #{reviewForm.id_donHang}
                     </h2>
-                    <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                    <button onClick={() => setShowReviewModal(false)} aria-label="Đóng đánh giá" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                         <X size={22} />
                     </button>
                 </div>
@@ -34,14 +34,15 @@ const ReviewModal = ({
                 <form onSubmit={handleSubmittingReview} style={{ padding: '1.5rem', display: 'grid', gap: '1.25rem' }}>
                     {/* Số sao */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>
+                        <span id="star-rating-label" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>
                             Số sao đánh giá
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }} aria-labelledby="star-rating-label">
                             {[1, 2, 3, 4, 5].map((star) => (
                                 <button
                                     type="button"
                                     key={star}
+                                    aria-label={`Đánh giá ${star} sao`}
                                     onClick={() => setReviewForm({ ...reviewForm, soSao: star })}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: star <= reviewForm.soSao ? '#eab308' : 'var(--border)' }}
                                 >
@@ -53,10 +54,11 @@ const ReviewModal = ({
 
                     {/* Bình luận */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>
+                        <label htmlFor="review-comment" style={{ display: 'block', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text)' }}>
                             Bình luận / Ý kiến đóng góp
                         </label>
                         <textarea
+                            id="review-comment"
                             className="input-field"
                             placeholder="Chia sẻ trải nghiệm của bạn về món ăn và dịch vụ..."
                             rows={4}

@@ -168,43 +168,27 @@ const AdminWorkingHours = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div className="input-group">
                                     <label htmlFor="gioMoCua" className="input-label flex items-center gap-2"><Clock size={16} /> Giờ mở cửa</label>
-                                    <select
+                                    <input
                                         id="gioMoCua"
+                                        type="time"
                                         name="gioMoCua"
                                         className="input-field"
-                                        value={formData.gioMoCua || '07:00'}
+                                        value={formData.gioMoCua}
                                         onChange={handleChange}
                                         disabled={formData.isNghi}
-                                        style={{ background: 'var(--surface)', color: 'var(--text-main)' }}
-                                    >
-                                        {Array.from({ length: 96 }).map((_, index) => {
-                                            const hour = Math.floor(index / 4);
-                                            const min = (index % 4) * 15;
-                                            const tStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-                                            return <option key={tStr} value={tStr}>{tStr}</option>;
-                                        })}
-                                        <option value="24:00">24:00</option>
-                                    </select>
+                                    />
                                 </div>
                                 <div className="input-group">
                                     <label htmlFor="gioDongCua" className="input-label flex items-center gap-2"><Clock size={16} /> Giờ đóng cửa</label>
-                                    <select
+                                    <input
                                         id="gioDongCua"
+                                        type="time"
                                         name="gioDongCua"
                                         className="input-field"
-                                        value={formData.gioDongCua || '24:00'}
+                                        value={formData.gioDongCua}
                                         onChange={handleChange}
                                         disabled={formData.isNghi}
-                                        style={{ background: 'var(--surface)', color: 'var(--text-main)' }}
-                                    >
-                                        {Array.from({ length: 96 }).map((_, index) => {
-                                            const hour = Math.floor(index / 4);
-                                            const min = (index % 4) * 15;
-                                            const tStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-                                            return <option key={tStr} value={tStr}>{tStr}</option>;
-                                        })}
-                                        <option value="24:00">24:00</option>
-                                    </select>
+                                    />
                                 </div>
                             </div>
 

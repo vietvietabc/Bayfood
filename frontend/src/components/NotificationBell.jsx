@@ -3,6 +3,7 @@ import { Bell, CheckCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -32,6 +33,17 @@ const NotificationBell = ({ colorScheme = 'dark' }) => {
   useEffect(() => {
     fetchNotifications();
   }, [user, location.pathname]);
+
+  // Handle incoming WS messages
+  useWebSocket((newNoti) => {
+    if (newNoti && newNoti.type === 'NEW_NOTIFICATION') {
+      setNotifications(prev => [newNoti, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      
+      // Optional: Play a tiny sound or show a toast here if you want
+      // For now, it just updates the bell icon in real time
+    }
+  });
 
   useEffect(() => {
     const handler = (e) => {
@@ -120,9 +132,9 @@ const NotificationBell = ({ colorScheme = 'dark' }) => {
                   background: n.daDoc ? 'var(--surface-light)' : 'rgba(249,115,22,0.08)',
                 }}>
                   <div style={{ fontWeight: 'bold', marginBottom: '0.25rem', fontSize: '0.88rem' }}>{n.tieuDe}</div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.6rem', lineHeight: 1.4 }}>{n.noiDung}</div>
+                  <div style={{ color: '#a1a1aa', fontSize: '0.82rem', marginBottom: '0.6rem', lineHeight: 1.4 }}>{n.noiDung}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                    <div style={{ color: '#a1a1aa', fontSize: '0.72rem' }}>
                       {n.thoiGianTao ? new Date(n.thoiGianTao).toLocaleString('vi-VN') : ''}
                     </div>
                     {!n.daDoc ? (

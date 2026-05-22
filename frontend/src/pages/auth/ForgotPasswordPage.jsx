@@ -80,8 +80,9 @@ const ForgotPasswordPage = () => {
         {step === 1 ? (
           <form onSubmit={handleSendOTP}>
             <div className="input-group">
-              <label className="input-label">Email đã đăng ký</label>
+              <label className="input-label" htmlFor="forgot-email">Email đã đăng ký</label>
               <input 
+                id="forgot-email"
                 type="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
@@ -97,12 +98,13 @@ const ForgotPasswordPage = () => {
         ) : (
           <form onSubmit={handleVerifyAndReset}>
             <div className="input-group">
-              <label className="input-label">Email</label>
-              <input type="email" value={email} className="input-field" disabled style={{ background: 'var(--surface-light)' }} />
+              <label className="input-label" htmlFor="verify-email">Email</label>
+              <input id="verify-email" type="email" value={email} className="input-field" disabled style={{ background: 'var(--surface-light)' }} />
             </div>
             <div className="input-group">
-              <label className="input-label">Mã OTP (6 chữ số)</label>
+              <label className="input-label" htmlFor="verify-otp">Mã OTP (6 chữ số)</label>
               <input 
+                id="verify-otp"
                 type="text" 
                 value={otp} 
                 onChange={(e) => setOtp(e.target.value)} 
@@ -113,8 +115,9 @@ const ForgotPasswordPage = () => {
               />
             </div>
             <div className="input-group">
-              <label className="input-label">Mật khẩu mới</label>
+              <label className="input-label" htmlFor="verify-matKhauMoi">Mật khẩu mới</label>
               <input 
+                id="verify-matKhauMoi"
                 type="password" 
                 value={matKhauMoi} 
                 onChange={(e) => setMatKhauMoi(e.target.value)} 

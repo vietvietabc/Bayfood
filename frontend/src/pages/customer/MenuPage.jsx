@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useReducer } from 'react';
 import axios from 'axios';
 import FoodCard from '../../components/FoodCard';
-import { Search } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Search, Calendar, Clock, X } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 
 const initialState = { menuItems: [], categories: [], loading: true, error: null };
@@ -21,15 +21,28 @@ const MenuPage = () => {
   const { menuItems, categories, loading } = state;
   const [activeCategory, setActiveCategory] = useState(null);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { selectedTableId, setSelectedTableId } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
+  const [pendingReservation, setPendingReservation] = useState(null); // Banner đặt bàn chờ
 
   useEffect(() => {
     const tableParam = searchParams.get('table');
-    if (tableParam) {
-      setSelectedTableId(tableParam);
-    }
+    if (tableParam) setSelectedTableId(tableParam);
   }, [searchParams, setSelectedTableId]);
+
+  // Đọc pendingReservation từ sessionStorage (set bởi trang đặt bàn)
+  useEffect(() => {
+    const raw = sessionStorage.getItem('pendingReservation');
+    if (raw) {
+      try { setPendingReservation(JSON.parse(raw)); } catch {}
+    }
+  }, []);
+
+  const dismissReservation = () => {
+    sessionStorage.removeItem('pendingReservation');
+    setPendingReservation(null);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -58,7 +71,57 @@ const MenuPage = () => {
 
   return (
     <div className="container" style={{ padding: '2rem 1rem' }}>
+      {/* ===== BANNER ĐẶT BÀN CHỜ ===== */}
+      {pendingReservation && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem',
+          padding: '0.9rem 1.25rem', borderRadius: '0.85rem', marginBottom: '1.5rem',
+          background: 'linear-gradient(135deg, rgba(249,115,22,0.12), rgba(234,88,12,0.08))',
+          border: '1px solid rgba(249,115,22,0.35)',
+          boxShadow: '0 2px 12px rgba(249,115,22,0.12)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '1.4rem' }}>🍽️</span>
+            <div>
+              <div style={{ fontWeight: '700', fontSize: '0.95rem', marginBottom: '0.2rem' }}>
+                Đặt bàn kèm theo: <span style={{ color: '#f97316' }}>{pendingReservation.tenBan} ({pendingReservation.viTri})</span>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Calendar size={12} /> {new Date(pendingReservation.thoiGianDen).toLocaleDateString('vi-VN')}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Clock size={12} /> {new Date(pendingReservation.thoiGianDen).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                {pendingReservation.tienCoc > 0 && (
+                  <span style={{ color: '#f97316', fontWeight: '600' }}>
+                    Cọc: {Number(pendingReservation.tienCoc).toLocaleString('vi-VN')} ₫
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={() => navigate('/cart')}
+              className="btn btn-primary"
+              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              🛒 Đến giỏ hàng & thanh toán
+            </button>
+            <button
+              onClick={dismissReservation}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.3rem', display: 'flex', alignItems: 'center' }}
+              title="Hủy đặt bàn kèm theo"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+
         <div>
           <h1 className="text-gradient" style={{ fontSize: '2.5rem', marginBottom: '0.25rem', fontWeight: '800' }}>Thực Đơn</h1>
           {selectedTableId ? (
@@ -68,6 +131,7 @@ const MenuPage = () => {
                 onClick={() => setSelectedTableId(null)}
                 style={{ marginLeft: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '0.75rem' }}
                 title="Bỏ chọn bàn"
+                aria-label="Bỏ chọn bàn"
               >
                 ✕
               </button>
@@ -84,17 +148,18 @@ const MenuPage = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ paddingLeft: '2.5rem', borderRadius: 'var(--rounded-md)' }}
+            aria-label="Tìm kiếm món ăn"
           />
-          <Search 
-            size={18} 
-            style={{ 
-              position: 'absolute', 
-              left: '0.85rem', 
-              top: '50%', 
-              transform: 'translateY(-50%)', 
+          <Search
+            size={18}
+            style={{
+              position: 'absolute',
+              left: '0.85rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
               color: 'var(--muted)',
               pointerEvents: 'none'
-            }} 
+            }}
           />
         </div>
       </div>
@@ -130,7 +195,11 @@ const MenuPage = () => {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.5rem' }}>
           {filteredMenu.map(item => (
-            <FoodCard key={item.id_monAn} item={item} />
+            <FoodCard
+              key={item.id_monAn}
+              item={item}
+              onViewDetail={() => navigate(`/menu/${item.id_monAn}`)}
+            />
           ))}
         </div>
       )}

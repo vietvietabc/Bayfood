@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, Clock, AlignLeft, MapPin } from 'lucide-react';
+import { Calendar, Users, Clock, AlignLeft, MapPin, CreditCard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -33,6 +33,8 @@ const ReservationPage = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [status, setStatus] = useState(null); // 'success', 'error', null
   const [statusMessage, setStatusMessage] = useState('');
+  const [showOrderPrompt, setShowOrderPrompt] = useState(false); // Modal hỏi đặt món
+  const [pendingBookingPayload, setPendingBookingPayload] = useState(null); // Dữ liệu đặt bàn chờ xử lý
   const statusRef = useRef(null);
 
   const currentTimelineWorkingHours = timelineDays[0]?.workingHours || null;
@@ -240,6 +242,24 @@ const ReservationPage = () => {
       }
 
       const dateTime = `${formData.date}T${formData.time}:00`;
+      const tienCoc = selectedTable.tienCocMacDinh || 0;
+
+      // --- Luồng có tiền cọc: hiện modal hỏi đặt món ---
+      if (tienCoc > 0) {
+        setPendingBookingPayload({
+          id_ban: selectedTable.id_ban,
+          thoiGianDen: dateTime,
+          soNguoi: parseInt(formData.soNguoi),
+          ghiChu: formData.ghiChu || null,
+          tienCoc,
+          tenBan: selectedTable.tenBan,
+          viTri: selectedTable.viTri,
+        });
+        setShowOrderPrompt(true);
+        return;
+      }
+
+      // --- Luồng miễn cọc: đặt thẳng ---
       const payload = {
         id_ban: selectedTable.id_ban,
         thoiGianDen: dateTime,
@@ -284,8 +304,129 @@ const ReservationPage = () => {
     }
   };
 
+  const handleOrderWithBooking = () => {
+    if (!pendingBookingPayload) return;
+    sessionStorage.setItem('pendingReservation', JSON.stringify({
+      id_ban: pendingBookingPayload.id_ban,
+      thoiGianDen: pendingBookingPayload.thoiGianDen,
+      soNguoi: pendingBookingPayload.soNguoi,
+      ghiChu: pendingBookingPayload.ghiChu,
+      tenBan: pendingBookingPayload.tenBan,
+      viTri: pendingBookingPayload.viTri,
+      tienCoc: pendingBookingPayload.tienCoc,
+    }));
+    setShowOrderPrompt(false);
+    navigate('/menu'); // Vào thực đơn chọn món, CartPage sẽ đọc sessionStorage
+  };
+
+
+  // Xử lý khi khách chọn "Chỉ đặt bàn"— tiến hành VNPay cọc
+  const handleReservationOnly = async () => {
+    if (!pendingBookingPayload) return;
+    setShowOrderPrompt(false);
+    setBookingLoading(true);
+    try {
+      const res = await axios.post(`${BASE_URL}/api/payment/initiate-reservation`, {
+        id_ban: pendingBookingPayload.id_ban,
+        thoiGianDen: pendingBookingPayload.thoiGianDen,
+        soNguoi: pendingBookingPayload.soNguoi,
+        ghiChu: pendingBookingPayload.ghiChu,
+      });
+      window.location.href = res.data.paymentUrl;
+    } catch (error) {
+      setStatus('error');
+      setStatusMessage(error.response?.data?.detail || 'Đã có lỗi xảy ra. Vui lòng thử lại sau.');
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
   return (
     <div className="container py-8">
+      {/* ===== MODAL HỎI ĐẶT MÓN ===== */}
+      {showOrderPrompt && pendingBookingPayload && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 99999, padding: '1rem'
+        }}>
+          <div className="card" style={{ maxWidth: '500px', width: '100%', padding: '2rem', animation: 'scaleIn 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}>
+            {/* Header */}
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{
+                fontSize: '2.5rem', marginBottom: '0.75rem',
+                filter: 'drop-shadow(0 0 12px rgba(249,115,22,0.4))'
+              }}>🍽️</div>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.5rem' }}>
+                Bạn có muốn đặt món trước không?
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                Đặt món ngay để không phải chờ khi tới — bếp sẽ chuẩn bị sẵn cho bạn!
+              </p>
+            </div>
+
+            {/* Thông tin đặt bàn */}
+            <div style={{
+              padding: '0.85rem 1rem', borderRadius: '0.75rem', marginBottom: '1.5rem',
+              background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.2)',
+              display: 'grid', gap: '0.35rem', fontSize: '0.88rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Bàn</span>
+                <strong>{pendingBookingPayload.tenBan} ({pendingBookingPayload.viTri})</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Giờ đến</span>
+                <strong>{new Date(pendingBookingPayload.thoiGianDen).toLocaleString('vi-VN')}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Tiền cọc</span>
+                <strong style={{ color: '#f97316' }}>{Number(pendingBookingPayload.tienCoc).toLocaleString('vi-VN')} ₫</strong>
+              </div>
+            </div>
+
+            {/* Hai lựa chọn */}
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <button
+                onClick={handleOrderWithBooking}
+                style={{
+                  padding: '0.9rem 1.25rem', borderRadius: '0.85rem', border: 'none',
+                  background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                  color: '#fff', fontWeight: '700', cursor: 'pointer', fontSize: '1rem',
+                  boxShadow: '0 4px 16px rgba(249,115,22,0.35)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  transition: 'transform 0.15s'
+                }}
+                onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                🍜 Có, đặt món ngay — rồi thanh toán cọc
+              </button>
+              <button
+                onClick={handleReservationOnly}
+                disabled={bookingLoading}
+                style={{
+                  padding: '0.9rem 1.25rem', borderRadius: '0.85rem',
+                  border: '1px solid var(--border)', background: 'var(--surface)',
+                  color: 'var(--text)', fontWeight: '600', cursor: 'pointer', fontSize: '0.95rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  opacity: bookingLoading ? 0.6 : 1
+                }}
+              >
+                💳 {bookingLoading ? 'Đang xử lý...' : 'Không, chỉ đặt bàn & thanh toán cọc ngay'}
+              </button>
+              <button
+                onClick={() => { setShowOrderPrompt(false); setPendingBookingPayload(null); }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', padding: '0.25rem' }}
+              >
+                ← Quay lại chọn bàn
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gap: '1.5rem' }}>
         <div>
           <h1 className="text-gradient" style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Sơ Đồ Đặt Bàn</h1>
@@ -295,9 +436,9 @@ const ReservationPage = () => {
 
           <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <MapPin size={18} color="var(--primary)" /> Sơ đồ bàn
-              </h3>
+              </h2>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{tables.length} bàn</span>
             </div>
 
@@ -341,29 +482,30 @@ const ReservationPage = () => {
           <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Lọc timeline theo ngày giờ</h3>
+                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Lọc timeline theo ngày giờ</h2>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '0.82rem', fontWeight: 'bold' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#ef4444' }}></span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', fontSize: '0.82rem', fontWeight: 'bold' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#f87171' }}></span>
                 Đã đặt / không đủ thời gian
               </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', fontSize: '0.82rem', fontWeight: 'bold' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#f59e0b' }}></span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', fontSize: '0.82rem', fontWeight: 'bold' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#fbbf24' }}></span>
                 Có giới hạn giờ
               </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '0.82rem', fontWeight: 'bold' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#10b981' }}></span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.4rem 0.75rem', borderRadius: '999px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', fontSize: '0.82rem', fontWeight: 'bold' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '999px', background: '#34d399' }}></span>
                 Trống
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-4" style={{ marginBottom: '1rem' }}>
               <div className="input-group">
-                <label className="input-label flex items-center gap-2"><Calendar size={16} /> Từ ngày</label>
+                <label htmlFor="fromDateInput" className="input-label flex items-center gap-2"><Calendar size={16} /> Từ ngày</label>
                 <input
+                  id="fromDateInput"
                   type="date"
                   name="fromDate"
                   value={timelineSearch.fromDate}
@@ -373,8 +515,9 @@ const ReservationPage = () => {
                 />
               </div>
               <div className="input-group">
-                <label className="input-label flex items-center gap-2"><Calendar size={16} /> Tới ngày</label>
+                <label htmlFor="toDateInput" className="input-label flex items-center gap-2"><Calendar size={16} /> Tới ngày</label>
                 <input
+                  id="toDateInput"
                   type="date"
                   name="toDate"
                   value={timelineSearch.toDate}
@@ -384,21 +527,17 @@ const ReservationPage = () => {
                 />
               </div>
               <div className="input-group">
-                <label className="input-label flex items-center gap-2"><Clock size={16} /> Từ giờ</label>
-                <select
+                <label htmlFor="fromTimeInput" className="input-label flex items-center gap-2"><Clock size={16} /> Từ giờ</label>
+                <input
+                  id="fromTimeInput"
+                  type="time"
                   name="fromTime"
                   value={timelineSearch.fromTime}
                   onChange={handleTimelineRangeChange}
                   className="input-field"
-                  style={{ background: 'var(--surface)', color: 'var(--text-main)' }}
-                >
-                  {Array.from({ length: 96 }).map((_, index) => {
-                    const hour = Math.floor(index / 4);
-                    const min = (index % 4) * 15;
-                    const tStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-                    return <option key={tStr} value={tStr}>{tStr}</option>;
-                  })}
-                </select>
+                  min={timelineOpenTime}
+                  max={timelineCloseTime === '24:00' ? '23:59' : timelineCloseTime}
+                />
               </div>
               <div className="input-group">
               </div>
@@ -481,11 +620,11 @@ const ReservationPage = () => {
                                       else if (isSelectedSlot) slotBackground = 'rgba(59, 130, 246, 0.14)';
                                       else if (warning) slotBackground = 'rgba(245, 158, 11, 0.12)';
 
-                                      let slotTextColor = '#059669';
+                                      let slotTextColor = '#34d399';
                                       if (isPastSlot) slotTextColor = 'var(--text-muted)';
-                                      else if (booked || blocked) slotTextColor = '#ef4444';
-                                      else if (isSelectedSlot) slotTextColor = '#2563eb';
-                                      else if (warning) slotTextColor = '#f59e0b';
+                                      else if (booked || blocked) slotTextColor = '#f87171';
+                                      else if (isSelectedSlot) slotTextColor = '#60a5fa';
+                                      else if (warning) slotTextColor = '#fbbf24';
 
                                       const isDisabled = booked || blocked || isPastSlot;
 
@@ -500,6 +639,7 @@ const ReservationPage = () => {
                                             padding: '0.85rem 0.8rem',
                                             border: isSelectedSlot ? '2px solid #2563eb' : '1px solid var(--border)',
                                             background: slotBackground,
+                                            color: 'var(--text-main)',
                                             minHeight: '96px',
                                             display: 'flex',
                                             flexDirection: 'column',
@@ -511,7 +651,7 @@ const ReservationPage = () => {
                                           }}
                                         >
                                           <div>
-                                            <div style={{ fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
+                                            <div style={{ fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '0.25rem', color: isDisabled ? 'var(--text-muted)' : 'var(--text-main)' }}>
                                               {slotStart} - {slotEnd}
                                             </div>
                                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Mỗi ô = tối đa 3 tiếng</div>
@@ -563,7 +703,7 @@ const ReservationPage = () => {
           </div>
 
           <div className="card" style={{ padding: '1.5rem', overflow: 'hidden' }}>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Hình ảnh thực tế</h3>
+            <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Hình ảnh thực tế</h2>
             {selectedTable ? (
               <div style={{ position: 'relative', borderRadius: '0.75rem', overflow: 'hidden', marginBottom: '1rem' }}>
                 <img
@@ -572,7 +712,7 @@ const ReservationPage = () => {
                   style={{ width: '100%', objectFit: 'cover', height: '280px', display: 'block', transition: 'all 0.3s ease' }}
                 />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '2rem 1rem 1rem', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))' }}>
-                  <h4 style={{ fontSize: '1.25rem', color: 'white', marginBottom: '0.25rem' }}>{selectedTable.tenBan} - {selectedTable.viTri}</h4>
+                  <h3 style={{ fontSize: '1.25rem', color: 'white', marginBottom: '0.25rem' }}>{selectedTable.tenBan} - {selectedTable.viTri}</h3>
                 </div>
               </div>
             ) : (
@@ -603,6 +743,23 @@ const ReservationPage = () => {
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                   {selectedDateTime ? selectedDateTime.toLocaleString('vi-VN') : 'Chưa có ngày giờ'}
                 </div>
+                {/* Hiển thị thông tin tiền cọc */}
+                {selectedTable && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {(selectedTable.tienCocMacDinh || 0) > 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', borderRadius: '0.5rem', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.2)', fontSize: '0.85rem' }}>
+                        <CreditCard size={14} color="#f97316" />
+                        <span>Yêu cầu đặt cọc:</span>
+                        <strong style={{ color: '#f97316' }}>{Number(selectedTable.tienCocMacDinh).toLocaleString('vi-VN')} ₫</strong>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>— thanh toán qua VNPay</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: '#059669' }}>
+                        <span>&#10003;</span> Miễn cọc — đặt ngay không cần thanh toán
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {selectedDateTime && isPastSelectedTime && (
@@ -617,8 +774,13 @@ const ReservationPage = () => {
                 </div>
               )}
 
-              <button type="button" className="btn btn-primary" style={{ padding: '0.95rem 1.25rem', minWidth: '180px' }} onClick={handleSubmit} disabled={!selectedTable || isPastSelectedTime || bookingLoading}>
-                {bookingLoading ? 'Đang đặt bàn...' : 'Xác Nhận Đặt Bàn'}
+              <button type="button" className="btn btn-primary" style={{ padding: '0.95rem 1.25rem', minWidth: '200px', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }} onClick={handleSubmit} disabled={!selectedTable || isPastSelectedTime || bookingLoading}>
+                {bookingLoading
+                  ? 'Đang xử lý...'
+                  : (selectedTable?.tienCocMacDinh || 0) > 0
+                    ? <><CreditCard size={16} /> Thanh Toán & Đặt Bàn</>
+                    : 'Xác Nhận Đặt Bàn'
+                }
               </button>
             </div>
           </div>

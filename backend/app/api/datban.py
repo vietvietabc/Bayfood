@@ -229,6 +229,7 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
                 "trangThai": table.trangThai,
                 "maQR_url": table.maQR_url,
                 "hinhAnh": table.hinhAnh,
+                "tienCocMacDinh": float(table.tienCocMacDinh) if table.tienCocMacDinh else 0,
             },
             "reservations": [],
             "slots": [],
@@ -286,6 +287,7 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
             "trangThai": table.trangThai,
             "maQR_url": table.maQR_url,
             "hinhAnh": table.hinhAnh,
+            "tienCocMacDinh": float(table.tienCocMacDinh) if table.tienCocMacDinh else 0,
         },
         "reservations": reservations,
         "slots": slots,
@@ -299,6 +301,43 @@ def _get_conflicting_reservation(db: Session, id_ban: int, thoiGianDen: datetime
 def _is_checkin_allowed(thoiGianDen: datetime) -> bool:
     return _now_utc_naive() >= (thoiGianDen - timedelta(minutes=15))
 
+
+def validate_restaurant_hours(db: Session, target_time: datetime, is_booking: bool = False) -> None:
+    """
+    Kiểm tra xem thời gian hẹn đến có hợp lệ so với giờ hoạt động và tình trạng đóng/mở cửa của quán không.
+    """
+    arrival_time = _normalize_datetime(target_time)
+    business_start, business_end, working_hours = _business_day_window(db, arrival_time.date())
+
+    if working_hours["isNghi"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Nhà hàng nghỉ vào ngày bạn đã chọn. Vui lòng chọn ngày khác."
+        )
+
+    if arrival_time <= _now_utc_naive():
+        raise HTTPException(
+            status_code=400,
+            detail="Thời gian hẹn đến phải lớn hơn thời gian hiện tại"
+        )
+
+    if is_booking:
+        limit_time = business_end - timedelta(hours=2)
+        if arrival_time < business_start or arrival_time > limit_time:
+            display_limit = limit_time.strftime("%H:%M")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Nhà hàng chỉ nhận đặt bàn trong khung giờ {working_hours['gioMoCua']} - {display_limit} (trước giờ đóng cửa ít nhất 2 tiếng)."
+            )
+    else:
+        limit_time = business_end - timedelta(minutes=15)
+        if arrival_time < business_start or arrival_time > limit_time:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cửa hàng chưa mở cửa vào khung giờ này (giờ hoạt động từ {working_hours['gioMoCua']} đến {working_hours['gioDongCua']}). Vui lòng hẹn giờ trong khung giờ này và trước lúc đóng cửa ít nhất 15 phút."
+            )
+
+
 @router.post("/", response_model=schemas.DatBan)
 def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
     logger.info("User %s yêu cầu đặt bàn lúc %s, số người: %s, bàn chỉ định: %s", 
@@ -309,21 +348,10 @@ def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = 
         raise HTTPException(status_code=400, detail="Số lượng người đặt phải lớn hơn 0")
 
     reservation_time = _normalize_datetime(reservation.thoiGianDen)
-    business_start, business_end, working_hours = _business_day_window(db, reservation_time.date())
-
-    if working_hours["isNghi"]:
-        logger.warning("Đặt bàn thất bại: Nhà hàng nghỉ ngày %s", reservation_time.date())
-        raise HTTPException(status_code=400, detail="Nhà hàng nghỉ vào ngày bạn đã chọn")
-
-    if reservation_time <= _now_utc_naive():
-        logger.warning("Đặt bàn thất bại: Thời gian đặt %s ở quá khứ (giờ hiện tại: %s)", reservation_time, _now_utc_naive())
-        raise HTTPException(status_code=400, detail="Thời gian đặt bàn phải lớn hơn thời gian hiện tại")
-
-    if reservation_time < business_start or reservation_time > (business_end - timedelta(hours=2)):
-        logger.warning("Đặt bàn thất bại: Thời gian %s nằm ngoài giờ nhận khách", reservation_time)
-        raise HTTPException(status_code=400, detail="Nhà hàng chỉ nhận đặt muộn nhất là 22:00")
+    validate_restaurant_hours(db, reservation_time, is_booking=True)
 
     # Nếu đặt muộn (sau 21h), thời gian dùng bữa sẽ bị giới hạn bởi giờ đóng cửa
+    business_start, business_end, working_hours = _business_day_window(db, reservation_time.date())
     reservation_end = min(reservation_time + SERVICE_DURATION, business_end)
     if reservation_end <= reservation_time:
          raise HTTPException(status_code=400, detail="Thời gian đặt không hợp lệ")
@@ -374,6 +402,10 @@ def create_reservation(reservation: schemas.DatBanCreateCustomer, db: Session = 
 
 @router.get("/me", response_model=list[schemas.DatBan])
 def get_my_reservations(db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
+    # Tự động xử lý các đặt bàn quá hạn trước khi trả kết quả
+    from app.api.auto_noshow import auto_mark_no_show
+    auto_mark_no_show(db)
+
     res_list = (
         db.query(models.DatBan)
         .filter(models.DatBan.id_nguoiDung == current_user.id_nguoiDung)
@@ -470,24 +502,18 @@ def checkin_reservation(
 
 @router.get("/all/list", response_model=list[schemas.DatBan])
 def get_all_reservations(db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
+    # Tự động xử lý các đặt bàn quá hạn trước khi trả kết quả
+    from app.api.auto_noshow import auto_mark_no_show
+    auto_mark_no_show(db)
+
     reservations = db.query(models.DatBan).order_by(models.DatBan.id_datBan.desc()).all()
     for res in reservations:
         res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(res)
         db_order = db.query(models.DonHang).filter(models.DonHang.id_datBan == res.id_datBan).first()
         if db_order:
             res.id_donHang = db_order.id_donHang
-            if db_order.tinhTrang == "Đã thanh toán":
-                res.kieuCoc = "Cọc hết đơn"
-            elif res.trangThaiCoc == "Đã cọc":
-                res.kieuCoc = "Cọc 10% + tiền bàn"
-            else:
-                res.kieuCoc = "Chưa cọc"
         else:
             res.id_donHang = None
-            if res.trangThaiCoc == "Đã cọc":
-                res.kieuCoc = "Cọc 10% + tiền bàn"
-            else:
-                res.kieuCoc = "Chưa cọc"
     return reservations
 
 
@@ -641,7 +667,8 @@ def mark_no_show(
 
     now = _now_utc_naive()
     if db_res.thoiGianDen:
-        allowed_time = db_res.thoiGianDen + timedelta(hours=3)
+        # Ngưỡng thủ công: 1 giờ 30 phút sau giờ hẹn
+        allowed_time = db_res.thoiGianDen + timedelta(hours=1, minutes=30)
         if now < allowed_time:
             remaining_seconds = (allowed_time - now).total_seconds()
             remaining_hours = int(remaining_seconds // 3600)
@@ -654,7 +681,7 @@ def mark_no_show(
             
             raise HTTPException(
                 status_code=400,
-                detail=f"Chỉ có thể đánh dấu vắng mặt sau giờ hẹn ít nhất 3 tiếng. Vui lòng đợi thêm {time_str}."
+                detail=f"Chỉ có thể đánh dấu vắng mặt sau giờ hẹn ít nhất 1 tiếng 30 phút. Vui lòng đợi thêm {time_str}."
             )
 
     # Đánh dấu vắng mặt

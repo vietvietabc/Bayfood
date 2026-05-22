@@ -104,7 +104,8 @@ def create_table(request: Request, ban: schemas.BanCreate, db: Session = Depends
         sucChua=ban.sucChua,
         viTri=ban.viTri,
         hinhAnh=ban.hinhAnh,
-        trangThai=ban.trangThai
+        trangThai=ban.trangThai,
+        tienCocMacDinh=ban.tienCocMacDinh if ban.tienCocMacDinh is not None else 0
     )
     db.add(db_ban)
     db.flush()
@@ -127,6 +128,7 @@ def update_table(request: Request, id_ban: int, ban: schemas.BanCreate, db: Sess
     db_ban.viTri = ban.viTri
     db_ban.hinhAnh = ban.hinhAnh
     db_ban.trangThai = ban.trangThai
+    db_ban.tienCocMacDinh = ban.tienCocMacDinh if ban.tienCocMacDinh is not None else 0
     
     frontend_url = get_frontend_url(request)
     db_ban.maQR_url = build_table_qr_url(db_ban.id_ban, frontend_url)

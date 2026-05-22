@@ -44,3 +44,17 @@ def run_migrations() -> None:
                     print("Migration: Added Column 'trangThaiCoc' (unquoted) successfully!")
                 except Exception as e2:
                     print(f"Migration error (trangThaiCoc): {e1} / {e2}")
+
+    if inspector.has_table("BAN"):
+        ban_columns = {column["name"] for column in inspector.get_columns("BAN")}
+        if "tienCocMacDinh" not in ban_columns:
+            with engine.begin() as connection:
+                try:
+                    connection.execute(text('ALTER TABLE "BAN" ADD COLUMN "tienCocMacDinh" FLOAT DEFAULT 0'))
+                    print("Migration: Added Column 'tienCocMacDinh' to 'BAN' successfully!")
+                except Exception as e:
+                    try:
+                        connection.execute(text("ALTER TABLE BAN ADD COLUMN tienCocMacDinh FLOAT DEFAULT 0"))
+                        print("Migration: Added Column 'tienCocMacDinh' to 'BAN' (unquoted) successfully!")
+                    except Exception as e2:
+                        print(f"Migration error (tienCocMacDinh): {e} / {e2}")
