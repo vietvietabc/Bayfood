@@ -117,7 +117,8 @@ app.include_router(ws_thongbao.router)
 os.makedirs("app/static/uploads/tables", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# API test thử
+# API test thử (Hỗ trợ cả GET và HEAD cho Render Health Check)
 @app.get("/")
+@app.head("/")
 def read_root():
     return {"message": "Chào mừng đến với hệ thống API của BayFood!"}
