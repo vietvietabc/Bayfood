@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useReducer } from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 import FoodCard from '../components/FoodCard';
 import { Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -33,9 +33,10 @@ const MenuPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
         const [menuRes, catRes] = await Promise.all([
-          axios.get('http://localhost:8000/api/thucdon'),
-          axios.get('http://localhost:8000/api/thucdon/danhmuc')
+          axios.get(`${apiUrl}/api/thucdon`),
+          axios.get(`${apiUrl}/api/thucdon/danhmuc`)
         ]);
         dispatch({ type: 'FETCH_SUCCESS', payload: { menuItems: menuRes.data, categories: catRes.data } });
       } catch (error) {

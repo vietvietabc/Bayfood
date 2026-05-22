@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Plus, Minus, Trash2, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 
 const CartDrawer = () => {
   const { isDrawerOpen, toggleDrawer, cart, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
@@ -19,7 +19,8 @@ const CartDrawer = () => {
         }))
       };
 
-      await axios.post('http://localhost:8000/api/donhang', orderData);
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+      await axios.post(`${apiUrl}/api/donhang`, orderData);
       alert('Đặt món thành công! Đơn hàng của bạn đang được xử lý.');
       clearCart();
       toggleDrawer();

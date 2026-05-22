@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 import { X, Plus, Star, StarHalf } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
@@ -16,7 +16,8 @@ const FoodDetailModal = ({ item, onClose }) => {
       try {
         setLoadingReviews(true);
         // Lấy 10 đánh giá mới nhất
-        const response = await axios.get(`http://localhost:8000/api/thucdon/${item.id_monAn}/danhgia?limit=10`);
+        const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+        const response = await axios.get(`${apiUrl}/api/thucdon/${item.id_monAn}/danhgia?limit=10`);
         setReviews(response.data);
       } catch (error) {
         console.error("Error fetching reviews:", error);

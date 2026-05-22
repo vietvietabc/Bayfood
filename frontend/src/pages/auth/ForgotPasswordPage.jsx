@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import axios from '../../utils/axiosSetup';
 import { useNavigate, Link } from 'react-router-dom';
 import { KeyRound, Mail, CheckCircle } from 'lucide-react';
 
@@ -20,7 +20,8 @@ const ForgotPasswordPage = () => {
     setSuccessMsg('');
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/forgot-password/send-otp', { email });
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+      const response = await axios.post(`${apiUrl}/api/auth/forgot-password/send-otp`, { email });
       setSuccessMsg(response.data.message || 'Đã gửi mã OTP đến email của bạn.');
       setStep(2);
     } catch (err) {
@@ -36,7 +37,8 @@ const ForgotPasswordPage = () => {
     setSuccessMsg('');
     setLoading(true);
     try {
-      await axios.post('http://localhost:8000/api/auth/forgot-password/verify-reset', { 
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+      await axios.post(`${apiUrl}/api/auth/forgot-password/verify-reset`, { 
         email, 
         otp, 
         matKhauMoi 

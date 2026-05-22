@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, use } from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 
 const AuthContext = createContext();
 
@@ -20,7 +20,8 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async (token, persist = true) => {
     try {
-      const response = await axios.get('http://localhost:8000/api/auth/me', {
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+      const response = await axios.get(`${apiUrl}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data);
@@ -60,14 +61,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, matKhau) => {
-    const response = await axios.post('http://localhost:8000/api/auth/login/json', { email, matKhau });
+    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+    const response = await axios.post(`${apiUrl}/api/auth/login/json`, { email, matKhau });
     const { access_token } = response.data;
     localStorage.setItem('token', access_token);
     return await fetchUser(access_token);
   };
 
   const register = async (hoTen, email, soDienThoai, matKhau) => {
-    await axios.post('http://localhost:8000/api/auth/register', { hoTen, email, soDienThoai, matKhau });
+    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+    await axios.post(`${apiUrl}/api/auth/register`, { hoTen, email, soDienThoai, matKhau });
   };
 
   const logout = () => {

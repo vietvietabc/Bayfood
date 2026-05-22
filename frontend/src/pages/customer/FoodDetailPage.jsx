@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../utils/axiosSetup';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -33,9 +33,10 @@ const FoodDetailPage = () => {
     const fetchFoodDetail = async () => {
       try {
         setLoading(true);
+        const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
         const [foodRes, reviewRes] = await Promise.all([
-          axios.get(`http://localhost:8000/api/thucdon/${id}/chi-tiet`),
-          axios.get(`http://localhost:8000/api/thucdon/${id}/danhgia?limit=10`)
+          axios.get(`${apiUrl}/api/thucdon/${id}/chi-tiet`),
+          axios.get(`${apiUrl}/api/thucdon/${id}/danhgia?limit=10`)
         ]);
         setItem(foodRes.data);
         setReviews(reviewRes.data);

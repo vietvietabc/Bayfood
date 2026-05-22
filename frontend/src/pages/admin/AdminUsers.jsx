@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../utils/axiosSetup';
 import { Shield, UserPlus, Lock, Unlock, X, ChefHat, UtensilsCrossed, User } from 'lucide-react';
 
-const API = 'http://localhost:8000/api/users';
+const API = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '')}/api/users`;
 
 const ROLE_CONFIG = {
   'Quản lý': { label: 'Quản lý', color: '#f97316', bg: 'rgba(249,115,22,0.12)', icon: <Shield size={13} /> },
