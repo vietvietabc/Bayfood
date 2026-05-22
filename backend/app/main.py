@@ -92,7 +92,7 @@ app.add_middleware(
         "https://bayfood-ja8ar427w-tran-dinh-viet-s-projects.vercel.app",
         "https://bayfood.vercel.app"
     ],
-    allow_origin_regex="https://.*\.vercel\.app",
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
