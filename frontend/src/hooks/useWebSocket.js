@@ -2,7 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 // Giả định backend chạy cùng host hoặc dùng biến môi trường
-const WS_URL = import.meta.env.VITE_WS_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('http', 'ws') : 'ws://localhost:8000');
+let WS_URL = import.meta.env.VITE_WS_URL;
+if (!WS_URL) {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  WS_URL = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+}
 
 export function useWebSocket(onMessage) {
   const { user } = useAuth();
