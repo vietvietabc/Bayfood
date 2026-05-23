@@ -3,6 +3,38 @@ from app.db.database import engine
 
 def run_migrations() -> None:
     inspector = inspect(engine)
+
+    # ── Tạo bảng GIOLAMVIEC nếu chưa tồn tại ─────────────────────────────────
+    if not inspector.has_table("GIOLAMVIEC"):
+        with engine.begin() as connection:
+            try:
+                connection.execute(text("""
+                    CREATE TABLE "GIOLAMVIEC" (
+                        "id_gioLamViec" SERIAL PRIMARY KEY,
+                        "ngay" DATE NOT NULL UNIQUE,
+                        "gioMoCua" VARCHAR(5),
+                        "gioDongCua" VARCHAR(5),
+                        "isNghi" BOOLEAN DEFAULT FALSE,
+                        "ghiChu" VARCHAR(255)
+                    )
+                """))
+                print("Migration: Created table 'GIOLAMVIEC' (PostgreSQL) successfully!")
+            except Exception as e1:
+                try:
+                    connection.execute(text("""
+                        CREATE TABLE IF NOT EXISTS GIOLAMVIEC (
+                            id_gioLamViec INTEGER PRIMARY KEY AUTOINCREMENT,
+                            ngay DATE NOT NULL UNIQUE,
+                            gioMoCua VARCHAR(5),
+                            gioDongCua VARCHAR(5),
+                            isNghi BOOLEAN DEFAULT 0,
+                            ghiChu VARCHAR(255)
+                        )
+                    """))
+                    print("Migration: Created table 'GIOLAMVIEC' (SQLite) successfully!")
+                except Exception as e2:
+                    print(f"Migration error (GIOLAMVIEC create): {e1} / {e2}")
+
     if not inspector.has_table("DATBAN"):
         return
 
@@ -58,3 +90,4 @@ def run_migrations() -> None:
                         print("Migration: Added Column 'tienCocMacDinh' to 'BAN' (unquoted) successfully!")
                     except Exception as e2:
                         print(f"Migration error (tienCocMacDinh): {e} / {e2}")
+

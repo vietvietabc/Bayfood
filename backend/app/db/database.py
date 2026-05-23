@@ -19,7 +19,13 @@ if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("postgres://")
 if SQLALCHEMY_DATABASE_URL and SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_pre_ping=True,       # Tự động kiểm tra kết nối trước khi dùng (tránh stale)
+        pool_recycle=300,         # Tái tạo kết nối sau 5 phút
+        pool_size=5,              # Số kết nối tối đa trong pool
+        max_overflow=10,          # Số kết nối tạm thêm khi pool đầy
+    )
 
 # Tạo phiên làm việc (Session)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

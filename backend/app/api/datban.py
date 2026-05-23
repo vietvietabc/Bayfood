@@ -534,13 +534,17 @@ def get_available_tables(thoiGianDen: datetime | None = Query(default=None), db:
 
 @router.get("/timeline")
 def get_table_timeline(ngay: date = Query(...), fromTime: str | None = Query(default=None), db: Session = Depends(get_db)):
-    tables = db.query(models.Ban).order_by(models.Ban.id_ban.asc()).all()
-    working_hours = serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
-    return {
-        "ngay": ngay,
-        "workingHours": working_hours,
-        "tables": [_build_table_timeline(db, table, ngay, working_hours, fromTime) for table in tables],
-    }
+    try:
+        tables = db.query(models.Ban).order_by(models.Ban.id_ban.asc()).all()
+        working_hours = serialize_working_hours(_get_working_hours_record(db, ngay), ngay)
+        return {
+            "ngay": ngay,
+            "workingHours": working_hours,
+            "tables": [_build_table_timeline(db, table, ngay, working_hours, fromTime) for table in tables],
+        }
+    except Exception as exc:
+        logger.error("Lỗi khi tải timeline ngày %s: %s", ngay, str(exc))
+        raise HTTPException(status_code=500, detail=f"Lỗi tải timeline: {str(exc)}")
 
 
 @router.get("/{id_datBan}", response_model=schemas.DatBan)
