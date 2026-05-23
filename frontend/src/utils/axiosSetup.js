@@ -42,11 +42,13 @@ axios.interceptors.response.use(
   (error) => {
     // Nếu lỗi 401 (Hết hạn token hoặc không hợp lệ)
     if (error.response && error.response.status === 401) {
-      // Bỏ qua nếu là request đăng nhập (để trang Login tự hiển thị thông báo lỗi)
-      const isLoginRequest = error.config && error.config.url && 
-        (error.config.url.includes('/api/auth/login') || error.config.url.includes('/login'));
+      // Bỏ qua nếu là request đăng nhập hoặc lấy thông tin user
+      // (để trang Login tự hiển thị thông báo lỗi)
+      const skipUrls = ['/api/auth/login', '/api/auth/me', '/api/auth/register'];
+      const isAuthRequest = error.config && error.config.url &&
+        skipUrls.some(u => error.config.url.includes(u));
       
-      if (!isLoginRequest) {
+      if (!isAuthRequest) {
         console.error('Token expired or invalid. Please login again.');
         // Xóa token và user, chuyển hướng về trang đăng nhập
         localStorage.removeItem('token');

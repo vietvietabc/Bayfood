@@ -1,9 +1,9 @@
-import React, { createContext, useState, useEffect, use } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from '../utils/axiosSetup';
 
 const AuthContext = createContext();
 
-export const useAuth = () => use(AuthContext);
+export const useAuth = () => useContext(AuthContext);
 
 const readCachedUser = () => {
   try {

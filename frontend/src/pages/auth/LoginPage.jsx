@@ -7,11 +7,14 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setIsLoading(true);
     try {
       const loggedInUser = await login(email, password);
       
@@ -28,6 +31,8 @@ const LoginPage = () => {
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Đăng nhập thất bại. Vui lòng kiểm tra lại.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -73,8 +78,8 @@ const LoginPage = () => {
               required
             />
           </div>
-          <button type="submit" className="btn btn-primary w-full mt-4" style={{ padding: '0.75rem' }}>
-            Đăng Nhập
+          <button type="submit" className="btn btn-primary w-full mt-4" style={{ padding: '0.75rem' }} disabled={isLoading}>
+            {isLoading ? 'Đang đăng nhập...' : 'Đăng Nhập'}
           </button>
         </form>
 
