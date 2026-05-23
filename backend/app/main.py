@@ -84,14 +84,22 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Cấu hình CORS để Frontend (React) có thể gọi được API mà không bị chặn
+_cors_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://bayfood-chi.vercel.app",
+    "https://bayfood-ja8ar427w-tran-dinh-viet-s-projects.vercel.app",
+    "https://bayfood.vercel.app",
+]
+
+# Hỗ trợ thêm origin từ biến môi trường (cách nhau bởi dấu phẩy)
+_extra_origins = os.environ.get("ALLOWED_ORIGINS", "")
+if _extra_origins:
+    _cors_origins.extend([o.strip() for o in _extra_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://bayfood-ja8ar427w-tran-dinh-viet-s-projects.vercel.app",
-        "https://bayfood.vercel.app"
-    ],
+    allow_origins=_cors_origins,
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
