@@ -42,11 +42,11 @@ def _hmac_sha512(secret: str, data: str) -> str:
 
 
 def _build_vnpay_url(amount_vnd: int, txn_ref: str, order_info: str, ip_addr: str) -> str:
-    now = datetime.now()
+    from datetime import timedelta, timezone
+    tz_hcm = timezone(timedelta(hours=7))
+    now = datetime.now(tz_hcm)
     create_date = now.strftime("%Y%m%d%H%M%S")
-    m = now.minute + 15
-    h = now.hour + (m // 60)
-    expire_date = now.replace(hour=h % 24, minute=m % 60).strftime("%Y%m%d%H%M%S")
+    expire_date = (now + timedelta(minutes=15)).strftime("%Y%m%d%H%M%S")
 
     params = {
         "vnp_Version":    "2.1.0",
