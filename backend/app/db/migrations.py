@@ -77,6 +77,18 @@ def run_migrations() -> None:
                 except Exception as e2:
                     print(f"Migration error (trangThaiCoc): {e1} / {e2}")
 
+        # 4. lyDoHuy column
+        if "lyDoHuy" not in columns:
+            try:
+                connection.execute(text('ALTER TABLE "DATBAN" ADD COLUMN "lyDoHuy" VARCHAR(500) NULL'))
+                print("Migration: Added Column 'lyDoHuy' (quoted) successfully!")
+            except Exception as e1:
+                try:
+                    connection.execute(text("ALTER TABLE DATBAN ADD COLUMN lyDoHuy VARCHAR(500) NULL"))
+                    print("Migration: Added Column 'lyDoHuy' (unquoted) successfully!")
+                except Exception as e2:
+                    print(f"Migration error (lyDoHuy): {e1} / {e2}")
+
     if inspector.has_table("BAN"):
         ban_columns = {column["name"] for column in inspector.get_columns("BAN")}
         if "tienCocMacDinh" not in ban_columns:

@@ -78,9 +78,18 @@ async def global_exception_handler(request: Request, exc: Exception):
     print("---------------- EXCEPTION CAUGHT ----------------")
     print(error_msg)
     print("--------------------------------------------------")
+
+    # Lấy origin từ request để trả lại đúng CORS header
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}", "traceback": error_msg}
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        },
     )
 
 # Cấu hình CORS để Frontend (React) có thể gọi được API mà không bị chặn

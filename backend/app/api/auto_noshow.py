@@ -153,9 +153,10 @@ def auto_mark_no_show(db: Session) -> int:
 
                 # Xử lý tiền cọc
                 deposit_info = ""
-                if res.tienCoc and res.tienCoc > 0:
+                tien_coc = getattr(res, 'tienCoc', None) or 0
+                if tien_coc > 0:
                     res.trangThaiCoc = "Mất cọc"
-                    so_tien = f"{int(res.tienCoc):,}".replace(",", ".") + " VNĐ"
+                    so_tien = f"{int(tien_coc):,}".replace(",", ".") + " VNĐ"
                     deposit_info = f" Tiền cọc {so_tien} đã bị mất do không đến đúng giờ."
 
                 _free_table(db, res.id_ban)
@@ -170,7 +171,7 @@ def auto_mark_no_show(db: Session) -> int:
                 logger.info(
                     "[AutoNoShow] Đặt bàn #%s → Vắng mặt (Đã xác nhận quá 3h15m)%s",
                     res.id_datBan,
-                    f" | Mất cọc {res.tienCoc}" if res.tienCoc else "",
+                    f" | Mất cọc {tien_coc}" if tien_coc else "",
                 )
 
             count += 1
