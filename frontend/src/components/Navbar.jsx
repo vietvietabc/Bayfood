@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingCart, Utensils, CalendarDays, User, LogOut, LayoutDashboard, ChevronDown, Bell, CheckCheck } from 'lucide-react';
+import { ShoppingCart, Utensils, CalendarDays, User, LogOut, LayoutDashboard, ChevronDown, Bell, CheckCheck, Sun, Moon } from 'lucide-react';
 import axios from 'axios';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -11,6 +12,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const Navbar = () => {
   const { cartCount } = useCart();
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationMenuRef = useRef(null);
@@ -158,7 +160,7 @@ const Navbar = () => {
                     fontWeight: '800',
                     padding: '0 4px',
                     boxShadow: '0 0 10px rgba(239, 68, 68, 0.6)',
-                    border: '1.5px solid #161719'
+                    border: '1.5px solid var(--badge-border-color)'
                   }}>
                     {unreadCount}
                   </span>
@@ -167,7 +169,7 @@ const Navbar = () => {
 
               {notificationMenuOpen && (
                 <div className="nav-dropdown" style={{ width: '360px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.25rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.25rem 0.75rem', borderBottom: '1px solid var(--dropdown-border)', marginBottom: '0.75rem' }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--ink)' }}>Thông báo</div>
                     <div style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '600' }}>{unreadCount} chưa đọc</div>
                   </div>
@@ -182,8 +184,8 @@ const Navbar = () => {
                           style={{
                             padding: '0.75rem',
                             borderRadius: '0.75rem',
-                            border: notification.daDoc ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(249, 115, 22, 0.2)',
-                            background: notification.daDoc ? 'rgba(255,255,255,0.02)' : 'rgba(249, 115, 22, 0.05)',
+                            border: notification.daDoc ? '1px solid var(--glass-border)' : '1px solid rgba(249, 115, 22, 0.2)',
+                            background: notification.daDoc ? 'var(--surface-soft)' : 'rgba(249, 115, 22, 0.05)',
                             transition: 'all 0.2s ease'
                           }}
                         >
@@ -236,7 +238,7 @@ const Navbar = () => {
 
               {accountMenuOpen && (
                 <div className="nav-dropdown" style={{ minWidth: '240px' }}>
-                  <div style={{ padding: '0.5rem 0.5rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '0.5rem' }}>
+                  <div style={{ padding: '0.5rem 0.5rem 0.75rem', borderBottom: '1px solid var(--dropdown-border)', marginBottom: '0.5rem' }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--ink)', fontSize: '0.95rem' }}>{user.hoTen}</div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginTop: '0.15rem' }}>{user.email}</div>
                   </div>
@@ -287,6 +289,16 @@ const Navbar = () => {
             </Link>
           )}
 
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle"
+            title={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            aria-label="Đổi giao diện"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {/* Cart Icon Gilded Button */}
           <button
             onClick={() => navigate('/cart')}
@@ -312,7 +324,7 @@ const Navbar = () => {
                 fontWeight: '800',
                 padding: '0 4px',
                 boxShadow: '0 0 10px rgba(249, 115, 22, 0.6)',
-                border: '1.5px solid #161719'
+                border: '1.5px solid var(--badge-border-color)'
               }}>
                 {cartCount}
               </span>

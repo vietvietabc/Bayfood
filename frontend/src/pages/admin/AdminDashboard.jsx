@@ -1,37 +1,651 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Users, CalendarDays, DollarSign, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import api from '../../utils/axiosSetup';
+import {
+  TrendingUp, TrendingDown, DollarSign, CalendarCheck,
+  Users, Star, Clock, ChevronRight, RefreshCw,
+  CheckCircle2, Loader2, AlertCircle
+} from 'lucide-react';
 
-const StatCard = ({ title, value, icon, trend }) => (
-  <div className="card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-    <div>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>{title}</p>
-      <h3 style={{ fontSize: '1.75rem', margin: 0 }}>{value}</h3>
-      {trend && <p style={{ color: 'var(--secondary)', fontSize: '0.75rem', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><TrendingUp size={12} /> {trend}</p>}
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n) => n != null ? Number(n).toLocaleString('vi-VN') + ' ₫' : '—';
+const fmtShort = (n) => {
+  if (!n) return '0₫';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'tr';
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + 'k';
+  return n + '₫';
+};
+const toVN = (d) => new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+function getLast7Days() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+// ─── Status config ──────────────────────────────────────────────────────────
+const ORDER_STATUS_COLOR = {
+  'Đã thanh toán': { bg: 'rgba(16,185,129,0.12)', color: '#10b981' },
+  'Đang chờ món': { bg: 'rgba(249,115,22,0.12)', color: '#f97316' },
+  'Đang chế biến': { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
+  'Chờ thanh toán': { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6' },
+  'Chờ khách đến': { bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
+  'Đã hủy': { bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
+};
+
+const TABLE_STATUS_COLOR = {
+  'Trống': { bg: 'rgba(16,185,129,0.18)', border: '#10b981', dot: '#10b981' },
+  'Có khách': { bg: 'rgba(239,68,68,0.18)', border: '#ef4444', dot: '#ef4444' },
+  'Đã đặt': { bg: 'rgba(245,158,11,0.18)', border: '#f59e0b', dot: '#f59e0b' },
+  'Bảo trì': { bg: 'rgba(107,114,128,0.18)', border: '#6b7280', dot: '#6b7280' },
+  'Đang dọn': { bg: 'rgba(99,102,241,0.18)', border: '#6366f1', dot: '#6366f1' },
+};
+
+const BOOKING_STATUS_COLOR = {
+  'Chờ xác nhận': { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
+  'Đã xác nhận': { bg: 'rgba(16,185,129,0.12)', color: '#10b981' },
+  'Đã checkin': { bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
+  'Đã hủy': { bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
+  'Hoàn thành': { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6' },
+  'Vắng mặt': { bg: 'rgba(239,68,68,0.2)', color: '#dc2626' },
+};
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const Skeleton = ({ w = '100%', h = '1rem', r = '0.5rem', style = {} }) => (
+  <div style={{
+    width: w, height: h, borderRadius: r,
+    background: 'linear-gradient(90deg, var(--surface-soft) 25%, var(--hairline) 50%, var(--surface-soft) 75%)',
+    backgroundSize: '200% 100%',
+    animation: 'shimmer 1.6s ease-in-out infinite',
+    ...style
+  }} />
+);
+
+// ─── KPI StatCard ─────────────────────────────────────────────────────────────
+const StatCard = ({ title, value, sub, icon, accent, loading, trend, trendUp }) => (
+  <div style={{
+    background: 'var(--surface-card)',
+    border: '1px solid var(--hairline)',
+    borderRadius: '1.25rem',
+    padding: '1.5rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    position: 'relative',
+    overflow: 'hidden',
+    transition: 'transform 0.25s cubic-bezier(0.32,0.72,0,1), box-shadow 0.25s cubic-bezier(0.32,0.72,0,1)',
+  }}
+    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18)'; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+  >
+    {/* Glow accent */}
+    <div style={{ position: 'absolute', top: '-24px', right: '-24px', width: '80px', height: '80px', borderRadius: '50%', background: accent, opacity: 0.15, filter: 'blur(24px)', pointerEvents: 'none' }} />
+
+    {/* Icon + label row */}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div>
+        <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+          {title}
+        </div>
+        {loading
+          ? <Skeleton w="120px" h="2rem" r="0.4rem" />
+          : <div style={{ fontSize: '1.85rem', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--ink)', lineHeight: 1.1 }}>{value}</div>
+        }
+      </div>
+      <div style={{ padding: '0.65rem', borderRadius: '0.875rem', background: accent + '22', color: accent, flexShrink: 0 }}>
+        {icon}
+      </div>
     </div>
-    <div style={{ padding: '1rem', background: 'rgba(249, 115, 22, 0.1)', color: 'var(--primary)', borderRadius: '0.75rem' }}>
-      {icon}
+
+    {/* Trend + sub */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+      {loading
+        ? <Skeleton w="80px" h="0.875rem" r="0.3rem" />
+        : <>
+          {trend != null && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', fontWeight: 700, color: trendUp ? '#10b981' : '#ef4444' }}>
+              {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {trend}
+            </span>
+          )}
+          {sub && <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{sub}</span>}
+        </>
+      }
     </div>
   </div>
 );
 
-const AdminDashboard = () => {
+// ─── SVG Revenue Bar Chart ────────────────────────────────────────────────────
+const RevenueChart = ({ data7d, loading }) => {
+  const [hovered, setHovered] = useState(null);
+  const W = 560, H = 180, PAD_L = 0, PAD_B = 32, BAR_GAP = 8;
+  const days = getLast7Days();
+  const values = days.map(d => data7d[d] || 0);
+  const maxVal = Math.max(...values, 1);
+  const barW = (W - PAD_L - BAR_GAP * (days.length - 1)) / days.length;
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: `${H}px`, padding: '0 0 32px' }}>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} style={{ flex: 1, borderRadius: '6px 6px 0 0', background: 'var(--hairline)', height: `${30 + Math.random() * 70}%`, animation: 'shimmer 1.6s ease-in-out infinite' }} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', margin: 0 }}>Tổng Quan Quản Trị</h1>
+    <div style={{ position: 'relative' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.6" />
+          </linearGradient>
+          <linearGradient id="barHover" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fb923c" />
+            <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.8" />
+          </linearGradient>
+        </defs>
+
+        {/* Grid lines */}
+        {[0.25, 0.5, 0.75, 1].map(t => {
+          const y = (H - PAD_B) * (1 - t);
+          return (
+            <line key={t} x1={0} y1={y} x2={W} y2={y}
+              stroke="var(--hairline)" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
+          );
+        })}
+
+        {/* Bars */}
+        {values.map((v, i) => {
+          const barH = Math.max(4, ((H - PAD_B) * v) / maxVal);
+          const x = i * (barW + BAR_GAP);
+          const y = H - PAD_B - barH;
+          const dayLabel = days[i].slice(5).replace('-', '/');
+          const isToday = days[i] === todayStr();
+          const isHovered = hovered === i;
+
+          return (
+            <g key={i} style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {/* Hover area */}
+              <rect x={x} y={0} width={barW} height={H - PAD_B} fill="transparent" />
+
+              {/* Bar */}
+              <rect
+                x={x} y={y} width={barW} height={barH}
+                rx="5" ry="5"
+                fill={isHovered ? 'url(#barHover)' : isToday ? 'url(#barGrad)' : 'var(--hairline)'}
+                opacity={isHovered ? 1 : isToday ? 1 : 0.55}
+                style={{ transition: 'all 0.2s cubic-bezier(0.32,0.72,0,1)' }}
+              />
+
+              {/* Tooltip on hover */}
+              {isHovered && v > 0 && (
+                <g>
+                  <rect x={Math.min(x - 4, W - 90)} y={y - 36} width={88} height={26} rx="6"
+                    fill="var(--surface-soft)" stroke="var(--hairline)" strokeWidth="1" />
+                  <text x={Math.min(x - 4, W - 90) + 44} y={y - 18}
+                    textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--ink)">
+                    {fmtShort(v)}
+                  </text>
+                </g>
+              )}
+
+              {/* X axis label */}
+              <text x={x + barW / 2} y={H - 6} textAnchor="middle"
+                fontSize="10" fontWeight={isToday ? '700' : '500'}
+                fill={isToday ? 'var(--primary)' : 'var(--muted)'}>
+                {isToday ? 'Hôm nay' : dayLabel}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+// ─── Table Floor Mini ─────────────────────────────────────────────────────────
+const TableFloorMini = ({ tables, loading }) => {
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))', gap: '0.5rem' }}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} w="100%" h="52px" r="0.75rem" />
+        ))}
+      </div>
+    );
+  }
+
+  const summary = tables.reduce((acc, t) => {
+    acc[t.trangThai] = (acc[t.trangThai] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Summary pills */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {Object.entries(summary).map(([status, count]) => {
+          const cfg = TABLE_STATUS_COLOR[status] || { bg: 'var(--surface-soft)', border: 'var(--muted)', dot: 'var(--muted)' };
+          return (
+            <div key={status} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.75rem', borderRadius: '999px', background: cfg.bg, border: `1px solid ${cfg.border}22`, fontSize: '0.72rem', fontWeight: 700 }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: cfg.dot }} />
+              <span style={{ color: cfg.dot }}>{count}</span>
+              <span style={{ color: 'var(--muted)' }}>{status}</span>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-4 gap-6" style={{ marginBottom: '2rem' }}>
-        <StatCard title="Tổng Doanh Thu" value="12,500,000đ" icon={<DollarSign size={24} />} trend="+15% so với tuần trước" />
-        <StatCard title="Đơn Đặt Bàn Mới" value="18" icon={<CalendarDays size={24} />} trend="+3 hôm nay" />
-        <StatCard title="Khách Hàng" value="256" icon={<Users size={24} />} trend="+12 khách mới" />
-        <StatCard title="Đánh Giá" value="4.8/5" icon={<TrendingUp size={24} />} />
+      {/* Grid of tables */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(60px, 1fr))', gap: '0.45rem' }}>
+        {tables.map(t => {
+          const cfg = TABLE_STATUS_COLOR[t.trangThai] || TABLE_STATUS_COLOR['Trống'];
+          return (
+            <div key={t.id_ban} title={`${t.tenBan} — ${t.trangThai}`} style={{
+              borderRadius: '0.75rem', border: `1.5px solid ${cfg.border}44`,
+              background: cfg.bg, padding: '0.5rem 0.25rem',
+              textAlign: 'center', cursor: 'default',
+              transition: 'transform 0.18s cubic-bezier(0.32,0.72,0,1)',
+            }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.06)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cfg.dot, margin: '0 auto 4px' }} />
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--muted)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 2px' }}>
+                {t.tenBan}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── Activity Row ─────────────────────────────────────────────────────────────
+const ActivityRow = ({ label, sub, badge, badgeCfg, time, accent }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: '0.875rem',
+    padding: '0.65rem 0', borderBottom: '1px solid var(--hairline)',
+    transition: 'background 0.15s',
+  }}>
+    <div style={{ width: '36px', height: '36px', borderRadius: '0.625rem', background: accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, flexShrink: 0 }}>
+      <CheckCircle2 size={16} />
+    </div>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.1rem' }}>{sub}</div>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', flexShrink: 0 }}>
+      {badge && (
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '999px', background: badgeCfg?.bg || 'var(--surface-soft)', color: badgeCfg?.color || 'var(--muted)', whiteSpace: 'nowrap' }}>
+          {badge}
+        </span>
+      )}
+      <span style={{ fontSize: '0.68rem', color: 'var(--muted-soft)' }}>{time}</span>
+    </div>
+  </div>
+);
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+const AdminDashboard = () => {
+  const [orders, setOrders] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Inject shimmer keyframe once
+  useEffect(() => {
+    if (!document.getElementById('dash-shimmer')) {
+      const s = document.createElement('style');
+      s.id = 'dash-shimmer';
+      s.textContent = `@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`;
+      document.head.appendChild(s);
+    }
+  }, []);
+
+  // Fetch all data
+  useEffect(() => {
+    let aborted = false;
+    const fetchAll = async () => {
+      if (refreshKey > 0) setRefreshing(true);
+      else setLoading(true);
+
+      const [ordRes, bookRes, userRes, revRes, tabRes] = await Promise.allSettled([
+        api.get(`${BASE}/api/donhang/all/list`),
+        api.get(`${BASE}/api/datban/all/list`),
+        api.get(`${BASE}/api/users/all/list`),
+        api.get(`${BASE}/api/danhgia/?type=general`),
+        api.get(`${BASE}/api/ban/`),
+      ]);
+
+      if (aborted) return;
+
+      if (ordRes.status === 'fulfilled') setOrders(ordRes.value.data || []);
+      else console.warn('[Dashboard] orders failed:', ordRes.reason?.response?.status, ordRes.reason?.message);
+
+      if (bookRes.status === 'fulfilled') setBookings(bookRes.value.data || []);
+      else console.warn('[Dashboard] bookings failed:', bookRes.reason?.response?.status, bookRes.reason?.message);
+
+      if (userRes.status === 'fulfilled') setUsers(userRes.value.data || []);
+      else console.warn('[Dashboard] users failed:', userRes.reason?.response?.status, userRes.reason?.message);
+
+      if (revRes.status === 'fulfilled') setReviews(revRes.value.data || []);
+      else console.warn('[Dashboard] reviews failed:', revRes.reason?.response?.status, revRes.reason?.message);
+
+      if (tabRes.status === 'fulfilled') setTables(tabRes.value.data || []);
+      else console.warn('[Dashboard] tables failed:', tabRes.reason?.response?.status, tabRes.reason?.message);
+
+      setLoading(false);
+      setRefreshing(false);
+    };
+    fetchAll();
+    return () => { aborted = true; };
+  }, [refreshKey]);
+
+  // ── Derived KPI metrics ──────────────────────────────────────────────────
+  const today = todayStr();
+  const stats = useMemo(() => {
+    const paidOrders = orders.filter(o => o.tinhTrang === 'Đã thanh toán' || o.tinhTrang === 'Hoàn thành');
+    const revenueToday = paidOrders
+      .filter(o => (o.thoiGianTao || '').startsWith(today))
+      .reduce((s, o) => s + Number(o.tongTien || 0), 0);
+    const revenueYesterday = paidOrders
+      .filter(o => {
+        const d = new Date(); d.setDate(d.getDate() - 1);
+        return (o.thoiGianTao || '').startsWith(d.toISOString().slice(0, 10));
+      })
+      .reduce((s, o) => s + Number(o.tongTien || 0), 0);
+
+    const bookingsToday = bookings.filter(b => (b.thoiGianDen || '').startsWith(today)).length;
+    const bookingsYest = bookings.filter(b => {
+      const d = new Date(); d.setDate(d.getDate() - 1);
+      return (b.thoiGianDen || '').startsWith(d.toISOString().slice(0, 10));
+    }).length;
+
+    const customers = users.filter(u => u.tenVaiTro === 'Khách hàng' || u.id_vaiTro === 1).length;
+    const avgRating = reviews.length ? (reviews.reduce((s, r) => s + Number(r.soSao || 0), 0) / reviews.length) : 0;
+
+    const revDiff = revenueYesterday ? ((revenueToday - revenueYesterday) / revenueYesterday * 100) : null;
+    const bookDiff = bookingsYest ? ((bookingsToday - bookingsYest) / bookingsYest * 100) : null;
+
+    return { revenueToday, revenueYesterday, revDiff, bookingsToday, bookDiff, customers, avgRating };
+  }, [orders, bookings, users, reviews, today]);
+
+  // ── 7-day revenue data ───────────────────────────────────────────────────
+  const data7d = useMemo(() => {
+    const map = {};
+    const days = getLast7Days();
+    days.forEach(d => { map[d] = 0; });
+    orders
+      .filter(o => o.tinhTrang === 'Đã thanh toán' || o.tinhTrang === 'Hoàn thành')
+      .forEach(o => {
+        const d = (o.thoiGianTao || '').slice(0, 10);
+        if (d in map) map[d] += Number(o.tongTien || 0);
+      });
+    return map;
+  }, [orders]);
+
+  // ── Recent activity lists ────────────────────────────────────────────────
+  const recentBookings = useMemo(() =>
+    [...bookings].slice(0, 6),
+    [bookings]);
+
+  const activeOrders = useMemo(() =>
+    orders
+      .filter(o => !['Đã thanh toán', 'Đã hủy', 'Vắng mặt'].includes(o.tinhTrang))
+      .slice(0, 6),
+    [orders]);
+
+  // ── Table status summary ─────────────────────────────────────────────────
+  const tableStats = useMemo(() => ({
+    total: tables.length,
+    trong: tables.filter(t => t.trangThai === 'Trống').length,
+    coKhach: tables.filter(t => t.trangThai === 'Có khách').length,
+    daDat: tables.filter(t => t.trangThai === 'Đã đặt').length,
+  }), [tables]);
+
+  // ── Time greeting ────────────────────────────────────────────────────────
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Chào buổi sáng' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+
+  const nowVN = new Date().toLocaleString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div>
+          <p style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>
+            {nowVN}
+          </p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.04em', margin: 0, lineHeight: 1.1 }}>
+            {greeting}
+          </h1>
+          <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginTop: '0.35rem' }}>
+            Đây là tổng quan hoạt động của BayFood hôm nay.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setRefreshKey(k => k + 1)}
+          disabled={refreshing || loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.4rem',
+            padding: '0.55rem 1.1rem', borderRadius: '0.75rem',
+            border: '1px solid var(--hairline)', background: 'var(--surface-card)',
+            color: 'var(--muted)', fontSize: '0.8rem', fontWeight: 600,
+            cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.32,0.72,0,1)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--hairline)'; e.currentTarget.style.color = 'var(--muted)'; }}
+        >
+          <RefreshCw size={14} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+          {refreshing ? 'Đang tải...' : 'Làm mới'}
+        </button>
       </div>
 
-      <div className="card" style={{ padding: '1.5rem', minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: 'var(--text-muted)' }}>Biểu đồ doanh thu sẽ được hiển thị ở đây (Đang phát triển)</p>
+      {/* ── 4 KPI Stat Cards ──────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+        <StatCard
+          title="Doanh thu hôm nay"
+          value={fmtShort(stats.revenueToday)}
+          sub={stats.revenueToday ? `${fmt(stats.revenueToday)}` : 'Chưa có đơn'}
+          icon={<DollarSign size={20} />}
+          accent="#f97316"
+          loading={loading}
+          trend={stats.revDiff != null ? `${stats.revDiff > 0 ? '+' : ''}${stats.revDiff.toFixed(0)}% vs hôm qua` : null}
+          trendUp={stats.revDiff >= 0}
+        />
+        <StatCard
+          title="Đặt bàn hôm nay"
+          value={stats.bookingsToday}
+          sub={`${bookings.filter(b => b.trangThai === 'Chờ xác nhận').length} chờ xác nhận`}
+          icon={<CalendarCheck size={20} />}
+          accent="#3b82f6"
+          loading={loading}
+          trend={stats.bookDiff != null ? `${stats.bookDiff > 0 ? '+' : ''}${stats.bookDiff.toFixed(0)}% vs hôm qua` : null}
+          trendUp={stats.bookDiff >= 0}
+        />
+        <StatCard
+          title="Khách hàng"
+          value={stats.customers}
+          sub={`${users.length} tổng tài khoản`}
+          icon={<Users size={20} />}
+          accent="#8b5cf6"
+          loading={loading}
+        />
+        <StatCard
+          title="Đánh giá trung bình"
+          value={reviews.length ? `${stats.avgRating.toFixed(1)} ★` : '—'}
+          sub={`${reviews.length} đánh giá chung`}
+          icon={<Star size={20} />}
+          accent="#f59e0b"
+          loading={loading}
+        />
       </div>
+
+      {/* ── Chart + Tables row ────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem' }}>
+
+        {/* Revenue chart card */}
+        <div style={{
+          background: 'var(--surface-card)', border: '1px solid var(--hairline)',
+          borderRadius: '1.25rem', padding: '1.5rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.2rem' }}>
+                Doanh thu 7 ngày
+              </p>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+                {loading ? <Skeleton w="100px" h="1.5rem" r="0.4rem" /> : fmtShort(Object.values(data7d).reduce((a, b) => a + b, 0))}
+              </div>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: 700, padding: '0.3rem 0.75rem', borderRadius: '999px', background: 'rgba(249,115,22,0.1)', color: '#f97316' }}>
+              <TrendingUp size={11} /> 7 ngày gần đây
+            </div>
+          </div>
+          <RevenueChart data7d={data7d} loading={loading} />
+        </div>
+
+        {/* Table status card */}
+        <div style={{
+          background: 'var(--surface-card)', border: '1px solid var(--hairline)',
+          borderRadius: '1.25rem', padding: '1.5rem',
+          display: 'flex', flexDirection: 'column', gap: '1rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.2rem' }}>
+                Sơ đồ bàn
+              </p>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
+                {loading ? <Skeleton w="60px" h="1.5rem" r="0.4rem" /> : `${tableStats.coKhach}/${tableStats.total}`}
+              </div>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textAlign: 'right', lineHeight: 1.5 }}>
+              {loading ? null : <>
+                <div><span style={{ color: '#ef4444', fontWeight: 700 }}>{tableStats.coKhach}</span> có khách</div>
+                <div><span style={{ color: '#f59e0b', fontWeight: 700 }}>{tableStats.daDat}</span> đã đặt</div>
+                <div><span style={{ color: '#10b981', fontWeight: 700 }}>{tableStats.trong}</span> trống</div>
+              </>}
+            </div>
+          </div>
+          <TableFloorMini tables={tables} loading={loading} />
+        </div>
+      </div>
+
+      {/* ── Activity Feed 2-col ───────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+
+        {/* Recent bookings */}
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--hairline)', borderRadius: '1.25rem', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.2rem' }}>
+                Đặt bàn mới nhất
+              </p>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                {loading ? <Skeleton w="60px" h="1.1rem" r="0.3rem" /> : `${bookings.length} tổng`}
+              </div>
+            </div>
+            <a href="/admin/reservations" style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>
+              Xem tất cả <ChevronRight size={13} />
+            </a>
+          </div>
+
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ display: 'flex', gap: '0.75rem', padding: '0.65rem 0', borderBottom: '1px solid var(--hairline)', alignItems: 'center' }}>
+                <Skeleton w="36px" h="36px" r="0.625rem" />
+                <div style={{ flex: 1 }}><Skeleton w="70%" h="0.8rem" r="0.3rem" style={{ marginBottom: '0.4rem' }} /><Skeleton w="50%" h="0.7rem" r="0.3rem" /></div>
+              </div>
+            ))
+            : recentBookings.length === 0
+              ? <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>Chưa có đặt bàn</div>
+              : recentBookings.map((b) => {
+                const cfg = BOOKING_STATUS_COLOR[b.trangThai] || { bg: 'var(--surface-soft)', color: 'var(--muted)' };
+                return (
+                  <ActivityRow
+                    key={b.id_datBan}
+                    label={b.tenKhachHang || `Khách #${b.id_nguoiDung}`}
+                    sub={`${b.tenBan || 'Chưa xếp bàn'} · ${b.soNguoi} người`}
+                    badge={b.trangThai}
+                    badgeCfg={cfg}
+                    time={toVN(b.thoiGianDen)}
+                    accent="#3b82f6"
+                  />
+                );
+              })
+          }
+        </div>
+
+        {/* Active orders */}
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--hairline)', borderRadius: '1.25rem', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.2rem' }}>
+                Đơn hàng đang xử lý
+              </p>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                {loading ? <Skeleton w="60px" h="1.1rem" r="0.3rem" /> : `${activeOrders.length} đơn`}
+              </div>
+            </div>
+            <a href="/admin/orders" style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>
+              Xem tất cả <ChevronRight size={13} />
+            </a>
+          </div>
+
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ display: 'flex', gap: '0.75rem', padding: '0.65rem 0', borderBottom: '1px solid var(--hairline)', alignItems: 'center' }}>
+                <Skeleton w="36px" h="36px" r="0.625rem" />
+                <div style={{ flex: 1 }}><Skeleton w="70%" h="0.8rem" r="0.3rem" style={{ marginBottom: '0.4rem' }} /><Skeleton w="50%" h="0.7rem" r="0.3rem" /></div>
+              </div>
+            ))
+            : activeOrders.length === 0
+              ? <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                <CheckCircle2 size={32} style={{ opacity: 0.25, display: 'block', margin: '0 auto 0.5rem' }} />
+                Không có đơn đang xử lý
+              </div>
+              : activeOrders.map((o) => {
+                const cfg = ORDER_STATUS_COLOR[o.tinhTrang] || { bg: 'var(--surface-soft)', color: 'var(--muted)' };
+                return (
+                  <ActivityRow
+                    key={o.id_donHang}
+                    label={o.tenKhachHang || `Đơn #${o.id_donHang}`}
+                    sub={`${o.tenBan ? o.tenBan : o.id_ban ? `Bàn ${o.id_ban}` : 'Mang về'} · ${o.tinhTrang}`}
+                    badge={fmtShort(o.tongTien)}
+                    badgeCfg={{ bg: 'rgba(249,115,22,0.1)', color: '#f97316' }}
+                    time={toVN(o.thoiGianTao)}
+                    accent="#f97316"
+                  />
+                );
+              })
+          }
+        </div>
+      </div>
+
+      {/* spin keyframe */}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 };

@@ -507,14 +507,36 @@ def get_all_reservations(db: Session = Depends(get_db), current_admin: models.Ng
     auto_mark_no_show(db)
 
     reservations = db.query(models.DatBan).order_by(models.DatBan.id_datBan.desc()).all()
+    result = []
     for res in reservations:
         res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(res)
         db_order = db.query(models.DonHang).filter(models.DonHang.id_datBan == res.id_datBan).first()
-        if db_order:
-            res.id_donHang = db_order.id_donHang
-        else:
-            res.id_donHang = None
-    return reservations
+        res.id_donHang = db_order.id_donHang if db_order else None
+
+        # Enrich với tên khách hàng và tên bàn
+        khach = db.query(models.NguoiDung).filter(models.NguoiDung.id_nguoiDung == res.id_nguoiDung).first()
+        ban = db.query(models.Ban).filter(models.Ban.id_ban == res.id_ban).first() if res.id_ban else None
+
+        # Build enriched dict
+        result.append({
+            "id_datBan": res.id_datBan,
+            "id_nguoiDung": res.id_nguoiDung,
+            "id_ban": res.id_ban,
+            "thoiGianDen": res.thoiGianDen,
+            "thoiGianDenThucTe": res.thoiGianDenThucTe,
+            "soNguoi": res.soNguoi,
+            "ghiChu": res.ghiChu,
+            "trangThai": res.trangThai,
+            "tienCoc": float(res.tienCoc) if res.tienCoc else None,
+            "trangThaiCoc": res.trangThaiCoc,
+            "lyDoHuy": res.lyDoHuy,
+            "id_donHang": res.id_donHang,
+            "soPhutGiuChoConLai": res.soPhutGiuChoConLai,
+            "tenKhachHang": khach.hoTen if khach else None,
+            "tenBan": ban.tenBan if ban else None,
+        })
+    return result
+
 
 
 @router.get("/available", response_model=list[schemas.BanResponse])
@@ -551,7 +573,7 @@ def get_table_timeline(ngay: date = Query(...), fromTime: str | None = Query(def
 def get_reservation(id_datBan: int, db: Session = Depends(get_db)):
     db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == id_datBan).first()
     if not db_res:
-        raise HTTPException(status_code=404, detail="Reservation not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy đặt bàn")
     db_res.soPhutGiuChoConLai = _calculate_remaining_hold_minutes(db_res)
     return db_res
 
@@ -571,7 +593,7 @@ class NoShowRequest(BaseModel):
 def update_status(id_datBan: int, req: StatusUpdate, db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
     db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == id_datBan).first()
     if not db_res:
-        raise HTTPException(status_code=404, detail="Reservation not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy đặt bàn")
 
     if req.trangThai in ["Đã xác nhận", "Đã checkin"]:
         working_hours = _get_working_hours_record(db, db_res.thoiGianDen.date())

@@ -33,6 +33,7 @@ VNPAY_RETURN_URL  = os.getenv("VNPAY_RETURN_URL",   "http://localhost:8000/api/p
 FRONTEND_URL      = os.getenv("FRONTEND_URL",       "http://localhost:5173")
 
 TABLE_DEPOSIT_FEE = 50_000  # Phí giữ bàn mặc định (fallback nếu bàn không có tienCocMacDinh)
+MIN_ORDER_FOR_TABLE = 100_000  # Giá trị đơn tối thiểu để đặt bàn kèm món (không áp dụng QR)
 
 
 # ========== VNPay Helpers ==========
@@ -137,8 +138,8 @@ def initiate_booking(
     """
     if not body.cart:
         raise HTTPException(status_code=400, detail="Giỏ hàng trống")
-    if body.payment_mode not in ("deposit", "full"):
-        raise HTTPException(status_code=400, detail="payment_mode không hợp lệ (deposit | full)")
+    if body.payment_mode not in ("đặt cọc", "toàn bộ"):
+        raise HTTPException(status_code=400, detail="payment_mode không hợp lệ (đặt cọc | toàn bộ)")
 
     from app.api.datban import validate_restaurant_hours
     if body.dat_ban:
@@ -152,6 +153,13 @@ def initiate_booking(
     tong_tien = sum(Decimal(str(item.giaTaiThoiDiemBan)) * item.soLuong for item in body.cart)
     tong_tien_float = float(tong_tien)
 
+    # Validate ngưỡng tối thiểu khi có đặt bàn kèm món
+    if body.dat_ban and tong_tien_float < MIN_ORDER_FOR_TABLE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Đơn hàng cần tối thiểu {MIN_ORDER_FOR_TABLE:,} VNĐ để đặt bàn kèm món. Vui lòng thêm món vào giỏ hàng.".replace(',', '.')
+        )
+
     # Lấy phí giữ bàn thực tế của bàn đã chọn (fallback = TABLE_DEPOSIT_FEE)
     table_fee = TABLE_DEPOSIT_FEE
     if body.dat_ban and body.dat_ban.id_ban:
@@ -160,8 +168,8 @@ def initiate_booking(
             table_fee = int(db_ban.tienCocMacDinh)
 
     # Tính số tiền cần thanh toán ngay
-    if body.payment_mode == "deposit":
-        so_tien = int(tong_tien_float * 0.1) + table_fee   # 10% bill + phí giữ bàn theo từng bàn
+    if body.payment_mode == "đặt cọc":
+        so_tien = int(tong_tien_float * 0.1) + table_fee   # 10% bill + phí giữ bàn
     else:
         so_tien = int(tong_tien_float)                      # 100% bill, không phí bàn thêm
 
@@ -180,16 +188,16 @@ def initiate_booking(
             "ghiChu":      body.dat_ban.ghiChu,
         }, ensure_ascii=False)
 
-    pending = models.PendingOrder(
+    pending = models.DonHangChoThanhToan(
         id_nguoiDung=current_user.id_nguoiDung,
-        cart_json=cart_json,
-        dat_ban_json=dat_ban_json,
+        gioHang_json=cart_json,
+        datBan_json=dat_ban_json,
         id_ban=body.id_ban,
         id_datBan=body.id_datBan,
         thoiGianDen=body.thoiGianDen,
-        payment_mode=body.payment_mode,
-        tong_tien=float(tong_tien),
-        so_tien_thanh_toan=so_tien,
+        hinhThucThanhToan=body.payment_mode,
+        tongTien=float(tong_tien),
+        soTienThanhToan=so_tien,
     )
     db.add(pending)
     db.commit()
@@ -198,13 +206,13 @@ def initiate_booking(
     # Tạo VNPay URL
     txn_ref   = f"PO{pending.id}_{int(datetime.now().timestamp())}"
     ip_addr   = http_req.client.host if http_req.client else "127.0.0.1"
-    mode_label = "dat coc" if body.payment_mode == "deposit" else "thanh toan toan bo"
+    mode_label = "dat coc" if body.payment_mode == "đặt cọc" else "thanh toan toan bo"
     order_info = f"BayFood {mode_label} don hang PO{pending.id}"
 
     payment_url = _build_vnpay_url(so_tien, txn_ref, order_info, ip_addr)
 
     # Lưu txn_ref vào pending để tra cứu sau
-    pending.txn_ref = txn_ref
+    pending.maGiaoDich = txn_ref
     db.commit()
 
     return {
@@ -242,9 +250,9 @@ def vnpay_return(
     if response_code != "00":
         # Thanh toán thất bại → xóa pending nếu là luồng tạo mới
         if txn_ref.startswith("PO"):
-            pending = db.query(models.PendingOrder).filter(models.PendingOrder.txn_ref == txn_ref).first()
+            pending = db.query(models.DonHangChoThanhToan).filter(models.DonHangChoThanhToan.maGiaoDich == txn_ref).first()
             if pending:
-                db.delete(pending)
+                pending.trangThai = "Thất bại"
                 db.commit()
         return RedirectResponse(
             f"{FRONTEND_URL}/payment/vnpay-return?status=failed&code={response_code}&ref={txn_ref}",
@@ -298,9 +306,9 @@ def vnpay_ipn(
         else:
             # Giao dịch thất bại -> Xóa pending nếu có
             if txn_ref.startswith("PO"):
-                pending = db.query(models.PendingOrder).filter(models.PendingOrder.txn_ref == txn_ref).first()
+                pending = db.query(models.DonHangChoThanhToan).filter(models.DonHangChoThanhToan.maGiaoDich == txn_ref).first()
                 if pending:
-                    db.delete(pending)
+                    pending.trangThai = "Thất bại"
                     db.commit()
 
         return {"RspCode": "00", "Message": "Confirm Success"}
@@ -318,9 +326,9 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
     is_reservation = txn_ref.startswith("DA")
     is_order_edit  = txn_ref.startswith("OE")
 
-    # 1. Luồng Tạo mới (PendingOrder)
+    # 1. Luồng Tạo mới (DonHangChoThanhToan)
     if is_pending:
-        pending = db.query(models.PendingOrder).filter(models.PendingOrder.txn_ref == txn_ref).first()
+        pending = db.query(models.DonHangChoThanhToan).filter(models.DonHangChoThanhToan.maGiaoDich == txn_ref).first()
         if not pending:
             return {"status": "pending_not_found"}
         
@@ -332,7 +340,7 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
             "id_donHang": result["id_donHang"],
             "id_datBan": result.get("id_datBan"),
             "id_ban": result.get("id_ban"),
-            "mode": pending.payment_mode
+            "mode": pending.hinhThucThanhToan
         }
 
     # 2. Luồng thanh toán đơn hàng có sẵn (DO...)
@@ -365,7 +373,7 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
             "id_donHang": order.id_donHang,
             "id_datBan": order.id_datBan,
             "id_ban": order.id_ban,
-            "mode": "full"
+            "mode": "toàn bộ"
         }
 
     # 3. Luồng thanh toán đặt cọc bàn có sẵn (DA...)
@@ -403,18 +411,17 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
             "id_donHang": associated_order.id_donHang if associated_order else None,
             "id_datBan": reservation.id_datBan,
             "id_ban": reservation.id_ban,
-            "mode": "deposit"
+            "mode": "đặt cọc"
         }
 
-    # 4. Luồng thanh toán bổ sung chỉnh sửa đơn (OE...)
     elif is_order_edit:
         try:
             edit_id = int(txn_ref[2:].split('_')[0])
         except (ValueError, IndexError):
             return {"status": "parse_error"}
 
-        pending_edit = db.query(models.PendingOrderEdit).filter(
-            models.PendingOrderEdit.id == edit_id
+        pending_edit = db.query(models.ChinhSuaDonHangChoThanhToan).filter(
+            models.ChinhSuaDonHangChoThanhToan.id == edit_id
         ).first()
         if not pending_edit:
             return {"status": "pending_not_found"}
@@ -425,8 +432,8 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
         ).first()
         if not existing_pay:
             import json
-            new_items = json.loads(pending_edit.new_cart_json)
-            supplement_mode = f"supplement_{pending_edit.hinhThucThanhToan or 'deposit'}"
+            new_items = json.loads(pending_edit.gioHangMoi_json)
+            supplement_mode = f"bổ sung_{pending_edit.hinhThucThanhToan or 'đặt cọc'}"
 
             # Xoa chi tiet cu va them chi tiet moi
             db.query(models.ChiTietDonHang).filter(
@@ -455,7 +462,7 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
             id_ban = order.id_ban if order else None
             id_datBan = order.id_datBan if order else None
 
-            db.delete(pending_edit)
+            pending_edit.trangThai = "Thành công"
             db.commit()
 
             return {
@@ -473,15 +480,15 @@ def _process_payment_success(db: Session, txn_ref: str, amount_raw: str) -> dict
             "amount_paid": amount_paid,
             "type": "order_edit",
             "id_donHang": pending_edit.id_donHang,
-            "mode": f"supplement_{pending_edit.hinhThucThanhToan or 'deposit'}",
+            "mode": f"bổ sung_{pending_edit.hinhThucThanhToan or 'đặt cọc'}",
         }
 
     return {"status": "parse_error"}
 
 
-def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_paid: int, txn_ref: str) -> dict:
-    """Tạo DatBan (nếu có) + DonHang thật từ PendingOrder đã thanh toán."""
-    cart_items = json.loads(pending.cart_json)  # Có thể là [] nếu chỉ đặt bàn
+def _activate_pending_order(db: Session, pending: "models.DonHangChoThanhToan", amount_paid: int, txn_ref: str) -> dict:
+    """Tạo DatBan (nếu có) + DonHang thật từ DonHangChoThanhToan đã thanh toán."""
+    cart_items = json.loads(pending.gioHang_json)  # Có thể là [] nếu chỉ đặt bàn
     id_datBan  = pending.id_datBan
     id_ban     = pending.id_ban
     thoiGianDen = None
@@ -489,8 +496,8 @@ def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_
     is_reservation_only = (len(cart_items) == 0)  # Đặt bàn thuần, không kèm món
 
     # --- Tạo DatBan nếu cần ---
-    if pending.dat_ban_json:
-        dat_ban_data = json.loads(pending.dat_ban_json)
+    if pending.datBan_json:
+        dat_ban_data = json.loads(pending.datBan_json)
         thoiGianDen  = datetime.fromisoformat(dat_ban_data["thoiGianDen"].replace("Z", ""))
         ghiChu_default = "Đặt bàn" if is_reservation_only else "Đặt bàn kèm đơn hàng"
         db_reservation = models.DatBan(
@@ -500,7 +507,7 @@ def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_
             soNguoi=dat_ban_data["soNguoi"],
             ghiChu=dat_ban_data.get("ghiChu") or ghiChu_default,
             trangThai="Đã xác nhận",   # Đã trả cọc → xác nhận luôn
-            tienCoc=float(pending.so_tien_thanh_toan),
+            tienCoc=float(pending.soTienThanhToan),
             trangThaiCoc="Đã cọc",
         )
         db.add(db_reservation)
@@ -520,7 +527,7 @@ def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_
 
     # --- Nếu chỉ đặt bàn (cart rỗng) → không tạo DonHang ---
     if is_reservation_only:
-        db.delete(pending)
+        pending.trangThai = "Thành công"
         db.commit()
         return {
             "id_donHang":      None,
@@ -560,7 +567,7 @@ def _activate_pending_order(db: Session, pending: "models.PendingOrder", amount_
         maQR_thanhToan=txn_ref,
     ))
 
-    db.delete(pending)
+    pending.trangThai = "Thành công"
     db.commit()
 
     return {
@@ -610,16 +617,16 @@ def initiate_reservation_payment(
         "ghiChu":      body.ghiChu,
     }, ensure_ascii=False)
 
-    pending = models.PendingOrder(
+    pending = models.DonHangChoThanhToan(
         id_nguoiDung=current_user.id_nguoiDung,
-        cart_json="[]",          # Không có món ăn
-        dat_ban_json=dat_ban_json,
+        gioHang_json="[]",          # Không có món ăn
+        datBan_json=dat_ban_json,
         id_ban=None,
         id_datBan=None,
         thoiGianDen=None,
-        payment_mode="deposit",
-        tong_tien=tien_coc,
-        so_tien_thanh_toan=int(tien_coc),
+        hinhThucThanhToan="đặt cọc",
+        tongTien=tien_coc,
+        soTienThanhToan=int(tien_coc),
     )
     db.add(pending)
     db.commit()
@@ -630,7 +637,7 @@ def initiate_reservation_payment(
     order_info = f"BayFood dat coc ban {body.id_ban} - {int(tien_coc)}VND"
     payment_url = _build_vnpay_url(int(tien_coc), txn_ref, order_info, ip_addr)
 
-    pending.txn_ref = txn_ref
+    pending.maGiaoDich = txn_ref
     db.commit()
 
     return {

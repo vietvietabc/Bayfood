@@ -89,17 +89,9 @@ const useCustomerDashboard = () => {
     const handleCheckin = async (reservationId) => {
         setCheckinLoadingId(reservationId);
         setActionMessage('');
-        const reservation = reservations.find((r) => r.id_datBan === reservationId);
-        const reservationTime = reservation?.thoiGianDen ? new Date(reservation.thoiGianDen) : null;
-        const checkinOpenTime = reservationTime ? new Date(reservationTime.getTime() - 15 * 60 * 1000) : null;
-
-        if (checkinOpenTime && Date.now() < checkinOpenTime.getTime()) {
-            setCheckinToast('Nhà hàng chỉ nhận check-in trong vòng 15 phút trước giờ đặt bàn.');
-            setCheckinLoadingId(null);
-            return;
-        }
         try {
             await axios.post(`${BASE_URL}/api/datban/${reservationId}/checkin`);
+            setCheckinToast('Check-in thành công! Admin đã nhận thông báo.');
             setActionMessage('Check-in thành công. Admin đã nhận thông báo bàn của bạn đã tới nơi.');
             setData((current) => ({
                 ...current,
@@ -111,7 +103,9 @@ const useCustomerDashboard = () => {
             }));
         } catch (err) {
             console.error('Failed to check in', err);
-            setActionMessage(err.response?.data?.detail || 'Không thể check-in lúc này.');
+            const msg = err.response?.data?.detail || 'Không thể check-in lúc này.';
+            setCheckinToast(msg);
+            setActionMessage(msg);
         } finally {
             setCheckinLoadingId(null);
         }
@@ -160,15 +154,6 @@ const useCustomerDashboard = () => {
     const handleCheckinOrder = async (orderId) => {
         setCheckinLoadingId(orderId);
         setActionMessage('');
-        const order = orders.find((o) => o.id_donHang === orderId);
-        const orderTime = order?.thoiGianDen ? new Date(order.thoiGianDen) : null;
-        const checkinOpenTime = orderTime ? new Date(orderTime.getTime() - 15 * 60 * 1000) : null;
-
-        if (checkinOpenTime && Date.now() < checkinOpenTime.getTime()) {
-            setCheckinToast('Chỉ nhận báo tới trong vòng 15 phút trước thời gian đã hẹn.');
-            setCheckinLoadingId(null);
-            return;
-        }
         try {
             await axios.put(`${BASE_URL}/api/donhang/me/${orderId}/checkin`);
             const orderRes = await axios.get(`${BASE_URL}/api/donhang/me`);
@@ -177,7 +162,9 @@ const useCustomerDashboard = () => {
             setActionMessage('Bếp đã nhận được thông báo và bắt đầu chuẩn bị món cho bạn!');
         } catch (err) {
             console.error('Lỗi khi báo đã tới:', err);
-            alert(err.response?.data?.detail || 'Không thể báo đã tới.');
+            const msg = err.response?.data?.detail || 'Không thể báo đã tới.';
+            setCheckinToast(msg);
+            setActionMessage(msg);
         } finally {
             setCheckinLoadingId(null);
         }

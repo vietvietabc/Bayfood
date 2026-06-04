@@ -28,7 +28,13 @@ const MenuPage = () => {
 
   useEffect(() => {
     const tableParam = searchParams.get('table');
-    if (tableParam) setSelectedTableId(tableParam);
+    const tokenParam = searchParams.get('token');
+    if (tableParam) {
+      setSelectedTableId(tableParam);
+      if (tokenParam) {
+        sessionStorage.setItem('qrToken', tokenParam);
+      }
+    }
   }, [searchParams, setSelectedTableId]);
 
   // Đọc pendingReservation từ sessionStorage (set bởi trang đặt bàn)
@@ -125,7 +131,7 @@ const MenuPage = () => {
 
         <div>
           <h1 className="text-gradient" style={{ fontSize: '2.5rem', marginBottom: '0.25rem', fontWeight: '800' }}>Thực Đơn</h1>
-          {selectedTableId ? (
+          {selectedTableId && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.85rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(94, 106, 210, 0.12)', color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '700' }}>
               Bàn đang gọi món: #{selectedTableId}
               <button
@@ -137,8 +143,6 @@ const MenuPage = () => {
                 ✕
               </button>
             </div>
-          ) : (
-            <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.9rem' }}>Quét QR bàn để tự động gắn bàn vào đơn hàng.</p>
           )}
         </div>
         <div style={{ position: 'relative', width: '280px' }}>

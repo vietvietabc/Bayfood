@@ -59,7 +59,7 @@ const MenuPage = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-gradient text-4xl mb-1">Thực Đơn</h1>
-          {selectedTableId ? (
+          {selectedTableId && (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100/10 text-primary text-sm font-bold">
               Bàn đang gọi món: #{selectedTableId}
               <button
@@ -70,8 +70,6 @@ const MenuPage = () => {
                 ✕
               </button>
             </div>
-          ) : (
-            <p className="m-0 text-muted-foreground">Quét QR bàn để tự động gắn bàn vào đơn hàng.</p>
           )}
         </div>
         <div className="relative w-64">

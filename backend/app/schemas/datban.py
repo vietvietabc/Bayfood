@@ -25,8 +25,11 @@ class DatBan(DatBanCreate):
     lyDoHuy: Optional[str] = Field(None, max_length=500)
     id_donHang: Optional[int] = None
     soPhutGiuChoConLai: Optional[int] = None
+    tenKhachHang: Optional[str] = None   # Tên khách hàng (join NguoiDung)
+    tenBan: Optional[str] = None         # Tên bàn (join Ban)
     class Config:
         from_attributes = True
+
 
 class BanBase(BaseModel):
     tenBan: str = Field(..., max_length=255)

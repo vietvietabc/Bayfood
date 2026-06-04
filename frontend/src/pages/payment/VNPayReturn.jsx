@@ -183,13 +183,13 @@ const VNPayReturn = () => {
                         {id_datBan && <div>Lịch đặt bàn <strong>#DB{id_datBan}</strong> đã xác nhận</div>}
                         {id_ban && <div>Bàn số <strong>{id_ban}</strong></div>}
                         <div>
-                            {mode === 'supplement_deposit'
+                            {mode === 'bổ sung_đặt cọc'
                                 ? 'Đã cọc thêm 10% phần tăng — phần còn lại thanh toán khi đến ăn'
-                                : mode === 'supplement_full'
+                                : mode === 'bổ sung_toàn bộ'
                                     ? 'Đã thanh toán toàn bộ phần tăng thêm'
                                     : mode === 'supplement'
                                         ? 'Thanh toán bổ sung phần tăng thêm thành công'
-                                        : mode === 'deposit'
+                                        : mode === 'đặt cọc'
                                             ? 'Đã đặt cọc — phần còn lại thanh toán khi đến ăn'
                                             : 'Đã thanh toán toàn bộ — không cần trả thêm khi đến'}
                         </div>

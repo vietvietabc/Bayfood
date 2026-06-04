@@ -45,6 +45,7 @@ def get_food_reviews(id_monAn: int, limit: int = 10, db: Session = Depends(get_d
         .join(models.DonHang, models.DanhGia.id_donHang == models.DonHang.id_donHang)
         .join(models.ChiTietDonHang, models.DonHang.id_donHang == models.ChiTietDonHang.id_donHang)
         .filter(models.ChiTietDonHang.id_monAn == id_monAn)
+        .filter((models.DanhGia.id_monAn == id_monAn) | (models.DanhGia.id_monAn.is_(None)))
         .distinct(models.DanhGia.id_danhGia)
         .order_by(models.DanhGia.id_danhGia.desc())
         .limit(limit)
@@ -71,7 +72,7 @@ def create_menu_item(item: ThucDonCreate, db: Session = Depends(get_db), current
 def update_menu_item(id_monAn: int, item: ThucDonCreate, db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
     db_item = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == id_monAn).first()
     if not db_item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy món ăn")
     for key, value in item.model_dump().items():
         setattr(db_item, key, value)
     db.commit()
@@ -81,7 +82,7 @@ def update_menu_item(id_monAn: int, item: ThucDonCreate, db: Session = Depends(g
 def delete_menu_item(id_monAn: int, db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
     db_item = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == id_monAn).first()
     if not db_item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy món ăn")
     db_item.trangThai = "Ngừng bán"
     db.commit()
     return {"message": "Đã ngừng bán món này"}

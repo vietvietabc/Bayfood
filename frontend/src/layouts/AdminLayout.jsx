@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star, Clock3, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Users, ClipboardList, ShoppingBag, LogOut, Utensils, ListTree, LayoutGrid, Star, Clock3, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
+import StaffChatPanel from '../components/StaffChatPanel';
 
 const AdminLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [showChatPanel, setShowChatPanel] = useState(false);
 
   const navItems = [
     { path: '/admin', icon: <LayoutDashboard size={20} />, label: 'Tổng Quan' },
@@ -116,6 +118,20 @@ const AdminLayout = () => {
                 }}>
                   {user.hoTen?.charAt(0)?.toUpperCase()}
                 </div>
+                <button
+                  onClick={() => setShowChatPanel(!showChatPanel)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    border: '1px solid var(--border)',
+                    background: showChatPanel ? 'var(--primary)' : 'transparent',
+                    color: showChatPanel ? '#fff' : 'var(--text-muted)',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  title="Chat với khách hàng"
+                >
+                  <MessageSquare size={18} />
+                </button>
                 <NotificationBell colorScheme="dark" />
                 <button
                   onClick={handleLogout}
@@ -147,6 +163,21 @@ const AdminLayout = () => {
         <main style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
           <Outlet />
         </main>
+
+        {/* Chat Panel — fixed overlay từ phải, như Messenger */}
+        <div style={{
+          position: 'fixed',
+          top: '60px',
+          right: showChatPanel ? '0' : '-380px',
+          width: '360px',
+          height: 'calc(100vh - 60px)',
+          zIndex: 200,
+          transition: 'right 0.3s cubic-bezier(0.32,0.72,0,1)',
+          boxShadow: showChatPanel ? '-8px 0 32px rgba(0,0,0,0.35)' : 'none',
+          borderLeft: '1px solid var(--border)',
+        }}>
+          <StaffChatPanel onClose={() => setShowChatPanel(false)} />
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { X, CalendarDays, MapPin, Users, Clock3, StickyNote, ClipboardList } from 'lucide-react';
 import { formatDateTime, getStatusStyle } from './customerDashboardUtils';
 
 const ReservationModal = ({
@@ -13,76 +14,152 @@ const ReservationModal = ({
     if (!showReservationModal || !selectedReservation) return null;
 
     const linkedOrder = orders.find((o) => o.id_datBan === selectedReservation.id_datBan);
+    const currentStatus = selectedReservation.trangThai;
+    const statusStyle = getStatusStyle(currentStatus);
 
-    return (
+    const InfoRow = ({ icon, label, value, accent }) => (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px dashed var(--border)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                {icon} {label}
+            </span>
+            <strong style={{ color: accent || 'var(--text)', fontSize: '0.95rem' }}>{value}</strong>
+        </div>
+    );
+
+    return createPortal(
         <div
             onClick={handleCloseReservationModal}
-            style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+            style={{
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                zIndex: 2000,
+                background: 'rgba(0,0,0,0.65)',
+                backdropFilter: 'blur(6px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem',
+            }}
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                style={{ background: 'var(--surface)', borderRadius: '1rem', border: '1px solid var(--border)', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}
+                style={{
+                    background: 'var(--surface)',
+                    borderRadius: '1.25rem',
+                    border: '1px solid var(--border)',
+                    width: '100%',
+                    maxWidth: '520px',
+                    maxHeight: '90vh',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 32px 80px rgba(0,0,0,0.55)',
+                    animation: 'scaleIn 0.2s cubic-bezier(0.34,1.56,0.64,1)',
+                }}
             >
-                {/* Header */}
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-light)' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>
-                        Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}
-                    </h2>
-                    <button onClick={handleCloseReservationModal} aria-label="Đóng chi tiết đặt bàn" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}>
-                        <X size={22} />
+                {/* ── Header ── */}
+                <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderBottom: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'var(--surface-light)',
+                    borderRadius: '1.25rem 1.25rem 0 0',
+                    flexShrink: 0,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(96,165,250,0.1)', color: '#60a5fa' }}>
+                            <CalendarDays size={18} />
+                        </div>
+                        <div>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+                                Chi Tiết Đặt Bàn #{selectedReservation.id_datBan}
+                            </h2>
+                            <span style={{ padding: '0.15rem 0.6rem', borderRadius: '999px', background: statusStyle.bg, color: statusStyle.color, fontSize: '0.75rem', fontWeight: 700 }}>
+                                {currentStatus}
+                            </span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleCloseReservationModal}
+                        aria-label="Đóng"
+                        style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '0.5rem',
+                            cursor: 'pointer',
+                            color: 'var(--text-muted)',
+                            padding: '0.35rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                    >
+                        <X size={20} />
                     </button>
                 </div>
 
-                {/* Body */}
-                <div style={{ padding: '1.5rem', display: 'grid', gap: '1rem', overflowY: 'auto' }}>
-                    {/* Trạng thái */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Trạng thái</span>
-                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '999px', background: getStatusStyle(selectedReservation.trangThai).bg, color: getStatusStyle(selectedReservation.trangThai).color, fontSize: '0.875rem', fontWeight: 'bold' }}>
-                            {selectedReservation.trangThai}
-                        </span>
-                    </div>
-                    {/* Bàn */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Bàn</span>
-                        <strong>{selectedReservation.id_ban ? `Bàn ${selectedReservation.id_ban}` : 'Chưa xếp'}</strong>
-                    </div>
-                    {/* Thời gian đến */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Thời gian đến</span>
-                        <strong>{formatDateTime(selectedReservation.thoiGianDen)}</strong>
-                    </div>
-                    {/* Đến thực tế */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Đến thực tế</span>
-                        <strong>{formatDateTime(selectedReservation.thoiGianDenThucTe)}</strong>
-                    </div>
-                    {/* Số người */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Số người</span>
-                        <strong>{selectedReservation.soNguoi}</strong>
-                    </div>
+                {/* ── Body ── */}
+                <div style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0', overflowY: 'auto', flex: 1 }}>
+                    <InfoRow icon={<MapPin size={15} />} label="Bàn" value={selectedReservation.id_ban ? `Bàn ${selectedReservation.id_ban}` : 'Chưa xếp bàn'} accent={selectedReservation.id_ban ? '#34d399' : undefined} />
+                    <InfoRow icon={<Clock3 size={15} />} label="Thời gian đến" value={formatDateTime(selectedReservation.thoiGianDen)} />
+                    <InfoRow icon={<Clock3 size={15} />} label="Đến thực tế" value={formatDateTime(selectedReservation.thoiGianDenThucTe)} />
+                    <InfoRow icon={<Users size={15} />} label="Số người" value={`${selectedReservation.soNguoi} người`} />
+
+                    {/* Tiền cọc */}
+                    {selectedReservation.tienCoc > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px dashed var(--border)' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Tiền cọc</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <strong style={{ color: selectedReservation.trangThaiCoc === 'Mất cọc' ? '#f87171' : selectedReservation.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24' }}>
+                                    {Number(selectedReservation.tienCoc).toLocaleString('vi-VN')} ₫
+                                </strong>
+                                <span style={{
+                                    padding: '0.15rem 0.55rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700,
+                                    background: selectedReservation.trangThaiCoc === 'Mất cọc' ? 'rgba(248,113,113,0.12)' : selectedReservation.trangThaiCoc === 'Đã cọc' ? 'rgba(52,211,153,0.12)' : 'rgba(251,191,36,0.12)',
+                                    color: selectedReservation.trangThaiCoc === 'Mất cọc' ? '#f87171' : selectedReservation.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24',
+                                }}>
+                                    {selectedReservation.trangThaiCoc}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Ghi chú */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Ghi chú</span>
-                        <div style={{ padding: '1rem', background: 'var(--surface-light)', borderRadius: '0.5rem', border: '1px solid var(--border)', minHeight: '60px' }}>
+                    <div style={{ padding: '0.85rem 0', borderBottom: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            <StickyNote size={15} /> Ghi chú
+                        </span>
+                        <div style={{ padding: '0.75rem 1rem', background: 'var(--surface-light)', borderRadius: '0.6rem', border: '1px solid var(--border)', fontSize: '0.9rem', minHeight: '50px' }}>
                             {selectedReservation.ghiChu || <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>}
                         </div>
                     </div>
-                    {/* Liên kết đơn món */}
+
+                    {/* Lý do hủy */}
+                    {selectedReservation.lyDoHuy && (
+                        <div style={{ padding: '0.85rem 1rem', marginTop: '0.5rem', borderRadius: '0.75rem', background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.18)', fontSize: '0.88rem', color: '#f87171', fontStyle: 'italic' }}>
+                            Lý do hủy: {selectedReservation.lyDoHuy}
+                        </div>
+                    )}
+
+                    {/* Linked order */}
                     {linkedOrder && (
-                        <div style={{ padding: '1rem', background: 'rgba(96, 165, 250, 0.08)', borderRadius: '0.75rem', border: '1px solid rgba(96, 165, 250, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            <div>
-                                <div style={{ fontSize: '0.8rem', color: '#60a5fa', marginBottom: '0.25rem', fontWeight: 600 }}>Đã đặt món ăn đi kèm</div>
-                                <div style={{ fontWeight: 'bold', color: '#60a5fa' }}>Đơn hàng: #{linkedOrder.id_donHang}</div>
+                        <div style={{ marginTop: '0.75rem', padding: '1rem', background: 'rgba(96,165,250,0.07)', borderRadius: '0.85rem', border: '1px solid rgba(96,165,250,0.18)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <ClipboardList size={16} style={{ color: '#60a5fa' }} />
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Đã đặt món đi kèm</div>
+                                    <div style={{ fontWeight: 700, color: '#60a5fa' }}>Đơn #{linkedOrder.id_donHang}</div>
+                                </div>
                             </div>
                             <button
                                 className="btn btn-outline"
-                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', color: '#60a5fa', borderColor: '#60a5fa' }}
-                                onClick={() => {
-                                    setShowReservationModal(false);
-                                    handleViewOrder(linkedOrder.id_donHang);
-                                }}
+                                style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem', color: '#60a5fa', borderColor: 'rgba(96,165,250,0.4)', borderRadius: '0.6rem' }}
+                                onClick={() => { setShowReservationModal(false); handleViewOrder(linkedOrder.id_donHang); }}
                             >
                                 Xem đơn món
                             </button>
@@ -90,7 +167,8 @@ const ReservationModal = ({
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

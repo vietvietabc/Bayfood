@@ -63,6 +63,9 @@ class DonHang(BaseModel):
     thoiGianTao: datetime
     thoiGianDen: Optional[datetime] = None
     tinhTrang: str
+    tongTien: Optional[Decimal] = None  # Tổng tiền tính từ chi tiết đơn
+    tenKhachHang: Optional[str] = None  # Tên khách hàng (join)
+    tenBan: Optional[str] = None        # Tên bàn (join)
     class Config:
         from_attributes = True
 
@@ -87,6 +90,7 @@ class DonHangDetail(BaseModel):
 
 class DanhGiaBase(BaseModel):
     id_donHang: int
+    id_monAn: Optional[int] = None
     soSao: int = Field(..., ge=1, le=5)
     noiDung: Optional[str] = None
 
@@ -96,6 +100,8 @@ class DanhGiaCreate(DanhGiaBase):
 class DanhGiaResponse(DanhGiaBase):
     id_danhGia: int
     id_nguoiDung: int
+    tenKhachHang: Optional[str] = None  # Tên khách hàng (join)
+    tenMon: Optional[str] = None         # Tên món ăn nếu là đánh giá món
 
     class Config:
         from_attributes = True

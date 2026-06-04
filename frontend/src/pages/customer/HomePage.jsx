@@ -1,8 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Star, Clock, ChefHat, Utensils, MapPin, Phone, Mail, Quote } from 'lucide-react';
 
+const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+
+
 const HomePage = () => {
+  const [reviews, setReviews] = useState([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/danhgia/?type=general`);
+        if (res.ok) {
+          const data = await res.json();
+          // Chỉ lấy tối đa 6 đánh giá gần nhất
+          setReviews(data.slice(0, 6));
+        }
+      } catch (e) {
+        console.error('Lỗi tải đánh giá', e);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+    fetchReviews();
+  }, []);
+
+  // Tính rating trung bình
+  const avgRating = reviews.length > 0
+    ? (reviews.reduce((s, r) => s + r.soSao, 0) / reviews.length).toFixed(1)
+    : '4.9';
+
+  const renderStars = (rating) =>
+    [...Array(5)].map((_, i) => (
+      <Star key={i} size={14} fill={i < rating ? '#fbbf24' : 'transparent'} color={i < rating ? '#fbbf24' : '#d1d5db'} />
+    ));
+
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh', overflow: 'hidden' }}>
       {/* Hero Section */}
@@ -76,7 +110,7 @@ const HomePage = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
-                  background: 'rgba(22, 23, 25, 0.85)',
+                  background: 'var(--glass-bg)',
                   border: '1px solid var(--hairline)',
                   borderRadius: 'var(--rounded-lg)',
                   boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
@@ -86,8 +120,8 @@ const HomePage = () => {
                     <Star size={18} fill="currentColor" />
                   </div>
                   <div>
-                    <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--ink)' }}>4.9/5</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: '600' }}>1,000+ Đánh giá</div>
+                    <div style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--ink)' }}>{avgRating}/5</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: '600' }}>{reviews.length > 0 ? `${reviews.length}+ Đánh giá` : '1,000+ Đánh giá'}</div>
                   </div>
                 </div>
                 <style>
@@ -189,7 +223,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Testimonials Section - Real Reviews from API */}
       <section className="py-20" style={{ background: 'var(--surface-soft)', borderTop: '1px solid var(--hairline)' }}>
         <div className="container text-center">
           <h2 style={{ fontSize: '2.5rem', fontWeight: '800', marginBottom: '1rem', color: 'var(--ink)' }}>Cảm Nhận Thực Khách</h2>
@@ -197,32 +231,66 @@ const HomePage = () => {
             Hàng ngàn thực khách đã lựa chọn BayFood là nơi gửi gắm những bữa tiệc lưu giữ khoảnh khắc khó quên.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
-            {[
-              { name: 'Hoàng Anh Tú', role: 'Food Blogger', text: 'Nhà hàng có không gian tuyệt vời. Đặc biệt là món Bò Wagyu nướng tảng cực kỳ mềm và mọng nước. Điểm mười cho chất lượng phục vụ!' },
-              { name: 'Trần Thu Hà', role: 'Kinh doanh', text: 'Bữa tiệc kỷ niệm ngày cưới của vợ chồng tôi đã hoàn hảo nhờ sự chuẩn bị chu đáo của nhà hàng. Vang đỏ ở đây rất ngon và chuẩn vị.' },
-              { name: 'Nguyễn Minh Nhật', role: 'Gia đình', text: 'Rất thích hợp cho gia đình có trẻ nhỏ. Không gian thoáng, nhân viên rất nhiệt tình và hỗ trợ nhanh chóng ngay khi gọi. Sẽ quay lại!' }
-            ].map((item, index) => (
-              <div key={index} className="card" style={{ padding: '2.5rem 2rem', background: 'var(--surface-card)', border: '1px solid var(--hairline)', borderRadius: 'var(--rounded-lg)', position: 'relative' }}>
-                <Quote size={40} color="var(--primary)" style={{ opacity: 0.1, position: 'absolute', top: '1.5rem', right: '1.5rem' }} />
-                <div style={{ display: 'flex', gap: '2px', color: '#fbbf24', marginBottom: '1.25rem' }}>
-                  {[1, 2, 3, 4, 5].map(star => <Star key={star} size={16} fill="currentColor" />)}
-                </div>
-                <p style={{ color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.7', marginBottom: '2rem', fontStyle: 'italic', minHeight: '80px' }}>
-                  "{item.text}"
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--surface-border)', overflow: 'hidden', border: '2px solid var(--hairline)' }}>
-                    <img src={`https://i.pravatar.cc/100?img=${index + 12}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {reviewsLoading ? (
+            <div style={{ color: 'var(--muted)', padding: '2rem' }}>Đang tải đánh giá...</div>
+          ) : reviews.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+              {reviews.slice(0, 3).map((review, index) => (
+                <div key={review.id_danhGia} className="card" style={{ padding: '2.5rem 2rem', background: 'var(--surface-card)', border: '1px solid var(--hairline)', borderRadius: 'var(--rounded-lg)', position: 'relative' }}>
+                  <Quote size={40} color="var(--primary)" style={{ opacity: 0.1, position: 'absolute', top: '1.5rem', right: '1.5rem' }} />
+                  <div style={{ display: 'flex', gap: '2px', color: '#fbbf24', marginBottom: '1.25rem' }}>
+                    {renderStars(review.soSao)}
+                    <span style={{ marginLeft: '0.35rem', fontSize: '0.82rem', color: '#f59e0b', fontWeight: 700 }}>{review.soSao}/5</span>
                   </div>
-                  <div>
-                    <div style={{ fontWeight: '700', color: 'var(--ink)' }}>{item.name}</div>
-                    <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{item.role}</div>
+                  <p style={{ color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.7', marginBottom: '2rem', fontStyle: 'italic', minHeight: '80px' }}>
+                    "{review.noiDung || 'Trải nghiệm tuyệt vời tại BayFood!'}"
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{
+                      width: '48px', height: '48px', borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontWeight: 800, fontSize: '1.1rem'
+                    }}>
+                      {(review.tenKhachHang || 'K').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: '700', color: 'var(--ink)' }}>{review.tenKhachHang || 'Khách hàng'}</div>
+                      <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Đơn #{review.id_donHang}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            /* Fallback nếu chưa có đánh giá thật */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+              {[
+                { name: 'Hoàng Anh Tú', role: 'Food Blogger', text: 'Nhà hàng có không gian tuyệt vời. Đặc biệt là món Bò Wagyu nướng tảng cực kỳ mềm và mọng nước. Điểm mười cho chất lượng phục vụ!' },
+                { name: 'Trần Thu Hà', role: 'Kinh doanh', text: 'Bữa tiệc kỷ niệm ngày cưới của vợ chồng tôi đã hoàn hảo nhờ sự chuẩn bị chu đáo của nhà hàng. Vang đỏ ở đây rất ngon và chuẩn vị.' },
+                { name: 'Nguyễn Minh Nhật', role: 'Gia đình', text: 'Rất thích hợp cho gia đình có trẻ nhỏ. Không gian thoáng, nhân viên rất nhiệt tình và hỗ trợ nhanh chóng ngay khi gọi. Sẽ quay lại!' }
+              ].map((item, index) => (
+                <div key={index} className="card" style={{ padding: '2.5rem 2rem', background: 'var(--surface-card)', border: '1px solid var(--hairline)', borderRadius: 'var(--rounded-lg)', position: 'relative' }}>
+                  <Quote size={40} color="var(--primary)" style={{ opacity: 0.1, position: 'absolute', top: '1.5rem', right: '1.5rem' }} />
+                  <div style={{ display: 'flex', gap: '2px', color: '#fbbf24', marginBottom: '1.25rem' }}>
+                    {[1, 2, 3, 4, 5].map(star => <Star key={star} size={16} fill="currentColor" />)}
+                  </div>
+                  <p style={{ color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.7', marginBottom: '2rem', fontStyle: 'italic', minHeight: '80px' }}>
+                    "{item.text}"
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--surface-border)', overflow: 'hidden', border: '2px solid var(--hairline)' }}>
+                      <img src={`https://i.pravatar.cc/100?img=${index + 12}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: '700', color: 'var(--ink)' }}>{item.name}</div>
+                      <div style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>{item.role}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

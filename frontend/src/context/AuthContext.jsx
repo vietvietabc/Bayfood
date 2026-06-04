@@ -33,6 +33,8 @@ export const AuthProvider = ({ children }) => {
       console.error("Failed to fetch user", error);
       localStorage.removeItem('token');
       localStorage.removeItem('user:v1');
+      localStorage.removeItem('livechat_session');
+      localStorage.removeItem('bayfood_chat_session');
       setUser(null);
       throw error;
     } finally {
@@ -76,6 +78,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user:v1');
+    localStorage.removeItem('livechat_session');
+    localStorage.removeItem('bayfood_chat_session');
     setUser(null);
   };
 

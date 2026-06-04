@@ -249,6 +249,7 @@ def create_order_with_booking(
 
 class QROrderRequest(BaseModel):
     chi_tiet: list[schemas.ChiTietDonHangCreate]
+    token: Optional[str] = None
 
 @router.post("/table/{id_ban}/qr-order")
 def create_or_append_qr_order(
@@ -259,10 +260,18 @@ def create_or_append_qr_order(
 ):
     """
     Xử lý gọi món qua mã QR tại bàn.
-    - Nếu bàn đang có đơn của khách này -> gộp chung (không cọc).
-    - Nếu bàn đang có đơn của khách khác -> chặn.
-    - Nếu bàn trống -> tạo đơn mới (không cọc).
     """
+    db_ban = db.query(models.Ban).filter(models.Ban.id_ban == id_ban).first()
+    if not db_ban:
+        raise HTTPException(status_code=404, detail="Bàn không tồn tại")
+    
+    if not req.token:
+        raise HTTPException(status_code=403, detail="Mã QR đã cũ hoặc không hợp lệ. Vui lòng quét mã trực tiếp tại bàn.")
+        
+    expected_url = f"/static/uploads/tables/qrcodes/table-{id_ban}-{req.token}.png"
+    if not db_ban.maQR_url or expected_url not in db_ban.maQR_url:
+        raise HTTPException(status_code=403, detail="Mã QR đã cũ hoặc không hợp lệ. Vui lòng quét lại mã QR mới tại bàn.")
+
     active_order = db.query(models.DonHang).filter(
         models.DonHang.id_ban == id_ban,
         models.DonHang.tinhTrang.in_(["Đang chờ món", "Đang phục vụ", "Chờ khách đến"])
@@ -487,7 +496,7 @@ def initiate_order_edit(
     """
     Bước 1 của chỉnh sửa đơn hàng đã cọc.
     - Nếu tổng mới <= tổng cũ HOẶC đơn không có cọc → áp dụng ngay, trả {"status": "updated"}.
-    - Nếu tổng mới > tổng cũ VÀ đơn đã cọc → tạo PendingOrderEdit + trả VNPay URL cho chênh lệch.
+    - Nếu tổng mới > tổng cũ VÀ đơn đã cọc → tạo ChinhSuaDonHangChoThanhToan + trả VNPay URL cho chênh lệch.
     """
     from fastapi import Request as FastRequest
     import json
@@ -524,29 +533,62 @@ def initiate_order_edit(
         Decimal(str(item["giaTaiThoiDiemBan"])) * int(item["soLuong"])
         for item in req.chi_tiet
     )
+    from app.api.payment import MIN_ORDER_FOR_TABLE, TABLE_DEPOSIT_FEE
 
     # Kiem tra xem don co coc khong va lay thong tin datBan
     has_deposit = False
-    original_payment_mode = "full"
+    original_payment_mode = "toàn bộ"
     reservation = None
     if db_order.id_datBan:
         reservation = db.query(models.DatBan).filter(
             models.DatBan.id_datBan == db_order.id_datBan
         ).first()
-        if reservation and reservation.trangThaiCoc == "Da coc":
-            has_deposit = True
-        elif reservation and reservation.trangThaiCoc == "Đã cọc":
+        if reservation and reservation.trangThaiCoc in ["Da coc", "Đã cọc"]:
             has_deposit = True
 
-    # Xac dinh payment_mode goc: neu tienCoc < 50% tong don cu → deposit (10%)
+    # Lấy phí bàn (nếu có đặt bàn)
+    table_fee = TABLE_DEPOSIT_FEE
+    if reservation and reservation.id_ban:
+        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == reservation.id_ban).first()
+        if db_ban and db_ban.tienCocMacDinh and float(db_ban.tienCocMacDinh) > 0:
+            table_fee = int(db_ban.tienCocMacDinh)
+
+    # Tính số tiền đã trả thực tế để phát hiện trả dư
+    payments = db.query(models.ThanhToan).filter(
+        models.ThanhToan.id_donHang == db_order.id_donHang
+    ).all()
+    tong_thanh_toan = float(sum(p.soTienThanhToan for p in payments)) if payments else 0.0
+    tien_coc = float(reservation.tienCoc) if (has_deposit and reservation and reservation.tienCoc) else 0.0
+    total_paid = max(tien_coc, tong_thanh_toan)
+
+    # Xac dinh payment_mode goc: neu tienCoc < 50% tong don cu → đặt cọc (10%)
     if has_deposit and reservation and reservation.tienCoc is not None:
         if float(reservation.tienCoc) < float(old_total) * 0.5:
-            original_payment_mode = "deposit"   # da coc 10% + phi ban
+            original_payment_mode = "đặt cọc"   # da coc 10% + phi ban
         else:
-            original_payment_mode = "full"      # da tra full 100%
+            original_payment_mode = "toàn bộ"      # da tra full 100%
 
-    # Neu khong tang gia tri hoac khong co coc → ap dung ngay
-    if not has_deposit or new_total <= old_total:
+    # Tính số tiền CẦN trả theo tổng mới
+    so_tien_them = 0
+    if has_deposit:
+        if original_payment_mode == "đặt cọc":
+            required_paid = table_fee + float(new_total) * 0.1
+        else:
+            required_paid = float(new_total)
+        
+        so_tien_them = int(max(0.0, required_paid - total_paid))
+
+    so_du = max(0.0, total_paid - float(new_total))
+
+    # Neu khong can tra them tien → ap dung ngay
+    if not has_deposit or so_tien_them <= 0:
+        # Chặn chỉnh sửa xuống dưới ngưỡng tối thiểu khi có đặt bàn
+        if db_order.id_datBan and float(new_total) < MIN_ORDER_FOR_TABLE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Đơn hàng kèm đặt bàn cần tối thiểu {MIN_ORDER_FOR_TABLE:,} VNĐ. Không thể chỉnh sửa xuống dưới mức này.".replace(",", ".")
+            )
+
         db.query(models.ChiTietDonHang).filter(
             models.ChiTietDonHang.id_donHang == db_order.id_donHang
         ).delete()
@@ -559,37 +601,30 @@ def initiate_order_edit(
                 trangThaiMon="Chờ chế biến",
             ))
         db.commit()
+
         return {
             "status": "updated",
             "id_donHang": db_order.id_donHang,
             "old_total": float(old_total),
             "new_total": float(new_total),
+            "total_paid": total_paid,
+            "so_du": so_du,   # > 0 nếu khách đã trả dư, nhà hàng cần hoàn khi khách đến
         }
 
-    # Tong moi > tong cu VA don da coc → yeu cau thanh toan chenh lech
-    diff = new_total - old_total
-
-    if original_payment_mode == "deposit":
-        # Khi dat coc 10% thi phan chenh cung chi can coc 10%
-        so_tien_them = max(1000, int(float(diff) * 0.1))
-    else:
-        # Da tra full thi phan chenh cung phai tra full
-        so_tien_them = int(float(diff))
-
-    # Xoa PendingOrderEdit cu neu con ton tai cho don nay (don dep)
-    db.query(models.PendingOrderEdit).filter(
-        models.PendingOrderEdit.id_donHang == db_order.id_donHang,
-        models.PendingOrderEdit.id_nguoiDung == current_user.id_nguoiDung,
-    ).delete()
+    db.query(models.ChinhSuaDonHangChoThanhToan).filter(
+        models.ChinhSuaDonHangChoThanhToan.id_donHang == db_order.id_donHang,
+        models.ChinhSuaDonHangChoThanhToan.id_nguoiDung == current_user.id_nguoiDung,
+        models.ChinhSuaDonHangChoThanhToan.trangThai == "Đang chờ"
+    ).update({"trangThai": "Đã hủy"})
 
     new_cart_json = json.dumps(req.chi_tiet, ensure_ascii=False)
-    pending_edit = models.PendingOrderEdit(
+    pending_edit = models.ChinhSuaDonHangChoThanhToan(
         id_nguoiDung=current_user.id_nguoiDung,
         id_donHang=db_order.id_donHang,
-        new_cart_json=new_cart_json,
-        old_total=old_total,
-        new_total=new_total,
-        so_tien_them=so_tien_them,
+        gioHangMoi_json=new_cart_json,
+        tongTienCu=old_total,
+        tongTienMoi=new_total,
+        soTienThem=so_tien_them,
         hinhThucThanhToan=original_payment_mode,
     )
     db.add(pending_edit)
@@ -604,7 +639,7 @@ def initiate_order_edit(
     order_info = f"BayFood bo sung don hang #{id_donHang} {so_tien_them}VND"
     payment_url = _build_vnpay_url(so_tien_them, txn_ref, order_info, ip_addr)
 
-    pending_edit.txn_ref = txn_ref
+    pending_edit.maGiaoDich = txn_ref
     db.commit()
 
     return {
@@ -615,7 +650,7 @@ def initiate_order_edit(
         "hinhThucThanhToan": original_payment_mode,
         "old_total": float(old_total),
         "new_total": float(new_total),
-        "diff": float(diff),
+        "diff": float(new_total - old_total),
         "so_tien_them": so_tien_them,
     }
 
@@ -654,9 +689,44 @@ def checkin_my_order(
 def get_all_orders(db: Session = Depends(get_db), current_admin: models.NguoiDung = Depends(get_current_admin)):
     # Tự động xử lý đơn hàng (+ đặt bàn) quá hạn trước khi trả kết quả
     from app.api.auto_noshow import auto_mark_no_show
+    from sqlalchemy import func
     auto_mark_no_show(db)
 
-    return db.query(models.DonHang).order_by(models.DonHang.id_donHang.desc()).all()
+    orders = db.query(models.DonHang).order_by(models.DonHang.id_donHang.desc()).all()
+
+    result = []
+    for order in orders:
+        # Tính tongTien từ chi tiết đơn hàng
+        tong_tien = db.query(
+            func.sum(models.ChiTietDonHang.giaTaiThoiDiemBan * models.ChiTietDonHang.soLuong)
+        ).filter(models.ChiTietDonHang.id_donHang == order.id_donHang).scalar() or Decimal("0")
+
+        # Lấy tên khách hàng
+        khach = db.query(models.NguoiDung).filter(
+            models.NguoiDung.id_nguoiDung == order.id_nguoiDung
+        ).first()
+
+        # Lấy tên bàn
+        ban = db.query(models.Ban).filter(
+            models.Ban.id_ban == order.id_ban
+        ).first() if order.id_ban else None
+
+        # Tạo dict response (không dùng from_orm vì schema có extra fields)
+        result.append({
+            "id_donHang": order.id_donHang,
+            "id_nguoiDung": order.id_nguoiDung,
+            "id_datBan": order.id_datBan,
+            "id_nhanVien": order.id_nhanVien,
+            "id_ban": order.id_ban,
+            "thoiGianTao": order.thoiGianTao,
+            "thoiGianDen": order.thoiGianDen,
+            "tinhTrang": order.tinhTrang,
+            "tongTien": float(tong_tien),
+            "tenKhachHang": khach.hoTen if khach else None,
+            "tenBan": ban.tenBan if ban else None,
+        })
+
+    return result
 
 
 @router.get("/{id_donHang}/detail", response_model=schemas.DonHangDetail)
@@ -671,8 +741,85 @@ def get_order_detail(id_donHang: int, db: Session = Depends(get_db), current_use
 def get_order(id_donHang: int, db: Session = Depends(get_db)):
     db_order = db.query(models.DonHang).filter(models.DonHang.id_donHang == id_donHang).first()
     if not db_order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
     return db_order
+
+
+
+@router.get("/kitchen/upcoming")
+def get_kitchen_upcoming_orders(
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_kitchen_or_admin),
+):
+    """Lấy danh sách đơn hàng sắp tới (đặt trước, chưa check-in) cho bếp chuẩn bị."""
+    local_now = datetime.utcnow() + timedelta(hours=7)
+    start_of_today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    upcoming_orders = (
+        db.query(models.DonHang)
+        .filter(
+            models.DonHang.tinhTrang == "Chờ khách đến",
+            models.DonHang.thoiGianDen >= start_of_today,
+        )
+        .order_by(models.DonHang.thoiGianDen.asc())
+        .all()
+    )
+
+    result = []
+    for order in upcoming_orders:
+        khach = db.query(models.NguoiDung).filter(
+            models.NguoiDung.id_nguoiDung == order.id_nguoiDung
+        ).first()
+
+        ten_ban = None
+        so_nguoi = None
+        ghi_chu = None
+        if order.id_datBan:
+            dat_ban = db.query(models.DatBan).filter(
+                models.DatBan.id_datBan == order.id_datBan
+            ).first()
+            if dat_ban:
+                so_nguoi = dat_ban.soNguoi
+                ghi_chu = dat_ban.ghiChu
+        if order.id_ban:
+            ban = db.query(models.Ban).filter(models.Ban.id_ban == order.id_ban).first()
+            ten_ban = ban.tenBan if ban else f"Bàn {order.id_ban}"
+
+        chi_tiets = db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == order.id_donHang
+        ).all()
+        items = []
+        tong_tien = Decimal("0")
+        for ct in chi_tiets:
+            mon = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
+            gia = ct.giaTaiThoiDiemBan or Decimal("0")
+            so_luong = ct.soLuong or 0
+            tong_tien += gia * so_luong
+            items.append({
+                "tenMon": mon.tenMon if mon else f"Món #{ct.id_monAn}",
+                "soLuong": so_luong,
+                "giaTaiThoiDiemBan": float(gia),
+                "hinhAnh": mon.hinhAnh if mon else None,
+            })
+
+        so_phut_con_lai = 0
+        if order.thoiGianDen:
+            delta = order.thoiGianDen - local_now
+            so_phut_con_lai = max(0, int(delta.total_seconds() / 60))
+
+        result.append({
+            "id_donHang": order.id_donHang,
+            "id_ban": order.id_ban,
+            "tenBan": ten_ban,
+            "tenKhach": khach.hoTen if khach else None,
+            "thoiGianDen": order.thoiGianDen.isoformat() if order.thoiGianDen else None,
+            "soNguoi": so_nguoi,
+            "ghiChu": ghi_chu,
+            "chi_tiet": items,
+            "tongTien": float(tong_tien),
+            "soPhutConLai": so_phut_con_lai,
+        })
+    return result
 
 
 class OrderStatusUpdate(BaseModel):
@@ -699,7 +846,7 @@ def update_order_status(
 
     db_order = db.query(models.DonHang).filter(models.DonHang.id_donHang == id_donHang).first()
     if not db_order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
     db_order.tinhTrang = req.tinhTrang
 
@@ -711,7 +858,8 @@ def update_order_status(
     if nv:
         db_order.id_nhanVien = nv.id_nhanVien
 
-    if req.tinhTrang == "Đã thanh toán":
+    if req.tinhTrang in ["Đã thanh toán", "Hoàn thành"]:
+        # Reset bàn về Trống khi đơn hoàn thành
         if db_order.id_ban is not None:
             db_ban = db.query(models.Ban).filter(models.Ban.id_ban == db_order.id_ban).first()
             if db_ban:
@@ -722,6 +870,33 @@ def update_order_status(
             if db_res and db_res.trangThai == "Đã checkin":
                 db_res.trangThai = "Hoàn thành"
 
+    if req.tinhTrang == "Đã thanh toán":
+        from decimal import Decimal
+        # Tính toán số tiền còn thiếu và thêm vào bảng THANHTOAN
+        chi_tiets = db.query(models.ChiTietDonHang).filter(models.ChiTietDonHang.id_donHang == db_order.id_donHang).all()
+        tong_tien = sum((Decimal(str(ct.giaTaiThoiDiemBan or 0))) * (ct.soLuong or 0) for ct in chi_tiets)
+
+        tien_coc = Decimal("0")
+        if db_order.id_datBan:
+            db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == db_order.id_datBan).first()
+            if db_res and db_res.trangThaiCoc == "Đã cọc":
+                tien_coc = Decimal(str(db_res.tienCoc or 0))
+
+        payments = db.query(models.ThanhToan).filter(models.ThanhToan.id_donHang == db_order.id_donHang).all()
+        tong_thanh_toan = sum(Decimal(str(p.soTienThanhToan or 0)) for p in payments) if payments else Decimal("0")
+
+        effective_paid = max(tien_coc, tong_thanh_toan)
+        remaining = max(Decimal("0"), tong_tien - effective_paid)
+
+        if remaining > 0:
+            new_payment = models.ThanhToan(
+                id_donHang=db_order.id_donHang,
+                phuongThuc="Tiền mặt",
+                soTienThanhToan=remaining,
+                thoiGianGiaoDich=models.get_vn_time()
+            )
+            db.add(new_payment)
+
     db.commit()
     return {"message": "Cập nhật thành công"}
 
@@ -729,6 +904,99 @@ def update_order_status(
 # ============================================================
 # WAITER STAFF ENDPOINTS
 # ============================================================
+
+@router.get("/waiter/upcoming")
+def get_waiter_upcoming_orders(
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_waiter_or_admin),
+):
+    """Lấy danh sách đơn hàng sắp tới (đặt trước, chưa check-in) cho phục vụ."""
+    local_now = datetime.utcnow() + timedelta(hours=7)
+    start_of_today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    upcoming_orders = (
+        db.query(models.DonHang)
+        .filter(
+            models.DonHang.tinhTrang == "Chờ khách đến",
+            models.DonHang.thoiGianDen >= start_of_today,
+        )
+        .order_by(models.DonHang.thoiGianDen.asc())
+        .all()
+    )
+
+    result = []
+    for order in upcoming_orders:
+        # Lấy thông tin khách hàng
+        khach = db.query(models.NguoiDung).filter(
+            models.NguoiDung.id_nguoiDung == order.id_nguoiDung
+        ).first()
+
+        # Lấy thông tin đặt bàn
+        dat_ban = None
+        ten_ban = None
+        so_nguoi = None
+        ghi_chu = None
+        trang_thai_dat_ban = None
+        trang_thai_coc = None
+        tien_coc = 0.0
+        if order.id_datBan:
+            dat_ban = db.query(models.DatBan).filter(
+                models.DatBan.id_datBan == order.id_datBan
+            ).first()
+            if dat_ban:
+                so_nguoi = dat_ban.soNguoi
+                ghi_chu = dat_ban.ghiChu
+                trang_thai_dat_ban = dat_ban.trangThai
+                trang_thai_coc = dat_ban.trangThaiCoc
+                tien_coc = float(dat_ban.tienCoc) if dat_ban.tienCoc else 0.0
+
+        # Lấy tên bàn
+        if order.id_ban:
+            ban = db.query(models.Ban).filter(models.Ban.id_ban == order.id_ban).first()
+            ten_ban = ban.tenBan if ban else f"Bàn {order.id_ban}"
+
+        # Lấy chi tiết món ăn
+        chi_tiets = db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == order.id_donHang
+        ).all()
+        items = []
+        tong_tien = Decimal("0")
+        for ct in chi_tiets:
+            mon = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
+            gia = ct.giaTaiThoiDiemBan or Decimal("0")
+            so_luong = ct.soLuong or 0
+            tong_tien += gia * so_luong
+            items.append({
+                "tenMon": mon.tenMon if mon else f"Món #{ct.id_monAn}",
+                "soLuong": so_luong,
+                "giaTaiThoiDiemBan": float(gia),
+                "hinhAnh": mon.hinhAnh if mon else None,
+            })
+
+        # Tính số phút còn lại trước giờ hẹn
+        so_phut_con_lai = 0
+        if order.thoiGianDen:
+            delta = order.thoiGianDen - local_now
+            so_phut_con_lai = max(0, int(delta.total_seconds() / 60))
+
+        result.append({
+            "id_donHang": order.id_donHang,
+            "id_ban": order.id_ban,
+            "tenBan": ten_ban,
+            "tenKhach": khach.hoTen if khach else None,
+            "soDienThoai": khach.soDienThoai if khach else None,
+            "thoiGianDen": order.thoiGianDen.isoformat() if order.thoiGianDen else None,
+            "soNguoi": so_nguoi,
+            "ghiChu": ghi_chu,
+            "trangThaiDatBan": trang_thai_dat_ban,
+            "trangThaiCoc": trang_thai_coc,
+            "tienCoc": tien_coc,
+            "chi_tiet": items,
+            "tongTien": float(tong_tien),
+            "soPhutConLai": so_phut_con_lai,
+        })
+    return result
+
 
 @router.get("/waiter/active")
 def get_waiter_orders(
@@ -794,6 +1062,10 @@ def get_waiter_orders(
                 tien_coc = float(db_res.tienCoc) if db_res.tienCoc else 0.0
                 trang_thai_coc = db_res.trangThaiCoc
 
+        # Lấy tổng thanh toán từ bảng ThanhToan
+        payments = db.query(models.ThanhToan).filter(models.ThanhToan.id_donHang == order.id_donHang).all()
+        tong_thanh_toan = float(sum(p.soTienThanhToan for p in payments)) if payments else 0.0
+
         result.append({
             "id_donHang": order.id_donHang,
             "id_ban": order.id_ban,
@@ -807,6 +1079,7 @@ def get_waiter_orders(
             "tongTien": float(tong_tien),
             "tienCoc": tien_coc,
             "trangThaiCoc": trang_thai_coc,
+            "tongThanhToan": tong_thanh_toan,
         })
     return result
 
@@ -862,6 +1135,20 @@ def get_waiter_history(
         khach = db.query(models.NguoiDung).filter(
             models.NguoiDung.id_nguoiDung == order.id_nguoiDung
         ).first()
+
+        # Lấy tổng thanh toán từ bảng ThanhToan
+        payments = db.query(models.ThanhToan).filter(models.ThanhToan.id_donHang == order.id_donHang).all()
+        tong_thanh_toan = float(sum(p.soTienThanhToan for p in payments)) if payments else 0.0
+
+        # Lấy thông tin cọc từ đặt bàn (nếu có)
+        tien_coc = 0.0
+        trang_thai_coc = None
+        if order.id_datBan:
+            db_res = db.query(models.DatBan).filter(models.DatBan.id_datBan == order.id_datBan).first()
+            if db_res:
+                tien_coc = float(db_res.tienCoc or 0)
+                trang_thai_coc = db_res.trangThaiCoc
+
         result.append({
             "id_donHang": order.id_donHang,
             "id_ban": order.id_ban,
@@ -872,10 +1159,90 @@ def get_waiter_history(
             "isMyOrder": is_mine,
             "soMon": len(items),
             "tongTien": float(tong_tien),
+            "tongThanhToan": tong_thanh_toan,
+            "tienCoc": tien_coc,
+            "trangThaiCoc": trang_thai_coc,
             "chi_tiet": items,
         })
     return result
 
+
+def _build_upcoming_orders(db: Session):
+    """Helper: trả về danh sách đơn hàng sắp tới (Chờ khách đến, thoiGianDen >= hôm nay)."""
+    local_now = datetime.utcnow() + timedelta(hours=7)
+    start_of_today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    orders = (
+        db.query(models.DonHang)
+        .filter(
+            models.DonHang.tinhTrang == "Chờ khách đến",
+            models.DonHang.thoiGianDen >= start_of_today,
+        )
+        .order_by(models.DonHang.thoiGianDen.asc())
+        .all()
+    )
+
+    result = []
+    for order in orders:
+        # Thông tin khách hàng
+        khach = db.query(models.NguoiDung).filter(
+            models.NguoiDung.id_nguoiDung == order.id_nguoiDung
+        ).first()
+
+        # Thông tin bàn
+        ban = None
+        if order.id_ban:
+            ban = db.query(models.Ban).filter(models.Ban.id_ban == order.id_ban).first()
+
+        # Thông tin đặt bàn
+        dat_ban = None
+        if order.id_datBan:
+            dat_ban = db.query(models.DatBan).filter(
+                models.DatBan.id_datBan == order.id_datBan
+            ).first()
+
+        # Chi tiết món ăn
+        chi_tiets = db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == order.id_donHang
+        ).all()
+        items = []
+        tong_tien = Decimal("0")
+        for ct in chi_tiets:
+            mon = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
+            gia = ct.giaTaiThoiDiemBan or Decimal("0")
+            so_luong = ct.soLuong or 0
+            tong_tien += gia * so_luong
+            items.append({
+                "tenMon": mon.tenMon if mon else f"Món #{ct.id_monAn}",
+                "soLuong": so_luong,
+                "giaTaiThoiDiemBan": float(gia),
+                "hinhAnh": mon.hinhAnh if mon else None,
+            })
+
+        # Tính số phút còn lại
+        so_phut_con_lai = None
+        if order.thoiGianDen:
+            delta = order.thoiGianDen - local_now
+            so_phut_con_lai = int(delta.total_seconds() / 60)
+
+        result.append({
+            "id_donHang": order.id_donHang,
+            "id_ban": order.id_ban,
+            "tenBan": ban.tenBan if ban else None,
+            "tenKhach": khach.hoTen if khach else None,
+            "soDienThoai": khach.soDienThoai if khach else None,
+            "thoiGianDen": order.thoiGianDen,
+            "soNguoi": dat_ban.soNguoi if dat_ban else None,
+            "ghiChu": dat_ban.ghiChu if dat_ban else None,
+            "trangThaiDatBan": dat_ban.trangThai if dat_ban else None,
+            "trangThaiCoc": dat_ban.trangThaiCoc if dat_ban else None,
+            "tienCoc": float(dat_ban.tienCoc) if (dat_ban and dat_ban.tienCoc) else 0,
+            "chi_tiet": items,
+            "tongTien": float(tong_tien),
+            "soPhutConLai": so_phut_con_lai,
+        })
+
+    return result
 
 
 # ============================================================
@@ -1138,6 +1505,15 @@ def get_kitchen_history(
         })
         
     return result
+
+
+@router.get("/kitchen/upcoming")
+def get_kitchen_upcoming_orders(
+    db: Session = Depends(get_db),
+    current_user: models.NguoiDung = Depends(get_current_kitchen_or_admin),
+):
+    """Danh sách đơn hàng sắp tới (pre-order chưa checkin) cho bếp."""
+    return _build_upcoming_orders(db)
 
 
 class ItemStatusUpdate(BaseModel):

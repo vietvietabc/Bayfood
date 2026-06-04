@@ -35,6 +35,7 @@ const ReservationPage = () => {
   const [statusMessage, setStatusMessage] = useState('');
   const [showOrderPrompt, setShowOrderPrompt] = useState(false); // Modal hỏi đặt món
   const [pendingBookingPayload, setPendingBookingPayload] = useState(null); // Dữ liệu đặt bàn chờ xử lý
+  const [heldTables, setHeldTables] = useState(new Set()); // Bàn đang bị người khác giữ chỗ
   const statusRef = useRef(null);
 
   const currentTimelineWorkingHours = timelineDays[0]?.workingHours || null;
@@ -180,8 +181,28 @@ const ReservationPage = () => {
   const isBlockedSlot = (slot) => slot.trangThai === 'Không đủ thời gian';
   const isWarningSlot = (slot) => slot.trangThai === 'Có giới hạn giờ';
 
-  const handleSelectTable = (table) => {
-    setSelectedTable(table);
+  const handleSelectTable = async (table) => {
+    // Release hold on previously selected table
+    if (selectedTable && selectedTable.id_ban !== table.id_ban) {
+      try {
+        await axios.delete(`${BASE_URL}/api/ban/${selectedTable.id_ban}/hold`);
+      } catch (e) { /* ignore */ }
+    }
+    // Try to hold new table
+    try {
+      await axios.post(`${BASE_URL}/api/ban/${table.id_ban}/hold`);
+      setSelectedTable(table);
+      // Refresh held tables status
+      const statusRes = await axios.get(`${BASE_URL}/api/ban/holds/status`);
+      setHeldTables(new Set(statusRes.data.held_tables.map(h => h.id_ban)));
+    } catch (err) {
+      if (err.response?.status === 409) {
+        alert(err.response.data.detail);
+      } else {
+        // Network error - still allow selection
+        setSelectedTable(table);
+      }
+    }
   };
 
   const handlePickSlot = (dateString, table, slot) => {
@@ -445,35 +466,85 @@ const ReservationPage = () => {
             {loadingTables ? (
               <p style={{ color: 'var(--text-muted)', margin: 0 }}>Đang tải sơ đồ bàn...</p>
             ) : tables.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {tables.map((table) => {
-                  const isSelected = selectedTable?.id_ban === table.id_ban;
+              (() => {
+                // Group by vị trí
+                const grouped = tables.reduce((acc, t) => {
+                  const k = t.viTri || 'Khác';
+                  if (!acc[k]) acc[k] = [];
+                  acc[k].push(t);
+                  return acc;
+                }, {});
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {/* Legend */}
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+                      {[
+                        { color: '#10b981', label: 'Trống' },
+                        { color: '#3b82f6', label: 'Đang chọn' },
+                        { color: '#a855f7', label: 'Có người đang xem' },
+                        { color: '#ef4444', label: 'Không thể đặt' },
+                      ].map(s => (
+                        <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: s.color }} />
+                          <span style={{ color: 'var(--text-muted)' }}>{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {Object.entries(grouped).map(([area, areaTables]) => (
+                      <div key={area}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', paddingBottom: '0.35rem', borderBottom: '1px solid var(--border)' }}>
+                          {area}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.65rem' }}>
+                          {areaTables.map((table) => {
+                            const isSelected = selectedTable?.id_ban === table.id_ban;
+                            const isHeld = heldTables.has(table.id_ban) && !isSelected;
 
-                  return (
-                    <button
-                      key={table.id_ban}
-                      type="button"
-                      onClick={() => handleSelectTable(table)}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '0.85rem',
-                        border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                        background: isSelected ? 'rgba(249, 115, 22, 0.1)' : 'var(--surface)',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.2s ease',
-                      }}
-                    >
-                      <div style={{ fontWeight: 'bold', fontSize: '1.05rem', color: isSelected ? 'var(--primary)' : 'var(--text)' }}>
-                        {table.tenBan}
+                            let borderColor = '#10b98144';
+                            let bgColor = 'var(--surface)';
+                            let statusText = table.trangThai === 'Trống' ? 'Trống' : table.trangThai;
+                            let statusColor = '#10b981';
+
+                            if (isSelected) { borderColor = '#3b82f6'; bgColor = 'rgba(59,130,246,0.1)'; statusText = '✓ Đang chọn'; statusColor = '#3b82f6'; }
+                            else if (isHeld) { borderColor = '#a855f7'; bgColor = 'rgba(168,85,247,0.06)'; statusText = 'Có người xem'; statusColor = '#a855f7'; }
+                            else if (table.trangThai === 'Có khách') { borderColor = '#f9731644'; bgColor = 'rgba(249,115,22,0.05)'; statusColor = '#f97316'; }
+                            else if (table.trangThai === 'Bảo trì') { borderColor = '#6b728044'; bgColor = 'rgba(107,114,128,0.06)'; statusColor = '#9ca3af'; }
+
+                            return (
+                              <button
+                                key={table.id_ban}
+                                type="button"
+                                disabled={isHeld}
+                                onClick={() => !isHeld && handleSelectTable(table)}
+                                style={{
+                                  padding: '0.85rem',
+                                  borderRadius: '0.75rem',
+                                  border: `2px solid ${borderColor}`,
+                                  background: bgColor,
+                                  cursor: isHeld ? 'not-allowed' : 'pointer',
+                                  textAlign: 'left',
+                                  transition: 'all 0.2s ease',
+                                  opacity: 1,
+                                }}
+                              >
+                                <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: isSelected ? '#3b82f6' : 'var(--text)', marginBottom: '0.2rem' }}>
+                                  {table.tenBan}
+                                </div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                                  {table.sucChua} chỗ
+                                </div>
+                                <div style={{ fontSize: '0.73rem', fontWeight: 700, color: statusColor }}>
+                                  {statusText}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                        {table.viTri} · {table.sucChua} chỗ
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                );
+              })()
             ) : (
               <p style={{ color: 'var(--text-muted)', margin: 0 }}>Chưa có bàn nào.</p>
             )}
@@ -774,14 +845,53 @@ const ReservationPage = () => {
                 </div>
               )}
 
-              <button type="button" className="btn btn-primary" style={{ padding: '0.95rem 1.25rem', minWidth: '200px', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }} onClick={handleSubmit} disabled={!selectedTable || isPastSelectedTime || bookingLoading}>
-                {bookingLoading
-                  ? 'Đang xử lý...'
-                  : (selectedTable?.tienCocMacDinh || 0) > 0
-                    ? <><CreditCard size={16} /> Thanh Toán & Đặt Bàn</>
-                    : 'Xác Nhận Đặt Bàn'
-                }
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                {(selectedTable || selectedSlotKey) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (selectedTable) {
+                        try { await axios.delete(`${BASE_URL}/api/ban/${selectedTable.id_ban}/hold`); } catch (e) { /* ignore */ }
+                      }
+                      setSelectedTable(null);
+                      setSelectedSlotKey('');
+                      setFormData(f => ({ ...f, date: '', time: '' }));
+                    }}
+                    style={{
+                      padding: '0.95rem 1.1rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.75rem',
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  >
+                    ↩ Chọn lại bàn / đổi giờ
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ padding: '0.95rem 1.25rem', minWidth: '200px', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}
+                  onClick={handleSubmit}
+                  disabled={!selectedTable || isPastSelectedTime || bookingLoading}
+                >
+                  {bookingLoading
+                    ? 'Đang xử lý...'
+                    : (selectedTable?.tienCocMacDinh || 0) > 0
+                      ? <><CreditCard size={16} /> Thanh Toán &amp; Đặt Bàn</>
+                      : 'Xác Nhận Đặt Bàn'
+                  }
+                </button>
+              </div>
             </div>
           </div>
         </div>

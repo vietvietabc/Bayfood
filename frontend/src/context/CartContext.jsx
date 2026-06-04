@@ -1,4 +1,4 @@
-import React, { createContext, use, useState } from 'react';
+import React, { createContext, use, useState, useMemo, useCallback } from 'react';
 
 const CartContext = createContext();
 
@@ -16,13 +16,13 @@ export const CartProvider = ({ children }) => {
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editingOrderThoiGianDen, setEditingOrderThoiGianDen] = useState(null);
 
-  const setCartFromOrder = (items, orderId, thoiGianDen = null) => {
+  const setCartFromOrder = useCallback((items, orderId, thoiGianDen = null) => {
     setCart(items);
     setEditingOrderId(orderId);
     setEditingOrderThoiGianDen(thoiGianDen);
-  };
+  }, []);
 
-  const setSelectedTableId = (tableId) => {
+  const setSelectedTableId = useCallback((tableId) => {
     const normalized = tableId ? Number(tableId) : null;
     setSelectedTableIdState(normalized);
 
@@ -31,9 +31,9 @@ export const CartProvider = ({ children }) => {
     } else {
       localStorage.removeItem('selectedTableId');
     }
-  };
+  }, []);
 
-  const addToCart = (item) => {
+  const addToCart = useCallback((item) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.id_monAn === item.id_monAn);
       if (existing) {
@@ -45,13 +45,13 @@ export const CartProvider = ({ children }) => {
       }
       return [...prev, { ...item, quantity: 1 }];
     });
-  };
+  }, []);
 
-  const removeFromCart = (id) => {
+  const removeFromCart = useCallback((id) => {
     setCart((prev) => prev.filter((i) => i.id_monAn !== id));
-  };
+  }, []);
 
-  const updateQuantity = (id, delta) => {
+  const updateQuantity = useCallback((id, delta) => {
     setCart((prev) =>
       prev.map((i) => {
         if (i.id_monAn === id) {
@@ -61,32 +61,38 @@ export const CartProvider = ({ children }) => {
         return i;
       })
     );
-  };
+  }, []);
 
-  const clearCart = () => setCart([]);
+  const clearCart = useCallback(() => setCart([]), []);
 
-  const cartTotal = cart.reduce((total, item) => total + (item.giaTien * item.quantity), 0);
-  const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
+  const cartTotal = useMemo(
+    () => cart.reduce((total, item) => total + (item.giaTien * item.quantity), 0),
+    [cart]
+  );
+  const cartCount = useMemo(
+    () => cart.reduce((count, item) => count + item.quantity, 0),
+    [cart]
+  );
+
+  const value = useMemo(() => ({
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    cartTotal,
+    cartCount,
+    selectedTableId,
+    setSelectedTableId,
+    editingOrderId,
+    setEditingOrderId,
+    editingOrderThoiGianDen,
+    setEditingOrderThoiGianDen,
+    setCartFromOrder,
+  }), [cart, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount, selectedTableId, setSelectedTableId, editingOrderId, editingOrderThoiGianDen, setCartFromOrder]);
 
   return (
-    <CartContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        cartTotal,
-        cartCount,
-        selectedTableId,
-        setSelectedTableId,
-        editingOrderId,
-        setEditingOrderId,
-        editingOrderThoiGianDen,
-        setEditingOrderThoiGianDen,
-        setCartFromOrder,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

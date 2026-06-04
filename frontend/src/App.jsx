@@ -28,6 +28,9 @@ import AdminWorkingHours from './pages/admin/AdminWorkingHours';
 import ProtectedAdminRoute from './components/ProtectedAdminRoute';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import ChatWidget from './components/Chatbot/ChatWidget';
+import LiveChatWidget from './components/LiveChatWidget';
 import './index.css';
 
 // Layout wrapper chọn navbar theo route
@@ -83,13 +86,17 @@ const AppLayout = () => {
         </Routes>
       </main>
 
-      {/* Footer chỉ hiện ở trang customer */}
+      {/* Footer & Chat Widgets chỉ hiện ở trang customer */}
       {!isKitchen && !isAdmin && !isWaiter && (
-        <footer style={{ borderTop: '1px solid var(--border)', padding: '2rem 0', marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <div className="container">
-            <p>&copy; 2026 BayFood Restaurant. All rights reserved.</p>
-          </div>
-        </footer>
+        <>
+          <footer style={{ borderTop: '1px solid var(--border)', padding: '2rem 0', marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="container">
+              <p>&copy; 2026 BayFood Restaurant. All rights reserved.</p>
+            </div>
+          </footer>
+          <ChatWidget />
+          <LiveChatWidget />
+        </>
       )}
     </div>
   );
@@ -132,6 +139,7 @@ function App() {
   }, []);
 
   return (
+    <ThemeProvider>
     <AuthProvider>
       <CartProvider>
         <Router>
@@ -142,7 +150,7 @@ function App() {
         {alertState.show && (
           <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'var(--overlay-bg)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 999999, padding: '1rem',
             backdropFilter: 'blur(8px)',
@@ -151,9 +159,9 @@ function App() {
             <div className="card" style={{
               maxWidth: '420px', width: '100%',
               padding: '2rem',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'linear-gradient(135deg, #1e1e24 0%, #121214 100%)',
-              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--alert-border)',
+              background: 'var(--alert-bg)',
+              boxShadow: 'var(--alert-shadow)',
               borderRadius: '1rem',
               textAlign: 'center',
               transform: 'scale(1)',
@@ -186,14 +194,14 @@ function App() {
               <h3 style={{
                 fontSize: '1.25rem',
                 fontWeight: '600',
-                color: '#ffffff',
+                color: 'var(--alert-title-color)',
                 marginBottom: '0.75rem'
               }}>
                 {alertState.type === 'success' ? 'Thành công' : alertState.type === 'warning' ? 'Cảnh báo' : 'Thông báo'}
               </h3>
 
               <p style={{
-                color: '#9ca3af',
+                color: 'var(--alert-text-color)',
                 fontSize: '0.925rem',
                 lineHeight: '1.5',
                 marginBottom: '1.75rem',
@@ -226,8 +234,10 @@ function App() {
             </div>
           </div>
         )}
+        
       </CartProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }
 

@@ -147,7 +147,7 @@ const FoodDetailPage = () => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.6rem',
-                background: 'rgba(22, 23, 25, 0.65)',
+                background: 'var(--glass-bg)',
                 backdropFilter: 'blur(16px)',
                 WebkitBackdropFilter: 'blur(16px)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -165,7 +165,7 @@ const FoodDetailPage = () => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(22, 23, 25, 0.65)';
+                e.currentTarget.style.background = 'var(--glass-bg)';
                 e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.08)';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
@@ -190,7 +190,7 @@ const FoodDetailPage = () => {
           overflow: 'hidden', 
           padding: 0, 
           border: '1px solid rgba(255, 255, 255, 0.08)', 
-          background: 'rgba(22, 23, 25, 0.75)', 
+          background: 'var(--glass-bg)', 
           backdropFilter: 'blur(24px)', 
           WebkitBackdropFilter: 'blur(24px)',
           boxShadow: '0 30px 70px rgba(0, 0, 0, 0.45)', 

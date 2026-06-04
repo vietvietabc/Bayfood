@@ -59,11 +59,11 @@ const CartPage = () => {
     const [selectedTableFilter, setSelectedTableFilter] = useState(null);
     const [upcomingReservation, setUpcomingReservation] = useState(null);
     const [isEditingTime, setIsEditingTime] = useState(false);
-    const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: 'info', onClose: null });
+    const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: 'info', onClose: null, showCancel: false });
 
 
-    const showAlert = (message, type = 'info', onClose = null) => {
-        setCustomAlert({ show: true, message, type, onClose });
+    const showAlert = (message, type = 'info', onClose = null, showCancel = false) => {
+        setCustomAlert({ show: true, message, type, onClose, showCancel });
     };
 
     const toMinutes = (value) => {
@@ -261,6 +261,9 @@ const CartPage = () => {
         setSelectedTableLocal(table);
     };
 
+    // Ngưỡng tối thiểu đơn hàng để được đặt bàn (không áp dụng cho QR tại bàn)
+    const MIN_ORDER_FOR_TABLE = 100_000;
+
     const handleCheckoutClick = async () => {
         if (cart.length === 0) return;
 
@@ -278,6 +281,14 @@ const CartPage = () => {
 
         // Nếu có pending booking từ trang đặt bàn: validate trước rồi gọi submitOrder(true)
         if (hasPendingBooking) {
+            // Kiểm tra ngưỡng tối thiểu cho đặt bàn
+            if (cartTotal < MIN_ORDER_FOR_TABLE) {
+                showAlert(
+                    `Giá trị đơn hàng tối thiểu để đặt bàn là ${MIN_ORDER_FOR_TABLE.toLocaleString('vi-VN')} ₫.\nVui lòng thêm món để tiếp tục đặt bàn.`,
+                    'warning'
+                );
+                return;
+            }
             if (!bookingForm.time) {
                 showAlert('Vui lòng chọn giờ đến trước khi xác nhận.', 'error');
                 setEditingPendingBooking(true);
@@ -350,8 +361,24 @@ const CartPage = () => {
         }
 
         if (selectedTableId || (upcomingReservation && !isEditingTime)) {
+            // selectedTableId có thể là QR → không chặn. Chỉ chặn khi là đặt bàn thường (upcomingReservation)
+            if (!selectedTableId && upcomingReservation && !isEditingTime && cartTotal < MIN_ORDER_FOR_TABLE) {
+                showAlert(
+                    `Giá trị đơn hàng tối thiểu để đặt bàn là ${MIN_ORDER_FOR_TABLE.toLocaleString('vi-VN')} ₫.\nVui lòng thêm món để tiếp tục.`,
+                    'warning'
+                );
+                return;
+            }
             submitOrder(false);
         } else {
+            // Kiểm tra ngưỡng trước khi mở modal chọn bàn
+            if (cartTotal < MIN_ORDER_FOR_TABLE) {
+                showAlert(
+                    `Giá trị đơn hàng tối thiểu để đặt bàn là ${MIN_ORDER_FOR_TABLE.toLocaleString('vi-VN')} ₫.\nVui lòng thêm món để tiếp tục đặt bàn.`,
+                    'warning'
+                );
+                return;
+            }
             // Sync timeline search với giờ/ngày đã nhập
             setTimelineSearch(prev => ({
                 ...prev,
@@ -377,30 +404,43 @@ const CartPage = () => {
             );
 
             if (res.data.status === 'updated') {
-                // Không cần thanh toán thêm → cập nhật ngay
                 clearCart();
                 setEditingOrderId(null);
-                showAlert('Cập nhật đơn hàng thành công!', 'success', () => {
-                    navigate('/account');
-                });
+                const { so_du, total_paid, new_total } = res.data;
+                if (so_du && so_du > 0) {
+                    // Khách đã trả dư — thông báo nhà hàng sẽ hoàn khi đến
+                    const soDuStr = Number(so_du).toLocaleString('vi-VN');
+                    const totalPaidStr = Number(total_paid).toLocaleString('vi-VN');
+                    const newTotalStr = Number(new_total).toLocaleString('vi-VN');
+                    showAlert(
+                        `Đơn hàng đã được cập nhật.\n\nBạn đã thanh toán trước ${totalPaidStr} ₫, tổng món mới chỉ còn ${newTotalStr} ₫.\n\n Nhà hàng sẽ hoàn lại ${soDuStr} ₫ cho bạn khi đến.`,
+                        'success',
+                        () => { navigate('/account'); }
+                    );
+                } else {
+                    showAlert('Cập nhật đơn hàng thành công!', 'success', () => {
+                        navigate('/account');
+                    });
+                }
             } else if (res.data.status === 'payment_required') {
                 const { so_tien_them, old_total, new_total, diff, hinhThucThanhToan, paymentUrl } = res.data;
                 const soTienThemStr = Number(so_tien_them).toLocaleString('vi-VN');
                 const diffStr = Number(diff || (new_total - old_total)).toLocaleString('vi-VN');
                 const oldStr = Number(old_total).toLocaleString('vi-VN');
                 const newStr = Number(new_total).toLocaleString('vi-VN');
-                const modeNote = hinhThucThanhToan === 'deposit'
+                const modeNote = hinhThucThanhToan === 'đặt cọc'
                     ? `(10% cọc của phần tăng thêm ${diffStr} ₫)`
                     : `(toàn bộ phần tăng thêm)`;
 
                 showAlert(
-                    `Tổng đơn tăng từ ${oldStr} ₫ → ${newStr} ₫.\n\nBạn cần cọc thêm: ${soTienThemStr} ₫ ${modeNote}\n\nNhấn OK để chuyển đến trang thanh toán VNPay.`,
+                    `Tổng đơn tăng từ ${oldStr} ₫ → ${newStr} ₫.\n\nBạn cần thanh toán thêm: ${soTienThemStr} ₫ ${modeNote}\n\nNhấn Đồng ý để chuyển đến trang thanh toán VNPay.`,
                     'warning',
                     () => {
                         clearCart();
                         setEditingOrderId(null);
                         window.location.href = paymentUrl;
-                    }
+                    },
+                    true // Bật nút Hủy (showCancel)
                 );
             }
         } catch (error) {
@@ -454,15 +494,17 @@ const CartPage = () => {
         if (selectedTableId && !payload.thoiGianDen && !payload.dat_ban) {
             try {
                 setIsSubmitting(true);
+                const qrToken = sessionStorage.getItem('qrToken');
                 const qrPayload = {
                     chi_tiet: payload.cart.map(item => ({
                         id_monAn: item.id_monAn,
                         soLuong: item.soLuong,
                         giaTaiThoiDiemBan: item.giaTaiThoiDiemBan
-                    }))
+                    })),
+                    token: qrToken || null
                 };
                 const res = await axios.post(`${BASE_URL}/api/donhang/table/${selectedTableId}/qr-order`, qrPayload);
-                
+
                 clearCart();
                 showAlert(`Gọi món thành công! Bếp đang chuẩn bị các món ăn cho bàn của bạn.`, 'success', () => {
                     navigate('/account');
@@ -581,13 +623,12 @@ const CartPage = () => {
                             </div>
                         </div>
 
-
                         {/* Cảnh báo */}
                         <div style={{ padding: '0.85rem 1.1rem', borderRadius: '0.75rem', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.3)', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#92400e', lineHeight: 1.6 }}>
                             ⚠️ <strong>Bàn chỉ được xác nhận sau khi thanh toán VNPay thành công.</strong> Nếu không đến đúng giờ, tiền cọc sẽ <strong style={{ color: '#dc2626' }}>không được hoàn lại</strong>.
                         </div>
 
-                        {/* Hai lựa chọn */}
+                        {/* Hai lựa chọn — luôn hiện 2 cột vì đã đảm bảo đơn >= 100k mới vào đây */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
                             {/* Đặt cọc */}
                             <div style={{ padding: '1.25rem', borderRadius: '1rem', border: '2px solid rgba(202,138,4,0.5)', background: 'rgba(234,179,8,0.04)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -600,16 +641,16 @@ const CartPage = () => {
                                 </div>
                                 <button
                                     disabled={isSubmitting}
-                                    onClick={() => initiatePayment('deposit')}
+                                    onClick={() => initiatePayment('đặt cọc')}
                                     style={{
                                         padding: '0.65rem', borderRadius: '0.65rem', border: 'none',
-                                        background: payingMode === 'deposit' ? '#b45309' : 'linear-gradient(135deg, #ca8a04, #92400e)',
+                                        background: payingMode === 'đặt cọc' ? '#b45309' : 'linear-gradient(135deg, #ca8a04, #92400e)',
                                         color: '#fff', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer',
                                         fontSize: '0.875rem', boxShadow: '0 3px 10px rgba(202,138,4,0.3)',
-                                        opacity: isSubmitting && payingMode !== 'deposit' ? 0.5 : 1,
+                                        opacity: isSubmitting && payingMode !== 'đặt cọc' ? 0.5 : 1,
                                     }}
                                 >
-                                    {payingMode === 'deposit' ? 'Đang xử lý...' : 'Đặt cọc qua VNPay'}
+                                    {payingMode === 'đặt cọc' ? 'Đang xử lý...' : 'Đặt cọc qua VNPay'}
                                 </button>
                             </div>
 
@@ -624,16 +665,16 @@ const CartPage = () => {
                                 </div>
                                 <button
                                     disabled={isSubmitting}
-                                    onClick={() => initiatePayment('full')}
+                                    onClick={() => initiatePayment('toàn bộ')}
                                     style={{
                                         padding: '0.65rem', borderRadius: '0.65rem', border: 'none',
-                                        background: payingMode === 'full' ? '#047857' : 'linear-gradient(135deg, #10b981, #059669)',
+                                        background: payingMode === 'toàn bộ' ? '#047857' : 'linear-gradient(135deg, #10b981, #059669)',
                                         color: '#fff', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer',
                                         fontSize: '0.875rem', boxShadow: '0 3px 10px rgba(16,185,129,0.3)',
-                                        opacity: isSubmitting && payingMode !== 'full' ? 0.5 : 1,
+                                        opacity: isSubmitting && payingMode !== 'toàn bộ' ? 0.5 : 1,
                                     }}
                                 >
-                                    {payingMode === 'full' ? 'Đang xử lý...' : 'Thanh toán qua VNPay'}
+                                    {payingMode === 'toàn bộ' ? 'Đang xử lý...' : 'Thanh toán qua VNPay'}
                                 </button>
                             </div>
                         </div>
@@ -697,6 +738,17 @@ const CartPage = () => {
                         {!editingOrderId && (
                             <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(249, 115, 22, 0.08)', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>
                                 {selectedTableId ? `Đơn này sẽ được gắn trực tiếp vào bàn #${selectedTableId} bạn đang ngồi.` : hasPendingBooking ? '' : 'Bạn có thể chọn đặt bàn giữ chỗ trước, hoặc đặt mang về tuỳ thích.'}
+                            </div>
+                        )}
+
+                        {/* Cảnh báo ngưỡng tối thiểu đặt bàn (ẩn khi QR hoặc không có booking) */}
+                        {!editingOrderId && !selectedTableId && hasPendingBooking && cartTotal < MIN_ORDER_FOR_TABLE && (
+                            <div style={{
+                                padding: '0.85rem 1rem', borderRadius: '0.75rem',
+                                background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.3)',
+                                marginBottom: '1.5rem', fontSize: '0.82rem', color: '#b91c1c', lineHeight: 1.6
+                            }}>
+                                ⚠️ <strong>Cần thêm món để đặt bàn.</strong> Giá trị tối thiểu là <strong>{MIN_ORDER_FOR_TABLE.toLocaleString('vi-VN')} ₫</strong> (hiện tại: {cartTotal.toLocaleString('vi-VN')} ₫).
                             </div>
                         )}
 
@@ -912,9 +964,9 @@ const CartPage = () => {
                                                             })}
                                                         </div>
                                                     )}
-                                                        {bookingForm.time && !editTimeError && (
-                                                            <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '0.35rem' }}>✓ Đã chọn: {bookingForm.time}</div>
-                                                        )}
+                                                    {bookingForm.time && !editTimeError && (
+                                                        <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '0.35rem' }}>✓ Đã chọn: {bookingForm.time}</div>
+                                                    )}
                                                 </div>
 
 
@@ -1239,9 +1291,9 @@ const CartPage = () => {
                     <div className="card" style={{
                         maxWidth: '420px', width: '100%',
                         padding: '2rem',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        background: 'linear-gradient(135deg, #1e1e24 0%, #121214 100%)',
-                        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--alert-border)',
+                        background: 'var(--alert-bg)',
+                        boxShadow: 'var(--alert-shadow)',
                         borderRadius: '1rem',
                         textAlign: 'center',
                         transform: 'scale(1)',
@@ -1290,30 +1342,53 @@ const CartPage = () => {
                             {customAlert.message}
                         </p>
 
-                        <button
-                            onClick={() => {
-                                const onCloseCb = customAlert.onClose;
-                                setCustomAlert({ show: false, message: '', type: 'info', onClose: null });
-                                if (onCloseCb) onCloseCb();
-                            }}
-                            className="btn btn-primary"
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '0.5rem',
-                                fontSize: '0.95rem',
-                                fontWeight: '600',
-                                letterSpacing: '0.025em',
-                                background: customAlert.type === 'success' ? '#10b981' : customAlert.type === 'error' ? '#ef4444' : 'var(--primary)',
-                                border: 'none',
-                                color: '#fff',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                            }}
-                            aria-label="Xác nhận đóng thông báo"
-                        >
-                            Đồng ý
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            {customAlert.showCancel && (
+                                <button
+                                    onClick={() => setCustomAlert({ show: false, message: '', type: 'info', onClose: null, showCancel: false })}
+                                    className="btn"
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.75rem',
+                                        borderRadius: '0.5rem',
+                                        fontSize: '0.95rem',
+                                        fontWeight: '600',
+                                        letterSpacing: '0.025em',
+                                        background: 'rgba(255, 255, 255, 0.1)',
+                                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    Đóng
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    const onCloseCb = customAlert.onClose;
+                                    setCustomAlert({ show: false, message: '', type: 'info', onClose: null, showCancel: false });
+                                    if (onCloseCb) onCloseCb();
+                                }}
+                                className="btn btn-primary"
+                                style={{
+                                    flex: 1,
+                                    padding: '0.75rem',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '0.95rem',
+                                    fontWeight: '600',
+                                    letterSpacing: '0.025em',
+                                    background: customAlert.type === 'success' ? '#10b981' : customAlert.type === 'error' ? '#ef4444' : 'var(--primary)',
+                                    border: 'none',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                aria-label="Xác nhận đóng thông báo"
+                            >
+                                Đồng ý
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import StaffChatPanel from '../../components/StaffChatPanel';
+import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -52,6 +54,20 @@ const WaiterPage = () => {
     const [shiftLoading, setShiftLoading] = useState(false);
     const [personalShifts, setPersonalShifts] = useState([]);
     const [personalShiftsLoading, setPersonalShiftsLoading] = useState(false);
+    const [showChatPanel, setShowChatPanel] = useState(false);
+
+    // Upcoming orders state
+    const [upcomingOrders, setUpcomingOrders] = useState([]);
+    const [upcomingLoading, setUpcomingLoading] = useState(false);
+
+    // Tables state
+    const [tables, setTables] = useState([]);
+    const [tablesLoading, setTablesLoading] = useState(false);
+
+    // Schedule/Timeline state
+    const [timeline, setTimeline] = useState([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
+    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
 
     // Checkout/Cashier modal state
     const [checkoutOrder, setCheckoutOrder] = useState(null);
@@ -79,7 +95,7 @@ const WaiterPage = () => {
     const handlePrintReceipt = (details) => {
         if (!details) return;
 
-        const finalAmount = details.tongTien - (details.trangThaiCoc === 'Đã cọc' ? details.tienCoc : 0);
+        const finalAmount = Math.max(0, details.tongTien - Math.max(details.trangThaiCoc === 'Đã cọc' ? details.tienCoc : 0, details.tongThanhToan || 0));
         const dateStr = new Date().toLocaleString('vi-VN');
 
         const printWindow = window.open('', '_blank', 'width=600,height=800');
@@ -165,10 +181,16 @@ const WaiterPage = () => {
               <span>Tổng tiền món ăn:</span>
               <span>${details.tongTien.toLocaleString('vi-VN')} đ</span>
             </div>
-            ${details.tienCoc > 0 && details.trangThaiCoc === 'Đã cọc' ? `
+            ${details.trangThaiCoc === 'Đã cọc' && details.tienCoc > 0 ? `
               <div class="total-row" style="color: #000;">
-                <span>Đã trừ tiền đặt cọc:</span>
+                <span>Tiền cọc (Đã thanh toán):</span>
                 <span>-${details.tienCoc.toLocaleString('vi-VN')} đ</span>
+              </div>
+            ` : ''}
+            ${(details.tongThanhToan || 0) > (details.trangThaiCoc === 'Đã cọc' ? details.tienCoc : 0) ? `
+              <div class="total-row" style="color: #000;">
+                <span>Đã thanh toán bổ sung:</span>
+                <span>-${(details.tongThanhToan - (details.trangThaiCoc === 'Đã cọc' ? details.tienCoc : 0)).toLocaleString('vi-VN')} đ</span>
               </div>
             ` : ''}
             <div class="total-row" style="font-weight: bold; font-size: 15px; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">
@@ -275,15 +297,82 @@ const WaiterPage = () => {
         }
     }, []);
 
+    const fetchUpcoming = useCallback(async () => {
+        setUpcomingLoading(true);
+        try {
+            const res = await axios.get(`${BASE_URL}/api/donhang/waiter/upcoming`);
+            setUpcomingOrders(res.data);
+        } catch (err) {
+            console.error('Lỗi tải đơn sắp tới:', err);
+        } finally {
+            setUpcomingLoading(false);
+        }
+    }, []);
+
+    const fetchTables = useCallback(async () => {
+        setTablesLoading(true);
+        try {
+            const res = await axios.get(`${BASE_URL}/api/ban/`);
+            setTables(res.data);
+        } catch (err) {
+            console.error('Lỗi tải danh sách bàn:', err);
+        } finally {
+            setTablesLoading(false);
+        }
+    }, []);
+
+    const fetchTimeline = useCallback(async (date) => {
+        setTimelineLoading(true);
+        try {
+            const res = await axios.get(`${BASE_URL}/api/datban/timeline?ngay=${date}`);
+            const formattedTables = (res.data.tables || []).map(t => {
+                return {
+                    id_ban: t.table.id_ban,
+                    tenBan: t.table.tenBan,
+                    sucChua: t.table.sucChua,
+                    slots: t.slots.map(s => {
+                        const dateObj = new Date(s.batDau);
+                        const timeStr = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                        let statusStr = 'available';
+                        if (s.trangThai === 'Trống') statusStr = 'available';
+                        else if (s.trangThai === 'Đã đặt' || s.trangThai === 'Chờ xác nhận') statusStr = 'warning';
+                        else statusStr = 'occupied';
+                        
+                        // Extract reservation details if available
+                        let khachName = null;
+                        let soNguoi = null;
+                        if (s.id_datBan) {
+                            khachName = `Đơn #${s.id_datBan}`;
+                            // If we had soNguoi in slot, we could set it, else null
+                        }
+
+                        return {
+                            time: timeStr,
+                            status: statusStr,
+                            khach: khachName,
+                            soNguoi: soNguoi
+                        };
+                    })
+                };
+            });
+            setTimeline(formattedTables);
+        } catch (err) {
+            console.error('Lỗi tải lịch trình bàn:', err);
+        } finally {
+            setTimelineLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (!authLoading && user) { fetchOrders(); fetchShift(); }
     }, [user, authLoading, fetchOrders, fetchShift]);
 
     useEffect(() => {
-        if (!autoRefresh || activeTab !== 'active') return;
-        const interval = setInterval(fetchOrders, 20000);
+        if (!autoRefresh || (activeTab !== 'active' && activeTab !== 'upcoming')) return;
+        const fn = activeTab === 'active' ? fetchOrders : fetchUpcoming;
+        const interval = setInterval(fn, 20000);
         return () => clearInterval(interval);
-    }, [autoRefresh, activeTab, fetchOrders]);
+    }, [autoRefresh, activeTab, fetchOrders, fetchUpcoming]);
 
     const updateOrderStatus = async (id_donHang, newStatus) => {
         if (shiftData && shiftData.trangThai !== 'Đang làm') {
@@ -320,7 +409,9 @@ const WaiterPage = () => {
     const isShiftOff = shiftData && shiftData.trangThai !== 'Đang làm';
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--canvas)' }}>
+        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--canvas)' }}>
+            {/* Main content */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {/* Sub-header */}
             <div style={{ background: 'var(--canvas)', borderBottom: '1px solid rgba(94,106,210,0.18)', padding: '0.6rem 2rem', position: 'sticky', top: '60px', zIndex: 40, backdropFilter: 'blur(8px)' }}>
                 <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -356,7 +447,22 @@ const WaiterPage = () => {
                         <div style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', color: '#fb923c', fontSize: '0.78rem', fontWeight: '700' }}>{cookingCount} đang nấu</div>
                         <div style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.78rem', fontWeight: '700' }}>{readyCount} sẵn sàng</div>
                         <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
-                        <button onClick={() => setAutoRefresh(v => !v)} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: `1px solid ${autoRefresh ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.12)'}`, background: autoRefresh ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)', color: autoRefresh ? '#34d399' : 'rgba(255,255,255,0.35)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>
+                        <button
+                            onClick={() => setShowChatPanel(!showChatPanel)}
+                            title="Chat với khách hàng"
+                            style={{
+                                padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)',
+                                border: `1px solid ${showChatPanel ? 'rgba(16,185,129,0.4)' : 'var(--hairline)'}`,
+                                background: showChatPanel ? 'rgba(16,185,129,0.1)' : 'var(--surface-soft)',
+                                color: showChatPanel ? '#34d399' : 'var(--muted)',
+                                fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '0.3rem',
+                            }}
+                        >
+                            <MessageSquare size={14} /> Chat
+                        </button>
+                        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
+                        <button onClick={() => setAutoRefresh(v => !v)} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: `1px solid ${autoRefresh ? 'rgba(52,211,153,0.4)' : 'var(--hairline)'}`, background: autoRefresh ? 'rgba(52,211,153,0.1)' : 'var(--surface-soft)', color: autoRefresh ? '#34d399' : 'var(--muted)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}>
                             {autoRefresh ? '● Auto ON' : '○ Auto OFF'}
                         </button>
                         <button onClick={fetchOrders} style={{ padding: '0.3rem 0.75rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.12)', color: '#34d399', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}>
@@ -369,9 +475,12 @@ const WaiterPage = () => {
             {/* Content */}
             <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '1.5rem 2rem' }}>
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                     {[
                         { key: 'active', label: `Đơn đang phục vụ (${orders.length})` },
+                        { key: 'upcoming', label: `Đơn sắp tới (${upcomingOrders.length})` },
+                        { key: 'tables', label: 'Sơ đồ bàn' },
+                        { key: 'schedule', label: 'Lịch trình' },
                         { key: 'history', label: 'Lịch sử đơn phục vụ' },
                         { key: 'shifts', label: 'Lịch sử ca làm' },
                     ].map(tab => (
@@ -379,8 +488,22 @@ const WaiterPage = () => {
                             setActiveTab(tab.key);
                             if (tab.key === 'history') fetchHistory();
                             if (tab.key === 'shifts') fetchPersonalShifts();
+                            if (tab.key === 'upcoming') fetchUpcoming();
+                            if (tab.key === 'tables') fetchTables();
+                            if (tab.key === 'schedule') fetchTimeline(scheduleDate);
                         }}
-                            style={{ padding: '0.55rem 1.4rem', borderRadius: 'var(--rounded-pill)', border: activeTab === tab.key ? 'none' : '1px solid var(--hairline)', background: activeTab === tab.key ? 'var(--primary)' : 'var(--surface-card)', color: activeTab === tab.key ? '#fff' : 'var(--muted)', fontWeight: '700', fontSize: '0.875rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: activeTab === tab.key ? '0 4px 14px rgba(94,106,210,0.3)' : 'none' }}>
+                            style={{
+                                padding: '0.6rem 1.5rem',
+                                borderRadius: 'var(--rounded-pill)',
+                                border: activeTab === tab.key ? 'none' : '1px solid var(--hairline)',
+                                background: activeTab === tab.key ? 'var(--primary)' : 'var(--surface-card)',
+                                color: activeTab === tab.key ? '#fff' : 'var(--muted)',
+                                fontWeight: '700',
+                                fontSize: '0.9rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: activeTab === tab.key ? '0 4px 14px rgba(249,115,22,0.3)' : 'none'
+                            }}>
                             {tab.label}
                         </button>
                     ))}
@@ -512,6 +635,39 @@ const WaiterPage = () => {
                                                 </div>
                                             )}
 
+                                            {/* Payment summary khi expand */}
+                                            {isExpanded && (() => {
+                                                const orderTotal = order.chi_tiet.reduce((sum, item) => sum + (item.giaTaiThoiDiemBan || 0) * (item.soLuong || 0), 0);
+                                                const daCoc = order.trangThaiCoc === 'Đã cọc' ? (order.tienCoc || 0) : 0;
+                                                const daThanhToan = Math.max(daCoc, order.tongThanhToan || 0);
+                                                const tienThua = Math.max(0, daThanhToan - orderTotal);
+                                                const conLai = Math.max(0, orderTotal - daThanhToan);
+                                                return (
+                                                    <div style={{ margin: '0 1.25rem 0.75rem', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                            <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>Tổng hóa đơn:</span>
+                                                            <strong style={{ color: 'var(--ink)' }}>{fmtMoney(orderTotal)}</strong>
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                            <span style={{ color: 'var(--muted)' }}>Khách đã trả{daCoc > 0 ? ' (gồm cọc)' : ''}:</span>
+                                                            <strong style={{ color: '#34d399' }}>{fmtMoney(daThanhToan)}</strong>
+                                                        </div>
+                                                        {tienThua > 0 && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', borderRadius: '0.6rem', background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.3)' }}>
+                                                                <span style={{ fontSize: '0.82rem', color: '#f97316', fontWeight: '700' }}>⚠ Tiền thừa cần trả lại:</span>
+                                                                <strong style={{ color: '#f97316' }}>{fmtMoney(tienThua)}</strong>
+                                                            </div>
+                                                        )}
+                                                        {conLai > 0 && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                                <span style={{ color: 'var(--muted)' }}>Còn cần thu:</span>
+                                                                <strong style={{ color: '#f87171' }}>{fmtMoney(conLai)}</strong>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+
                                             {/* Action footer */}
                                             <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--hairline)', background: 'var(--surface-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                 <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
@@ -531,13 +687,13 @@ const WaiterPage = () => {
                                                         <button onClick={() => updateOrderStatus(order.id_donHang, 'Đã phục vụ')} disabled={isUpdating || isShiftOff}
                                                             title={isShiftOff ? 'Vui lòng vào ca để phục vụ' : ''}
                                                             style={{ padding: '0.4rem 1rem', borderRadius: 'var(--rounded-pill)', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'var(--brand-teal)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(16,185,129,0.3)', transition: 'all 0.2s' }}>
-                                                            {isUpdating ? '...' : '✓ Đã phục vụ'}
+                                                            {isUpdating ? '...' : ' Đã phục vụ'}
                                                         </button>
                                                     )}
                                                     {/* Nút thanh toán hoặc hoàn tất trực tiếp nếu đã thanh toán trả trước (0đ) */}
                                                     {(() => {
                                                         const orderTotal = order.chi_tiet.reduce((sum, item) => sum + item.giaTaiThoiDiemBan * item.soLuong, 0);
-                                                        const finalBalance = orderTotal - (order.trangThaiCoc === 'Đã cọc' ? order.tienCoc : 0);
+                                                        const finalBalance = orderTotal - Math.max(order.trangThaiCoc === 'Đã cọc' ? order.tienCoc : 0, order.tongThanhToan || 0);
                                                         const isPrepaid = finalBalance <= 0;
 
                                                         if (order.isMyOrder && order.tinhTrang === 'Đã phục vụ') {
@@ -549,7 +705,7 @@ const WaiterPage = () => {
                                                                 }} disabled={isUpdating || isShiftOff}
                                                                     title={isShiftOff ? 'Vui lòng vào ca để hoàn tất' : ''}
                                                                     style={{ padding: '0.4rem 1rem', borderRadius: 'var(--rounded-pill)', border: 'none', background: isShiftOff ? 'rgba(255,255,255,0.08)' : 'var(--brand-teal)', color: isShiftOff ? 'rgba(255,255,255,0.25)' : '#fff', fontWeight: '700', fontSize: '0.78rem', cursor: (isUpdating || isShiftOff) ? 'not-allowed' : 'pointer', opacity: isUpdating ? 0.6 : 1, boxShadow: isShiftOff ? 'none' : '0 4px 12px rgba(16,185,129,0.3)', transition: 'all 0.2s' }}>
-                                                                    {isUpdating ? '...' : '✓ Hoàn tất đơn'}
+                                                                    {isUpdating ? '...' : ' Hoàn tất đơn'}
                                                                 </button>
                                                             ) : (
                                                                 <button onClick={() => handleOpenCheckout(order)} disabled={isUpdating || isShiftOff}
@@ -656,10 +812,37 @@ const WaiterPage = () => {
                                                 })}
 
                                                 {/* Bill Total in Expanded view */}
-                                                <div style={{ borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 'bold' }}>TỔNG HÓA ĐƠN:</span>
-                                                    <strong style={{ fontSize: '1rem', color: '#10b981' }}>{fmtMoney(order.tongTien)}</strong>
-                                                </div>
+                                                {(() => {
+                                                    const orderTotal = order.tongTien || (order.chi_tiet || []).reduce((sum, item) => sum + (item.giaTaiThoiDiemBan || 0) * (item.soLuong || 0), 0);
+                                                    const daCoc = order.trangThaiCoc === 'Đã cọc' ? (order.tienCoc || 0) : 0;
+                                                    const daThanhToan = Math.max(daCoc, order.tongThanhToan || 0);
+                                                    const tienThua = Math.max(0, daThanhToan - orderTotal);
+                                                    const conLai = Math.max(0, orderTotal - daThanhToan);
+                                                    return (
+                                                        <div style={{ borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 'bold' }}>TỔNG HÓA ĐƠN:</span>
+                                                                <strong style={{ fontSize: '1rem', color: '#10b981' }}>{fmtMoney(orderTotal)}</strong>
+                                                            </div>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                                <span style={{ color: 'var(--muted)' }}>Khách đã trả{daCoc > 0 ? ' (gồm cọc)' : ''}:</span>
+                                                                <strong style={{ color: '#34d399' }}>{fmtMoney(daThanhToan)}</strong>
+                                                            </div>
+                                                            {tienThua > 0 && (
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.6rem', background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.3)' }}>
+                                                                    <span style={{ fontSize: '0.82rem', color: '#f97316', fontWeight: '700' }}>⚠ Tiền thừa cần trả lại:</span>
+                                                                    <strong style={{ color: '#f97316' }}>{fmtMoney(tienThua)}</strong>
+                                                                </div>
+                                                            )}
+                                                            {conLai > 0 && (
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                                    <span style={{ color: 'var(--muted)' }}>Còn cần thu:</span>
+                                                                    <strong style={{ color: '#f87171' }}>{fmtMoney(conLai)}</strong>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         )}
 
@@ -745,6 +928,246 @@ const WaiterPage = () => {
                         </div>
                     )
                 )}
+
+                {/* Upcoming orders tab */}
+                {activeTab === 'upcoming' && (
+                    upcomingLoading ? (
+                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                            Đang tải đơn sắp tới...
+                        </div>
+                    ) : upcomingOrders.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
+                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
+                            <h2 style={{ margin: '0 0 0.5rem' }}>Không có đơn đặt trước</h2>
+                            <p style={{ color: 'var(--muted)', margin: 0 }}>Hiện chưa có khách nào đặt trước cho hôm nay.</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
+                            {upcomingOrders.map(order => {
+                                const isArriving = order.soPhutConLai <= 30;
+                                const isOverdue = order.soPhutConLai <= 0;
+                                let remainingText = '';
+                                if (isOverdue) {
+                                    remainingText = 'Đã quá giờ';
+                                } else {
+                                    if (order.soPhutConLai >= 60) {
+                                        const h = Math.floor(order.soPhutConLai / 60);
+                                        const m = order.soPhutConLai % 60;
+                                        remainingText = `Còn ${h}h` + (m > 0 ? `${m}p` : '');
+                                    } else {
+                                        remainingText = `Còn ${order.soPhutConLai} phút`;
+                                    }
+                                }
+                                return (
+                                    <div key={order.id_donHang} style={{
+                                        background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)',
+                                        border: isOverdue ? '1.5px solid rgba(239,68,68,0.5)' : isArriving ? '1.5px solid rgba(234,179,8,0.5)' : '1px solid var(--hairline)',
+                                        overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                                    }}>
+                                        {/* Header */}
+                                        <div style={{ padding: '1rem 1.25rem', background: isOverdue ? 'rgba(239,68,68,0.07)' : isArriving ? 'rgba(234,179,8,0.07)' : 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                                                    <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--ink)' }}>
+                                                        {order.tenBan || (order.id_ban ? `Bàn ${order.id_ban}` : 'Chưa xếp bàn')}
+                                                    </span>
+                                                    <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
+                                                    {order.trangThaiCoc === 'Đã cọc' && (
+                                                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '0.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.68rem', fontWeight: '700' }}>Đã cọc</span>
+                                                    )}
+                                                </div>
+                                                {order.tenKhach && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>👤 {order.tenKhach}{order.soDienThoai ? ` · ${order.soDienThoai}` : ''}</div>}
+                                                {order.soNguoi && <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.15rem' }}>👥 {order.soNguoi} người</div>}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: isOverdue ? 'rgba(239,68,68,0.15)' : isArriving ? 'rgba(234,179,8,0.15)' : 'rgba(59,130,246,0.15)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.35)' : isArriving ? 'rgba(234,179,8,0.35)' : 'rgba(59,130,246,0.35)'}`, color: isOverdue ? '#f87171' : isArriving ? '#fbbf24' : '#60a5fa', fontSize: '0.75rem', fontWeight: '700' }}>
+                                                    ⏰ {remainingText}
+                                                </span>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
+                                                    Hẹn {order.thoiGianDen ? new Date(order.thoiGianDen).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Items */}
+                                        <div style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            {order.chi_tiet.map((item, idx) => (
+                                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                                                    {item.hinhAnh && (
+                                                        <div style={{ width: '32px', height: '32px', borderRadius: '0.35rem', overflow: 'hidden', flexShrink: 0 }}>
+                                                            <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                                                        </div>
+                                                    )}
+                                                    <div style={{ flex: 1 }}>
+                                                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--ink)' }}>{item.tenMon}</span>
+                                                        <span style={{ color: 'var(--muted)', fontWeight: '400', marginLeft: '0.35rem' }}>x{item.soLuong}</span>
+                                                    </div>
+                                                    <strong style={{ color: 'var(--ink)', fontSize: '0.82rem' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--hairline)', background: 'var(--surface-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+                                                {order.chi_tiet.length} món{order.ghiChu ? ` · ${order.ghiChu}` : ''}
+                                            </span>
+                                            <strong style={{ color: '#10b981', fontSize: '0.95rem' }}>{fmtMoney(order.tongTien)}</strong>
+                                        </div>
+                                        {order.tienCoc > 0 && (
+                                            <div style={{ padding: '0.4rem 1.25rem', background: 'rgba(16,185,129,0.05)', borderTop: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#34d399' }}>
+                                                <span>Tiền cọc:</span>
+                                                <span>{fmtMoney(order.tienCoc)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                )}
+
+                {/* Tables tab */}
+                {activeTab === 'tables' && (
+                    tablesLoading ? (
+                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                            Đang tải sơ đồ bàn...
+                        </div>
+                    ) : (() => {
+                        const TABLE_STATUS = {
+                            'Trống': { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', color: '#34d399', icon: '🟢' },
+                            'Có khách': { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)', color: '#f87171', icon: '🔴' },
+                            'Đã đặt': { bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.35)', color: '#fbbf24', icon: '🟡' },
+                            'Đang phục vụ': { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.35)', color: '#60a5fa', icon: '🔵' },
+                        };
+                        const grouped = tables.reduce((acc, t) => {
+                            const loc = t.viTri || 'Khác';
+                            if (!acc[loc]) acc[loc] = [];
+                            acc[loc].push(t);
+                            return acc;
+                        }, {});
+                        return (
+                            <div>
+                                {/* Legend */}
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                                    {Object.entries(TABLE_STATUS).map(([status, s]) => (
+                                        <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: s.color, fontWeight: '600' }}>
+                                            <span>{s.icon}</span> {status} ({tables.filter(t => t.trangThai === status).length})
+                                        </div>
+                                    ))}
+                                </div>
+                                {Object.entries(grouped).map(([location, locationTables]) => (
+                                    <div key={location} style={{ marginBottom: '2rem' }}>
+                                        <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--ink)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            📍 {location}
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: '400' }}>({locationTables.length} bàn)</span>
+                                        </h3>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                                            {locationTables.map(table => {
+                                                const s = TABLE_STATUS[table.trangThai] || TABLE_STATUS['Trống'];
+                                                return (
+                                                    <div key={table.id_ban} style={{
+                                                        background: s.bg, border: `1.5px solid ${s.border}`,
+                                                        borderRadius: 'var(--rounded-lg)', padding: '1rem',
+                                                        display: 'flex', flexDirection: 'column', gap: '0.35rem',
+                                                        transition: 'all 0.2s',
+                                                    }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--ink)' }}>{table.tenBan}</span>
+                                                            <span style={{ fontSize: '0.7rem' }}>{s.icon}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Sức chứa: {table.sucChua} người</div>
+                                                        <div style={{ fontSize: '0.72rem', color: s.color, fontWeight: '700', marginTop: '0.15rem' }}>{table.trangThai}</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()
+                )}
+
+                {/* Schedule tab */}
+                {activeTab === 'schedule' && (
+                    <div>
+                        {/* Date picker */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                            <button onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() - 1); const ds = d.toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
+                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--muted)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>← Hôm trước</button>
+                            <input type="date" value={scheduleDate} onChange={e => { setScheduleDate(e.target.value); fetchTimeline(e.target.value); }}
+                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--ink)', fontSize: '0.85rem', fontWeight: '600' }} />
+                            <button onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() + 1); const ds = d.toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
+                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--muted)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>Hôm sau →</button>
+                            <button onClick={() => { const ds = new Date().toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
+                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.12)', color: '#34d399', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>Hôm nay</button>
+                        </div>
+
+                        {timelineLoading ? (
+                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
+                                <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
+                                Đang tải lịch trình...
+                            </div>
+                        ) : !timeline || timeline.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
+                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
+                                <h2 style={{ margin: '0 0 0.5rem' }}>Không có dữ liệu lịch trình</h2>
+                                <p style={{ color: 'var(--muted)', margin: 0 }}>Chưa có đặt bàn nào cho ngày này.</p>
+                            </div>
+                        ) : (
+                            <div style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--surface-soft)' }}>
+                                                <th style={{ padding: '0.75rem 1rem', fontSize: '0.82rem', fontWeight: '700', color: 'var(--muted)', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface-soft)', zIndex: 1 }}>Bàn</th>
+                                                {timeline.length > 0 && timeline[0].slots && timeline[0].slots.map((slot, idx) => (
+                                                    <th key={idx} style={{ padding: '0.75rem 0.5rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--muted)', textAlign: 'center', minWidth: '100px' }}>
+                                                        {slot.time}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {timeline.map(row => (
+                                                <tr key={row.id_ban} style={{ borderBottom: '1px solid var(--hairline)' }}>
+                                                    <td style={{ padding: '0.65rem 1rem', fontWeight: '700', fontSize: '0.85rem', color: 'var(--ink)', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: 'var(--surface-card)', zIndex: 1 }}>
+                                                        {row.tenBan}
+                                                        <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: '400' }}>{row.sucChua} người</div>
+                                                    </td>
+                                                    {row.slots && row.slots.map((slot, idx) => {
+                                                        const SLOT_STYLE = {
+                                                            'available': { bg: 'transparent', color: 'var(--muted)', label: '' },
+                                                            'occupied': { bg: 'rgba(239,68,68,0.12)', color: '#f87171', label: '🔴' },
+                                                            'blocked': { bg: 'rgba(234,179,8,0.12)', color: '#fbbf24', label: '🟡' },
+                                                            'warning': { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', label: '🟠' },
+                                                        };
+                                                        const ss = SLOT_STYLE[slot.status] || SLOT_STYLE['available'];
+                                                        return (
+                                                            <td key={idx} style={{ padding: '0.4rem', textAlign: 'center', background: ss.bg, fontSize: '0.72rem', color: ss.color, fontWeight: slot.status !== 'available' ? '600' : '400' }}>
+                                                                {slot.khach ? (
+                                                                    <div title={`${slot.khach} - ${slot.soNguoi || ''} người`}>
+                                                                        <div>{ss.label} {slot.khach}</div>
+                                                                        {slot.soNguoi && <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{slot.soNguoi} người</div>}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span style={{ opacity: 0.3 }}>—</span>
+                                                                )}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* MODAL THU NGÂN / CHEKOUT CHO PHỤC VỤ */}
@@ -809,24 +1232,52 @@ const WaiterPage = () => {
                                             <span>{fmtMoney(checkoutDetails.tongTien)}</span>
                                         </div>
 
-                                        {checkoutDetails.tienCoc > 0 && checkoutDetails.trangThaiCoc === 'Đã cọc' && (
+                                        {checkoutDetails.trangThaiCoc === 'Đã cọc' && checkoutDetails.tienCoc > 0 && (
                                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#10b981' }}>
-                                                <span>Khấu trừ tiền cọc bàn:</span>
+                                                <span>Tiền cọc (Đã thanh toán):</span>
                                                 <strong>-{fmtMoney(checkoutDetails.tienCoc)}</strong>
                                             </div>
                                         )}
+                                        {checkoutDetails.tongThanhToan > (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0) && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#10b981' }}>
+                                                <span>Đã thanh toán bổ sung:</span>
+                                                <strong>-{fmtMoney(checkoutDetails.tongThanhToan - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0))}</strong>
+                                            </div>
+                                        )}
 
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                                            <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>CẦN THU CỦA KHÁCH:</span>
-                                            <strong style={{ fontSize: '1.3rem', color: 'var(--primary)', textShadow: '0 0 10px rgba(249,115,22,0.2)' }}>
-                                                {fmtMoney(checkoutDetails.tongTien - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0))}
-                                            </strong>
-                                        </div>
+                                        {(() => {
+                                            const totalPaid = Math.max(checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0, checkoutDetails.tongThanhToan || 0);
+                                            const finalAmount = Math.max(0, checkoutDetails.tongTien - totalPaid);
+                                            const overpaidAmount = Math.max(0, totalPaid - checkoutDetails.tongTien);
+
+                                            if (overpaidAmount > 0) {
+                                                return (
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                                                        <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ef4444' }}>CẦN HOÀN TIỀN MẶT:</span>
+                                                        <strong style={{ fontSize: '1.3rem', color: '#ef4444', textShadow: '0 0 10px rgba(239,68,68,0.2)' }}>
+                                                            {fmtMoney(overpaidAmount)}
+                                                        </strong>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>CẦN THU CỦA KHÁCH:</span>
+                                                    <strong style={{ fontSize: '1.3rem', color: 'var(--primary)', textShadow: '0 0 10px rgba(249,115,22,0.2)' }}>
+                                                        {fmtMoney(finalAmount)}
+                                                    </strong>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* VietQR Dynamic Code Display */}
                                     {(() => {
-                                        const finalAmount = checkoutDetails.tongTien - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0);
+                                        const totalPaid = Math.max(checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0, checkoutDetails.tongThanhToan || 0);
+                                        const finalAmount = Math.max(0, checkoutDetails.tongTien - totalPaid);
+                                        if (finalAmount <= 0) return null; // Ẩn QR code nếu không cần thanh toán thêm
+
                                         const addInfo = `THANH TOAN DH${checkoutDetails.id_donHang}`;
                                         return (
                                             <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', borderRadius: 'var(--rounded-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
@@ -874,6 +1325,18 @@ const WaiterPage = () => {
                     </div>
                 </div>
             )}
+            </div> {/* End main content */}
+
+            {/* Chat Panel (slide t\u1eeb ph\u1ea3i) */}
+            <div style={{
+                width: showChatPanel ? '360px' : '0',
+                flexShrink: 0,
+                overflow: 'hidden',
+                transition: 'width 0.3s ease',
+                borderLeft: showChatPanel ? '1px solid var(--border)' : 'none',
+            }}>
+                {showChatPanel && <StaffChatPanel />}
+            </div>
         </div>
     );
 };

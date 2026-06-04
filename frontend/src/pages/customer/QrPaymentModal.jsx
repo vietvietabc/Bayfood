@@ -1,11 +1,12 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { formatCurrency } from './customerDashboardUtils';
 
 const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) => {
     if (!qrModal) return null;
 
-    return (
+    return createPortal(
         <div
             onClick={() => setQrModal(null)}
             style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
@@ -54,7 +55,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: 'var(--text)' }}>9704198526191432198</strong>
                                 <button onClick={() => handleCopyText('9704198526191432198', 'stk')} aria-label="Sao chép số tài khoản" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
-                                    {copiedField === 'stk' ? '✓ Đã chép' : 'Sao chép'}
+                                    {copiedField === 'stk' ? ' Đã chép' : 'Sao chép'}
                                 </button>
                             </div>
                         </div>
@@ -69,7 +70,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: '#f97316', fontSize: '1rem' }}>{formatCurrency(qrModal.amount)}</strong>
                                 <button onClick={() => handleCopyText(qrModal.amount.toString(), 'amount')} aria-label="Sao chép số tiền chuyển" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
-                                    {copiedField === 'amount' ? '✓ Đã chép' : 'Sao chép'}
+                                    {copiedField === 'amount' ? ' Đã chép' : 'Sao chép'}
                                 </button>
                             </div>
                         </div>
@@ -79,7 +80,7 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                 <strong style={{ color: 'var(--text)', fontSize: '0.85rem', wordBreak: 'break-all' }}>{qrModal.addInfo}</strong>
                                 <button onClick={() => handleCopyText(qrModal.addInfo, 'info')} aria-label="Sao chép nội dung chuyển" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '0.25rem', padding: '0.15rem 0.3rem', fontSize: '0.7rem', cursor: 'pointer' }}>
-                                    {copiedField === 'info' ? '✓ Đã chép' : 'Sao chép'}
+                                    {copiedField === 'info' ? ' Đã chép' : 'Sao chép'}
                                 </button>
                             </div>
                         </div>
@@ -93,7 +94,8 @@ const QrPaymentModal = ({ qrModal, setQrModal, copiedField, handleCopyText }) =>
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

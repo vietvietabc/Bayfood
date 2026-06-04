@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../utils/axiosSetup';
-import { Eye, X, Calendar, User, Info, DollarSign, Table } from 'lucide-react';
+import { Eye, X, Calendar, User, Info, DollarSign, Table, Search } from 'lucide-react';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const fmt = (d) => d ? new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -27,6 +27,7 @@ const AdminReservations = () => {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('Tất cả');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Detail modal state
   const [detailModal, setDetailModal] = useState(null);
@@ -94,14 +95,43 @@ const AdminReservations = () => {
   };
 
   const statusOptions = ['Tất cả', 'Chờ xác nhận', 'Đã xác nhận', 'Đã checkin', 'Vắng mặt', 'Hoàn thành', 'Đã hủy'];
-  const filtered = filterStatus === 'Tất cả' ? reservations : reservations.filter(r => r.trangThai === filterStatus);
+  const filtered = useMemo(() => {
+    let list = filterStatus === 'Tất cả' ? reservations : reservations.filter(r => r.trangThai === filterStatus);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(r =>
+        String(r.id_datBan).includes(q) ||
+        (r.tenKhachHang || '').toLowerCase().includes(q) ||
+        String(r.id_nguoiDung).includes(q) ||
+        (r.id_ban ? `bàn ${r.id_ban}` : '').toLowerCase().includes(q) ||
+        (r.tenBan || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [reservations, filterStatus, searchQuery]);
 
   return (
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <h1 style={{ fontSize: '2rem', margin: 0 }}>Quản lý đặt bàn</h1>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Tìm mã đặt bàn, tên khách..."
+              style={{
+                padding: '0.4rem 0.875rem 0.4rem 2.2rem', borderRadius: '999px',
+                border: '1px solid var(--border)', background: 'var(--surface-light)',
+                color: 'var(--text)', fontSize: '0.8rem', outline: 'none', width: '200px'
+              }}
+            />
+          </div>
+          {/* Status pills */}
           {statusOptions.map(s => (
             <button key={s} onClick={() => setFilterStatus(s)} style={{
               padding: '0.4rem 0.875rem', borderRadius: '999px',
@@ -135,8 +165,15 @@ const AdminReservations = () => {
                 return (
                   <tr key={res.id_datBan} style={{ borderBottom: '1px solid var(--border)', background: res.trangThai === 'Vắng mặt' ? 'rgba(239,68,68,0.04)' : 'transparent' }}>
                     <td style={{ padding: '0.875rem 1rem', fontWeight: 'bold' }}>#DB{res.id_datBan}</td>
-                    <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>KH{res.id_nguoiDung}</td>
-                    <td style={{ padding: '0.875rem 1rem' }}>{res.id_ban ? `Bàn ${res.id_ban}` : <span style={{ color: 'var(--text-muted)' }}>Chưa xếp</span>}</td>
+                    <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>
+                      {res.tenKhachHang
+                        ? <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{res.tenKhachHang}</span>
+                        : <span>KH{res.id_nguoiDung}</span>
+                      }
+                    </td>
+                    <td style={{ padding: '0.875rem 1rem' }}>
+                      {res.tenBan || (res.id_ban ? `Bàn ${res.id_ban}` : <span style={{ color: 'var(--text-muted)' }}>Chưa xếp</span>)}
+                    </td>
                     <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap', color: isPast && res.trangThai !== 'Đã checkin' && res.trangThai !== 'Hoàn thành' ? '#ef4444' : 'inherit' }}>{fmt(res.thoiGianDen)}</td>
                     <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap', color: '#059669' }}>{fmt(res.thoiGianDenThucTe)}</td>
                     <td style={{ padding: '0.875rem 1rem' }}>{res.soNguoi} người</td>
@@ -274,6 +311,35 @@ const AdminReservations = () => {
                   </div>
                 </div>
               </div>
+
+              {(() => {
+                let refundableAmount = null;
+                let isFullDeposit = false;
+                let penalty = 0;
+                if (detailModal.trangThai === 'Vắng mặt' && detailModal.trangThaiCoc === 'Mất cọc' && linkedOrderData && linkedOrderData.chi_tiet) {
+                  const billTotal = linkedOrderData.chi_tiet.reduce((s, i) => s + i.giaTaiThoiDiemBan * i.soLuong, 0);
+                  if (billTotal > 0 && detailModal.tienCoc >= billTotal) {
+                    isFullDeposit = true;
+                    penalty = Math.ceil(billTotal * 0.1) + 50000;
+                    refundableAmount = Math.max(0, detailModal.tienCoc - penalty);
+                  }
+                }
+                if (!isFullDeposit) return null;
+                return (
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', background: 'rgba(59,130,246,0.1)', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(59,130,246,0.2)', gridColumn: '1 / -1' }}>
+                    <DollarSign size={18} style={{ color: '#3b82f6', marginTop: '0.15rem' }} />
+                    <div>
+                      <div style={{ fontSize: '0.78rem', color: '#3b82f6' }}>Tiền có thể nhận lại</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#1d4ed8' }}>
+                        {fmtMoney(refundableAmount)}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                        (Hoàn phần còn lại sau khi trừ 10% món ăn và phí giữ bàn 50.000đ)
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Note Section */}

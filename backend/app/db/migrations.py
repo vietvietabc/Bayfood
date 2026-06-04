@@ -103,3 +103,22 @@ def run_migrations() -> None:
                     except Exception as e2:
                         print(f"Migration error (tienCocMacDinh): {e} / {e2}")
 
+    # Drop old tables to migrate to Vietnamese tables
+    if inspector.has_table("PENDING_ORDER") or inspector.has_table("PENDING_ORDER_EDIT"):
+        with engine.begin() as connection:
+            try:
+                if inspector.has_table("PENDING_ORDER"):
+                    connection.execute(text('DROP TABLE "PENDING_ORDER"'))
+                if inspector.has_table("PENDING_ORDER_EDIT"):
+                    connection.execute(text('DROP TABLE "PENDING_ORDER_EDIT"'))
+                print("Migration: Dropped old pending order tables successfully!")
+            except Exception as e:
+                try:
+                    if inspector.has_table("PENDING_ORDER"):
+                        connection.execute(text('DROP TABLE PENDING_ORDER'))
+                    if inspector.has_table("PENDING_ORDER_EDIT"):
+                        connection.execute(text('DROP TABLE PENDING_ORDER_EDIT'))
+                    print("Migration: Dropped old pending order tables (unquoted) successfully!")
+                except Exception as e2:
+                    print(f"Migration error (Drop old pending tables): {e} / {e2}")
+
