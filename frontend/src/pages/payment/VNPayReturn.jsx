@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useCart } from '../../context/CartContext';
 
 const VNPayReturn = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const { clearCart, setEditingOrderId } = useCart();
 
     // Params từ backend redirect (luồng mới)
     const status = searchParams.get('status');
@@ -110,6 +112,14 @@ const VNPayReturn = () => {
             : 'Không nhận được kết quả thanh toán. Vui lòng kiểm tra lịch sử đặt hàng.',
     };
 
+    // Xóa giỏ hàng và trạng thái chỉnh sửa khi thanh toán thành công
+    useEffect(() => {
+        if (isSuccess) {
+            clearCart();
+            setEditingOrderId(null);
+        }
+    }, [isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Auto redirect về account sau 8 giây nếu thành công
     const [countdown, setCountdown] = useState(isSuccess ? 8 : null);
     useEffect(() => {
@@ -122,6 +132,21 @@ const VNPayReturn = () => {
         }, 1000);
         return () => clearInterval(t);
     }, [isSuccess, navigate]);
+
+    // Capture the time once so it doesn't tick every second on re-render
+    const [paymentTime] = useState(() => {
+        const vnpPayDate = searchParams.get('vnp_PayDate');
+        if (vnpPayDate && vnpPayDate.length === 14) {
+            const y = vnpPayDate.substring(0, 4);
+            const mo = vnpPayDate.substring(4, 6);
+            const d = vnpPayDate.substring(6, 8);
+            const h = vnpPayDate.substring(8, 10);
+            const m = vnpPayDate.substring(10, 12);
+            const s = vnpPayDate.substring(12, 14);
+            return `${h}:${m}:${s} ${d}/${mo}/${y}`;
+        }
+        return new Date().toLocaleString('vi-VN');
+    });
 
     return (
         <div style={{
@@ -164,7 +189,7 @@ const VNPayReturn = () => {
                         )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Thời gian</span>
-                            <strong style={{ fontSize: '0.9rem' }}>{new Date().toLocaleString('vi-VN')}</strong>
+                            <strong style={{ fontSize: '0.9rem' }}>{paymentTime}</strong>
                         </div>
                     </div>
                 )}

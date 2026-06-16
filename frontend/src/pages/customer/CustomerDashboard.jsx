@@ -340,140 +340,140 @@ const OverviewTab = ({ user, orders, reservations, activeOrders, activeReservati
 const ReservationsTab = ({ reservations, orders, checkinLoadingId, handleCheckin, handleViewReservation, handleVNPayPayment, setQrModal }) => {
     const [filter, setFilter] = React.useState('Tất cả');
     const STATUSES = ['Tất cả', 'Chờ xác nhận', 'Đã đặt', 'Đã xác nhận', 'Đã checkin', 'Hoàn thành', 'Đã hủy', 'Vắng mặt'];
-    
+
     const filtered = React.useMemo(() => {
         if (filter === 'Tất cả') return reservations;
         return reservations.filter(r => r.trangThai === filter);
     }, [reservations, filter]);
 
     return (
-    <>
-        <div className="cd-section-header" style={{ marginBottom: '1rem' }}>
-            <div>
-                <h2 className="cd-section-title">Lịch sử đặt bàn</h2>
-                <p className="cd-section-desc">Tất cả các lượt đặt bàn của bạn.</p>
+        <>
+            <div className="cd-section-header" style={{ marginBottom: '1rem' }}>
+                <div>
+                    <h2 className="cd-section-title">Lịch sử đặt bàn</h2>
+                    <p className="cd-section-desc">Tất cả các lượt đặt bàn của bạn.</p>
+                </div>
+                <Link to="/reservation" className="cd-section-link">
+                    <CalendarDays size={15} /> Đặt thêm <ChevronRight size={14} />
+                </Link>
             </div>
-            <Link to="/reservation" className="cd-section-link">
-                <CalendarDays size={15} /> Đặt thêm <ChevronRight size={14} />
-            </Link>
-        </div>
 
-        {/* Filter Bar */}
-        {reservations.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'var(--surface-light)', padding: '0.75rem 1rem', borderRadius: '0.85rem', border: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', marginRight: '0.5rem' }}>Lọc trạng thái:</span>
-                {STATUSES.map(s => {
-                    const isActive = filter === s;
-                    const style = s !== 'Tất cả' ? getStatusStyle(s) : { bg: 'rgba(249,115,22,0.1)', color: '#f97316' };
-                    return (
-                        <button
-                            key={s}
-                            onClick={() => setFilter(s)}
-                            style={{
-                                padding: '0.35rem 0.85rem',
-                                borderRadius: '999px',
-                                border: isActive ? `1px solid ${style.color}55` : '1px solid var(--border)',
-                                background: isActive ? style.bg : 'transparent',
-                                color: isActive ? style.color : 'var(--text-muted)',
-                                fontSize: '0.78rem',
-                                fontWeight: isActive ? 700 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {s}
-                        </button>
-                    );
-                })}
-            </div>
-        )}
+            {/* Filter Bar */}
+            {reservations.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'var(--surface-light)', padding: '0.75rem 1rem', borderRadius: '0.85rem', border: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', marginRight: '0.5rem' }}>Lọc trạng thái:</span>
+                    {STATUSES.map(s => {
+                        const isActive = filter === s;
+                        const style = s !== 'Tất cả' ? getStatusStyle(s) : { bg: 'rgba(249,115,22,0.1)', color: '#f97316' };
+                        return (
+                            <button
+                                key={s}
+                                onClick={() => setFilter(s)}
+                                style={{
+                                    padding: '0.35rem 0.85rem',
+                                    borderRadius: '999px',
+                                    border: isActive ? `1px solid ${style.color}55` : '1px solid var(--border)',
+                                    background: isActive ? style.bg : 'transparent',
+                                    color: isActive ? style.color : 'var(--text-muted)',
+                                    fontSize: '0.78rem',
+                                    fontWeight: isActive ? 700 : 500,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                {s}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
-        {filtered.length === 0 ? (
-            <div className="cd-empty">
-                <div className="cd-empty-icon"><CalendarDays size={28} /></div>
-                {filter === 'Tất cả' ? 'Bạn chưa có lịch sử đặt bàn nào.' : `Không có bàn nào ở trạng thái "${filter}".`}
-            </div>
-        ) : (
-            <div className="cd-list">
-                {filtered.map((res, idx) => {
-                    const statusStyle = getStatusStyle(res.trangThai);
-                    return (
-                        <div key={res.id_datBan} className="cd-item" style={{ animationDelay: `${idx * 0.04}s` }}>
-                            <div className="cd-item-head">
-                                <span className="cd-item-id">
-                                    <span className="cd-item-id-hash">#</span>{res.id_datBan}
-                                    <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85rem' }}>
-                                        — Bàn {res.id_ban || 'Chưa chọn'}
-                                    </span>
-                                </span>
-                                <span className="cd-status-badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
-                                    {res.trangThai}
-                                </span>
-                            </div>
-
-                            <div className="cd-item-body">
-                                <span className="cd-item-row"><Clock3 size={14} /> Thời gian: {formatDateTime(res.thoiGianDen)}</span>
-                                <span className="cd-item-row"><MapPinned size={14} /> Đến thực tế: {formatDateTime(res.thoiGianDenThucTe)}</span>
-                                <span className="cd-item-row"><UserCircle2 size={14} /> Số người: {res.soNguoi}</span>
-                                {res.ghiChu && <span className="cd-item-row">📝 Ghi chú: {res.ghiChu}</span>}
-
-                                {res.tienCoc > 0 && (
-                                    <span className="cd-deposit-info">
-                                        <CreditCard size={14} style={{ opacity: 0.5 }} />
-                                        Tiền cọc:&nbsp;
-                                        <strong style={{ color: res.trangThaiCoc === 'Mất cọc' ? '#f87171' : res.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24' }}>
-                                            {Number(res.tienCoc).toLocaleString('vi-VN')} ₫
-                                        </strong>
-                                        <span className="cd-deposit-badge" style={{
-                                            background: res.trangThaiCoc === 'Mất cọc' ? 'rgba(248,113,113,0.12)' : res.trangThaiCoc === 'Đã cọc' ? 'rgba(52,211,153,0.12)' : 'rgba(251,191,36,0.12)',
-                                            color: res.trangThaiCoc === 'Mất cọc' ? '#f87171' : res.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24'
-                                        }}>
-                                            {res.trangThaiCoc}
+            {filtered.length === 0 ? (
+                <div className="cd-empty">
+                    <div className="cd-empty-icon"><CalendarDays size={28} /></div>
+                    {filter === 'Tất cả' ? 'Bạn chưa có lịch sử đặt bàn nào.' : `Không có bàn nào ở trạng thái "${filter}".`}
+                </div>
+            ) : (
+                <div className="cd-list">
+                    {filtered.map((res, idx) => {
+                        const statusStyle = getStatusStyle(res.trangThai);
+                        return (
+                            <div key={res.id_datBan} className="cd-item" style={{ animationDelay: `${idx * 0.04}s` }}>
+                                <div className="cd-item-head">
+                                    <span className="cd-item-id">
+                                        <span className="cd-item-id-hash">#</span>{res.id_datBan}
+                                        <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85rem' }}>
+                                            — Bàn {res.id_ban || 'Chưa chọn'}
                                         </span>
                                     </span>
-                                )}
-
-                                {res.lyDoHuy && <span style={{ color: '#f87171', fontSize: '0.85rem', fontStyle: 'italic' }}>Lý do: {res.lyDoHuy}</span>}
-                                {orders.some(o => o.id_datBan === res.id_datBan) && (
-                                    <span className="cd-item-linked">Đã đặt món đi kèm</span>
-                                )}
-                                {res.soPhutGiuChoConLai != null && res.soPhutGiuChoConLai > 0 && (
-                                    <span className="cd-item-hold-time">
-                                        <Clock3 size={14} /> Giữ chỗ còn lại: {res.soPhutGiuChoConLai} phút
+                                    <span className="cd-status-badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
+                                        {res.trangThai}
                                     </span>
-                                )}
-                            </div>
+                                </div>
 
-                            <div className="cd-item-footer">
-                                {res.tienCoc > 0 && res.trangThaiCoc !== 'Đã cọc' && res.trangThaiCoc !== 'Mất cọc' && res.trangThai !== 'Đã hủy' && res.trangThai !== 'Vắng mặt' && (
-                                    <>
-                                        <button className="cd-btn cd-btn--vnpay" onClick={() => handleVNPayPayment('datban', res.id_datBan, res.tienCoc)}>
-                                            VNPay ({Number(res.tienCoc).toLocaleString('vi-VN')} ₫)
-                                        </button>
-                                        <button className="cd-btn cd-btn--vietqr" onClick={() => setQrModal({ amount: res.tienCoc, addInfo: `DAT BAN DB${res.id_datBan}`, label: `Thanh toán cọc đặt bàn #${res.id_datBan}` })}>
-                                            VietQR ({Number(res.tienCoc).toLocaleString('vi-VN')} ₫)
-                                        </button>
-                                    </>
-                                )}
-                                <button className="cd-btn cd-btn--outline" onClick={() => handleViewReservation(res)}>
-                                    <Eye size={15} /> Chi tiết
-                                </button>
-                                {res.trangThai === 'Đã xác nhận' && (
-                                    <button className="cd-btn cd-btn--checkin" onClick={() => handleCheckin(res.id_datBan)} disabled={checkinLoadingId === res.id_datBan}>
-                                        <MapPinned size={15} /> {checkinLoadingId === res.id_datBan ? 'Đang check-in...' : 'Tôi đã tới bàn'}
+                                <div className="cd-item-body">
+                                    <span className="cd-item-row"><Clock3 size={14} /> Thời gian: {formatDateTime(res.thoiGianDen)}</span>
+                                    <span className="cd-item-row"><MapPinned size={14} /> Đến thực tế: {formatDateTime(res.thoiGianDenThucTe)}</span>
+                                    <span className="cd-item-row"><UserCircle2 size={14} /> Số người: {res.soNguoi}</span>
+                                    {res.ghiChu && <span className="cd-item-row">📝 Ghi chú: {res.ghiChu}</span>}
+
+                                    {res.tienCoc > 0 && (
+                                        <span className="cd-deposit-info">
+                                            <CreditCard size={14} style={{ opacity: 0.5 }} />
+                                            Tiền cọc:&nbsp;
+                                            <strong style={{ color: res.trangThaiCoc === 'Mất cọc' ? '#f87171' : res.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24' }}>
+                                                {Number(res.tienCoc).toLocaleString('vi-VN')} ₫
+                                            </strong>
+                                            <span className="cd-deposit-badge" style={{
+                                                background: res.trangThaiCoc === 'Mất cọc' ? 'rgba(248,113,113,0.12)' : res.trangThaiCoc === 'Đã cọc' ? 'rgba(52,211,153,0.12)' : 'rgba(251,191,36,0.12)',
+                                                color: res.trangThaiCoc === 'Mất cọc' ? '#f87171' : res.trangThaiCoc === 'Đã cọc' ? '#34d399' : '#fbbf24'
+                                            }}>
+                                                {res.trangThaiCoc}
+                                            </span>
+                                        </span>
+                                    )}
+
+                                    {res.lyDoHuy && <span style={{ color: '#f87171', fontSize: '0.85rem', fontStyle: 'italic' }}>Lý do: {res.lyDoHuy}</span>}
+                                    {orders.some(o => o.id_datBan === res.id_datBan) && (
+                                        <span className="cd-item-linked">Đã đặt món đi kèm</span>
+                                    )}
+                                    {res.soPhutGiuChoConLai != null && res.soPhutGiuChoConLai > 0 && (
+                                        <span className="cd-item-hold-time">
+                                            <Clock3 size={14} /> Giữ chỗ còn lại: {res.soPhutGiuChoConLai} phút
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="cd-item-footer">
+                                    {res.tienCoc > 0 && res.trangThaiCoc !== 'Đã cọc' && res.trangThaiCoc !== 'Mất cọc' && res.trangThai !== 'Đã hủy' && res.trangThai !== 'Vắng mặt' && (
+                                        <>
+                                            <button className="cd-btn cd-btn--vnpay" onClick={() => handleVNPayPayment('datban', res.id_datBan, res.tienCoc)}>
+                                                VNPay ({Number(res.tienCoc).toLocaleString('vi-VN')} ₫)
+                                            </button>
+                                            <button className="cd-btn cd-btn--vietqr" onClick={() => setQrModal({ amount: res.tienCoc, addInfo: `DAT BAN DB${res.id_datBan}`, label: `Thanh toán cọc đặt bàn #${res.id_datBan}` })}>
+                                                VietQR ({Number(res.tienCoc).toLocaleString('vi-VN')} ₫)
+                                            </button>
+                                        </>
+                                    )}
+                                    <button className="cd-btn cd-btn--outline" onClick={() => handleViewReservation(res)}>
+                                        <Eye size={15} /> Chi tiết
                                     </button>
-                                )}
-                            </div>
+                                    {res.trangThai === 'Đã xác nhận' && (
+                                        <button className="cd-btn cd-btn--checkin" onClick={() => handleCheckin(res.id_datBan)} disabled={checkinLoadingId === res.id_datBan}>
+                                            <MapPinned size={15} /> {checkinLoadingId === res.id_datBan ? 'Đang check-in...' : 'Tôi đã tới bàn'}
+                                        </button>
+                                    )}
+                                </div>
 
-                            {res.trangThai === 'Chờ xác nhận' && <div className="cd-item-note cd-item-note--pending">Bàn đang chờ admin xác nhận, chưa thể check-in.</div>}
-                            {res.trangThai === 'Đã đặt' && <div className="cd-item-note cd-item-note--booked">Bàn đã được đặt, chờ admin xác nhận trước khi check-in.</div>}
-                            {res.trangThai === 'Đã checkin' && <div className="cd-item-note cd-item-note--checkedin">Đã check-in, admin đã nhận thông báo.</div>}
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-    </>
+                                {res.trangThai === 'Chờ xác nhận' && <div className="cd-item-note cd-item-note--pending">Bàn đang chờ admin xác nhận, chưa thể check-in.</div>}
+                                {res.trangThai === 'Đã đặt' && <div className="cd-item-note cd-item-note--booked">Bàn đã được đặt, chờ admin xác nhận trước khi check-in.</div>}
+                                {res.trangThai === 'Đã checkin' && <div className="cd-item-note cd-item-note--checkedin">Đã check-in, admin đã nhận thông báo.</div>}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </>
     );
 };
 
@@ -481,196 +481,196 @@ const ReservationsTab = ({ reservations, orders, checkinLoadingId, handleCheckin
 /* ── Orders ────────────────────────────────────────────────── */
 const OrdersTab = ({ orders, reservations, checkinLoadingId, handleViewOrder, handleEditOrder, handleCheckinOrder, setShowReviewModal, setReviewForm }) => {
     const [filter, setFilter] = React.useState('Tất cả');
-    const STATUSES = ['Tất cả', 'Chờ xác nhận', 'Chờ khách đến', 'Đang xử lý', 'Đã thanh toán', 'Hoàn thành', 'Đã hủy', 'Vắng mặt'];
-    
+    const STATUSES = ['Tất cả', 'Chờ xác nhận', 'Chờ khách đến', 'Đang xử lý', 'Đã thanh toán', 'Đã hủy', 'Vắng mặt'];
+
     const filtered = React.useMemo(() => {
         if (filter === 'Tất cả') return orders;
         return orders.filter(o => o.tinhTrang === filter);
     }, [orders, filter]);
 
     return (
-    <>
-        <div className="cd-section-header" style={{ marginBottom: '1rem' }}>
-            <div>
-                <h2 className="cd-section-title">Lịch sử đặt món</h2>
-                <p className="cd-section-desc">Xem lại tất cả đơn món và trạng thái xử lý.</p>
+        <>
+            <div className="cd-section-header" style={{ marginBottom: '1rem' }}>
+                <div>
+                    <h2 className="cd-section-title">Lịch sử đặt món</h2>
+                    <p className="cd-section-desc">Xem lại tất cả đơn món và trạng thái xử lý.</p>
+                </div>
+                <Link to="/cart" className="cd-section-link">
+                    <ClipboardList size={15} /> Giỏ hàng <ChevronRight size={14} />
+                </Link>
             </div>
-            <Link to="/cart" className="cd-section-link">
-                <ClipboardList size={15} /> Giỏ hàng <ChevronRight size={14} />
-            </Link>
-        </div>
 
-        {/* Filter Bar */}
-        {orders.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'var(--surface-light)', padding: '0.75rem 1rem', borderRadius: '0.85rem', border: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', marginRight: '0.5rem' }}>Lọc trạng thái:</span>
-                {STATUSES.map(s => {
-                    const isActive = filter === s;
-                    const style = s !== 'Tất cả' ? getStatusStyle(s) : { bg: 'rgba(249,115,22,0.1)', color: '#f97316' };
-                    return (
-                        <button
-                            key={s}
-                            onClick={() => setFilter(s)}
-                            style={{
-                                padding: '0.35rem 0.85rem',
-                                borderRadius: '999px',
-                                border: isActive ? `1px solid ${style.color}55` : '1px solid var(--border)',
-                                background: isActive ? style.bg : 'transparent',
-                                color: isActive ? style.color : 'var(--text-muted)',
-                                fontSize: '0.78rem',
-                                fontWeight: isActive ? 700 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease'
-                            }}
-                        >
-                            {s}
-                        </button>
-                    );
-                })}
-            </div>
-        )}
+            {/* Filter Bar */}
+            {orders.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'var(--surface-light)', padding: '0.75rem 1rem', borderRadius: '0.85rem', border: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', marginRight: '0.5rem' }}>Lọc trạng thái:</span>
+                    {STATUSES.map(s => {
+                        const isActive = filter === s;
+                        const style = s !== 'Tất cả' ? getStatusStyle(s) : { bg: 'rgba(249,115,22,0.1)', color: '#f97316' };
+                        return (
+                            <button
+                                key={s}
+                                onClick={() => setFilter(s)}
+                                style={{
+                                    padding: '0.35rem 0.85rem',
+                                    borderRadius: '999px',
+                                    border: isActive ? `1px solid ${style.color}55` : '1px solid var(--border)',
+                                    background: isActive ? style.bg : 'transparent',
+                                    color: isActive ? style.color : 'var(--text-muted)',
+                                    fontSize: '0.78rem',
+                                    fontWeight: isActive ? 700 : 500,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                {s}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
-        {filtered.length === 0 ? (
-            <div className="cd-empty">
-                <div className="cd-empty-icon"><ClipboardList size={28} /></div>
-                {filter === 'Tất cả' ? 'Bạn chưa có lịch sử đặt món nào.' : `Không có đơn món nào ở trạng thái "${filter}".`}
-            </div>
-        ) : (
-            <div className="cd-list">
-                {filtered.map((order, idx) => {
-                    const statusStyle = getStatusStyle(order.tinhTrang);
-                    const linkedRes = reservations.find(r => r.id_datBan === order.id_datBan);
-                    const depositAmount = linkedRes && linkedRes.tienCoc > 0 ? Number(linkedRes.tienCoc || 0) : 0;
-                    const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
-                    const totalActuallyPaid = Number(order.tongThanhToan || 0);
-                    const effectivePaid = hasPaidDeposit ? Math.max(depositAmount, totalActuallyPaid) : totalActuallyPaid;
-                    const tongTien = Number(order.tongTien || 0);
-                    const remainingAmount = tongTien - effectivePaid;   // âm = trả thừa
-                    const overpaidAmount = remainingAmount < 0 ? Math.abs(remainingAmount) : 0;
-                    const extraPaid = hasPaidDeposit && totalActuallyPaid > depositAmount ? totalActuallyPaid - depositAmount : 0;
+            {filtered.length === 0 ? (
+                <div className="cd-empty">
+                    <div className="cd-empty-icon"><ClipboardList size={28} /></div>
+                    {filter === 'Tất cả' ? 'Bạn chưa có lịch sử đặt món nào.' : `Không có đơn món nào ở trạng thái "${filter}".`}
+                </div>
+            ) : (
+                <div className="cd-list">
+                    {filtered.map((order, idx) => {
+                        const statusStyle = getStatusStyle(order.tinhTrang);
+                        const linkedRes = reservations.find(r => r.id_datBan === order.id_datBan);
+                        const depositAmount = linkedRes && linkedRes.tienCoc > 0 ? Number(linkedRes.tienCoc || 0) : 0;
+                        const hasPaidDeposit = linkedRes && linkedRes.trangThaiCoc === 'Đã cọc';
+                        const totalActuallyPaid = Number(order.tongThanhToan || 0);
+                        const effectivePaid = hasPaidDeposit ? Math.max(depositAmount, totalActuallyPaid) : totalActuallyPaid;
+                        const tongTien = Number(order.tongTien || 0);
+                        const remainingAmount = tongTien - effectivePaid;   // âm = trả thừa
+                        const overpaidAmount = remainingAmount < 0 ? Math.abs(remainingAmount) : 0;
+                        const extraPaid = hasPaidDeposit && totalActuallyPaid > depositAmount ? totalActuallyPaid - depositAmount : 0;
 
-                    return (
-                        <div key={order.id_donHang} className="cd-item" style={{ animationDelay: `${idx * 0.04}s` }}>
-                            <div className="cd-item-head">
-                                <span className="cd-item-id">
-                                    <span className="cd-item-id-hash">#</span>{order.id_donHang}
-                                </span>
-                                <span className="cd-status-badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
-                                    {order.tinhTrang}
-                                </span>
-                            </div>
+                        return (
+                            <div key={order.id_donHang} className="cd-item" style={{ animationDelay: `${idx * 0.04}s` }}>
+                                <div className="cd-item-head">
+                                    <span className="cd-item-id">
+                                        <span className="cd-item-id-hash">#</span>{order.id_donHang}
+                                    </span>
+                                    <span className="cd-status-badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
+                                        {order.tinhTrang}
+                                    </span>
+                                </div>
 
-                            <div className="cd-item-body">
-                                <span className="cd-item-row"><Clock3 size={14} /> Tạo: {formatDateTime(order.thoiGianTao)}</span>
-                                <span className="cd-item-row"><MapPin size={14} /> Bàn: {order.id_ban ? `Bàn ${order.id_ban}` : order.id_datBan ? 'Đã đặt bàn (chờ xếp chỗ)' : 'Chưa đặt bàn'}</span>
-                                {order.thoiGianDen && <span className="cd-item-row"><Clock3 size={14} /> Tới lúc: {formatDateTime(order.thoiGianDen)}</span>}
-                                {order.id_datBan && <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.85rem' }}>Đã đặt kèm bàn #{order.id_datBan}</span>}
+                                <div className="cd-item-body">
+                                    <span className="cd-item-row"><Clock3 size={14} /> Tạo: {formatDateTime(order.thoiGianTao)}</span>
+                                    <span className="cd-item-row"><MapPin size={14} /> Bàn: {order.id_ban ? `Bàn ${order.id_ban}` : order.id_datBan ? 'Đã đặt bàn (chờ xếp chỗ)' : 'Chưa đặt bàn'}</span>
+                                    {order.thoiGianDen && <span className="cd-item-row"><Clock3 size={14} /> Tới lúc: {formatDateTime(order.thoiGianDen)}</span>}
+                                    {order.id_datBan && <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.85rem' }}>Đã đặt kèm bàn #{order.id_datBan}</span>}
 
-                                {/* Billing */}
-                                <div className="cd-billing">
-                                    <div className="cd-billing-row">
-                                        <span>Tổng hóa đơn:</span>
-                                        <strong>{Number(order.tongTien).toLocaleString('vi-VN')} ₫</strong>
+                                    {/* Billing */}
+                                    <div className="cd-billing">
+                                        <div className="cd-billing-row">
+                                            <span>Tổng hóa đơn:</span>
+                                            <strong>{Number(order.tongTien).toLocaleString('vi-VN')} ₫</strong>
+                                        </div>
+                                        {depositAmount > 0 && (
+                                            <>
+                                                <div className="cd-billing-row" style={{ color: hasPaidDeposit ? '#10b981' : '#ca8a04' }}>
+                                                    <span>Tiền cọc {hasPaidDeposit ? '(Đã TT)' : '(Chờ TT)'}:</span>
+                                                    <strong>-{depositAmount.toLocaleString('vi-VN')} ₫</strong>
+                                                </div>
+                                                {extraPaid > 0 && (
+                                                    <div className="cd-billing-row" style={{ color: '#10b981' }}>
+                                                        <span>Đã TT bổ sung:</span>
+                                                        <strong>-{extraPaid.toLocaleString('vi-VN')} ₫</strong>
+                                                    </div>
+                                                )}
+                                                {hasPaidDeposit && (
+                                                    <div className="cd-billing-row" style={{
+                                                        color: remainingAmount > 0 ? '#f97316' : '#10b981',
+                                                        fontWeight: 700
+                                                    }}>
+                                                        <span>Còn lại:</span>
+                                                        <strong>
+                                                            {remainingAmount > 0
+                                                                ? `${remainingAmount.toLocaleString('vi-VN')} ₫`
+                                                                : overpaidAmount > 0
+                                                                    ? <span style={{ color: '#10b981' }}>Đã thanh toán đủ ✓</span>
+                                                                    : '0 ₫'
+                                                            }
+                                                        </strong>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
-                                    {depositAmount > 0 && (
-                                        <>
-                                            <div className="cd-billing-row" style={{ color: hasPaidDeposit ? '#10b981' : '#ca8a04' }}>
-                                                <span>Tiền cọc {hasPaidDeposit ? '(Đã TT)' : '(Chờ TT)'}:</span>
-                                                <strong>-{depositAmount.toLocaleString('vi-VN')} ₫</strong>
-                                            </div>
-                                            {extraPaid > 0 && (
-                                                <div className="cd-billing-row" style={{ color: '#10b981' }}>
-                                                    <span>Đã TT bổ sung:</span>
-                                                    <strong>-{extraPaid.toLocaleString('vi-VN')} ₫</strong>
-                                                </div>
-                                            )}
-                                            {hasPaidDeposit && (
-                                                <div className="cd-billing-row" style={{
-                                                    color: remainingAmount > 0 ? '#f97316' : '#10b981',
-                                                    fontWeight: 700
-                                                }}>
-                                                    <span>Còn lại:</span>
-                                                    <strong>
-                                                        {remainingAmount > 0
-                                                            ? `${remainingAmount.toLocaleString('vi-VN')} ₫`
-                                                            : overpaidAmount > 0
-                                                                ? <span style={{ color: '#10b981' }}>Đã thanh toán đủ ✓</span>
-                                                                : '0 ₫'
-                                                        }
-                                                    </strong>
-                                                </div>
-                                            )}
-                                        </>
+                                </div>
+
+                                <div className="cd-item-footer">
+                                    <button className="cd-btn cd-btn--outline" onClick={() => handleViewOrder(order.id_donHang)}>
+                                        <Eye size={15} /> Chi tiết
+                                    </button>
+                                    {order.tinhTrang === 'Chờ khách đến' && (
+                                        <button className="cd-btn cd-btn--edit" onClick={() => handleEditOrder(order)}>
+                                            <Edit3 size={15} /> Chỉnh sửa
+                                        </button>
+                                    )}
+                                    {order.tinhTrang === 'Chờ khách đến' && !order.id_datBan && (
+                                        <button className="cd-btn cd-btn--checkin" onClick={() => handleCheckinOrder(order.id_donHang)} disabled={checkinLoadingId === order.id_donHang}>
+                                            <CheckCheck size={15} /> {checkinLoadingId === order.id_donHang ? 'Đang xử lý...' : 'Báo đã tới'}
+                                        </button>
+                                    )}
+                                    {order.tinhTrang === 'Đã thanh toán' && (
+                                        <button className="cd-btn cd-btn--review" onClick={() => { setReviewForm({ id_donHang: order.id_donHang, soSao: 5, noiDung: '', id_monAn: null }); setShowReviewModal(true); }}>
+                                            <Star size={15} /> Đánh giá
+                                        </button>
                                     )}
                                 </div>
+
+                                {/* Refund notice — when customer overpaid */}
+                                {overpaidAmount > 0 && (
+                                    <div style={{
+                                        margin: '0.75rem 0 0',
+                                        padding: '0.875rem 1rem',
+                                        borderRadius: '0.75rem',
+                                        background: 'rgba(16,185,129,0.08)',
+                                        border: '1px solid rgba(16,185,129,0.25)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '0.3rem',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.87rem', color: '#10b981' }}>
+                                            <span>💰</span>
+                                            Bạn có <span style={{ fontSize: '1rem', letterSpacing: '-0.02em' }}>{overpaidAmount.toLocaleString('vi-VN')} ₫</span> tiền thừa chưa nhận
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                            Sau khi dùng xong bữa, vui lòng <strong style={{ color: 'var(--text)' }}>liên hệ nhân viên phục vụ</strong> để nhận lại số tiền thừa này.
+                                        </div>
+                                        <div style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
+                                            📞 Hotline hỗ trợ: 0904957943
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Absence warning */}
+                                {order.tinhTrang === 'Vắng mặt' && depositAmount > 0 && (
+                                    <div className="cd-absence-banner">
+                                        <div className="cd-absence-title">
+                                            <span>⚠️</span> Bạn vắng mặt nhưng có tiền cọc liên quan
+                                        </div>
+                                        <div className="cd-absence-desc">
+                                            Vui lòng liên hệ trực tiếp nhân viên nhà hàng để được hỗ trợ và thương lượng hoàn cọc.
+                                        </div>
+                                        <div className="cd-absence-phone">
+                                            <span>📞</span> Hotline: 0904957943
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-
-                            <div className="cd-item-footer">
-                                <button className="cd-btn cd-btn--outline" onClick={() => handleViewOrder(order.id_donHang)}>
-                                    <Eye size={15} /> Chi tiết
-                                </button>
-                                {order.tinhTrang === 'Chờ khách đến' && (
-                                    <button className="cd-btn cd-btn--edit" onClick={() => handleEditOrder(order)}>
-                                        <Edit3 size={15} /> Chỉnh sửa
-                                    </button>
-                                )}
-                                {order.tinhTrang === 'Chờ khách đến' && !order.id_datBan && (
-                                    <button className="cd-btn cd-btn--checkin" onClick={() => handleCheckinOrder(order.id_donHang)} disabled={checkinLoadingId === order.id_donHang}>
-                                        <CheckCheck size={15} /> {checkinLoadingId === order.id_donHang ? 'Đang xử lý...' : 'Báo đã tới'}
-                                    </button>
-                                )}
-                                {order.tinhTrang === 'Đã thanh toán' && (
-                                    <button className="cd-btn cd-btn--review" onClick={() => { setReviewForm({ id_donHang: order.id_donHang, soSao: 5, noiDung: '', id_monAn: null }); setShowReviewModal(true); }}>
-                                        <Star size={15} /> Đánh giá
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Refund notice — when customer overpaid */}
-                            {overpaidAmount > 0 && (
-                                <div style={{
-                                    margin: '0.75rem 0 0',
-                                    padding: '0.875rem 1rem',
-                                    borderRadius: '0.75rem',
-                                    background: 'rgba(16,185,129,0.08)',
-                                    border: '1px solid rgba(16,185,129,0.25)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '0.3rem',
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.87rem', color: '#10b981' }}>
-                                        <span>💰</span>
-                                        Bạn có <span style={{ fontSize: '1rem', letterSpacing: '-0.02em' }}>{overpaidAmount.toLocaleString('vi-VN')} ₫</span> tiền thừa chưa nhận
-                                    </div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                        Sau khi dùng xong bữa, vui lòng <strong style={{ color: 'var(--text)' }}>liên hệ nhân viên phục vụ</strong> để nhận lại số tiền thừa này.
-                                    </div>
-                                    <div style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
-                                        📞 Hotline hỗ trợ: 0904957943
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Absence warning */}
-                            {order.tinhTrang === 'Vắng mặt' && depositAmount > 0 && (
-                                <div className="cd-absence-banner">
-                                    <div className="cd-absence-title">
-                                        <span>⚠️</span> Bạn vắng mặt nhưng có tiền cọc liên quan
-                                    </div>
-                                    <div className="cd-absence-desc">
-                                        Vui lòng liên hệ trực tiếp nhân viên nhà hàng để được hỗ trợ và thương lượng hoàn cọc.
-                                    </div>
-                                    <div className="cd-absence-phone">
-                                        <span>📞</span> Hotline: 0904957943
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-    </>
+                        );
+                    })}
+                </div>
+            )}
+        </>
     );
 };
 

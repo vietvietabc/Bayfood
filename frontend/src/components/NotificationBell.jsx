@@ -64,6 +64,15 @@ const NotificationBell = ({ colorScheme = 'dark' }) => {
     }
   };
 
+  const handleReadAll = async () => {
+    try {
+      await axios.put(`${BASE_URL}/api/thongbao/me/read-all`);
+      await fetchNotifications();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Color tokens based on scheme
   const isDark = colorScheme === 'dark';
   const btnBorder = isDark ? 'rgba(255,255,255,0.15)' : 'var(--border)';
@@ -116,7 +125,17 @@ const NotificationBell = ({ colorScheme = 'dark' }) => {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.25rem 0.75rem', borderBottom: '1px solid var(--border)', marginBottom: '0.75rem' }}>
             <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Thông báo</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{unreadCount} chưa đọc</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ color: '#f97316', fontSize: '0.78rem', fontWeight: 'bold' }}>{unreadCount} chưa đọc</div>
+              {unreadCount > 0 && (
+                <button 
+                  onClick={handleReadAll}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Đánh dấu đã xem tất cả
+                </button>
+              )}
+            </div>
           </div>
 
           {notifications.length === 0 ? (
@@ -124,8 +143,8 @@ const NotificationBell = ({ colorScheme = 'dark' }) => {
               Chưa có thông báo nào.
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '340px', overflowY: 'auto' }}>
-              {notifications.slice(0, 6).map((n) => (
+            <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '420px', overflowY: 'auto' }}>
+              {notifications.slice(0, 50).map((n) => (
                 <div key={n.id_thongBao} style={{
                   padding: '0.75rem', borderRadius: '0.75rem',
                   border: n.daDoc ? '1px solid var(--border)' : '1px solid rgba(249,115,22,0.35)',

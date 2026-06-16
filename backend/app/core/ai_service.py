@@ -126,7 +126,7 @@ def get_restaurant_context(db: Session) -> str:
     # ===== 5. THÔNG TIN NHÀ HÀNG =====
     context_parts.append("═══ THÔNG TIN NHÀ HÀNG ═══")
     context_parts.append("Tên: BayFood Restaurant")
-    context_parts.append("Trụ sở: 123 Đường Ngọc Khánh, Ba Đình, Hà Nội")
+    context_parts.append("Trụ sở: 123 Cao Thắng, Hải Châu, Đà Nẵng")
     context_parts.append("Chi nhánh HCM: 45 Nguyễn Huệ, Quận 1")
     context_parts.append("Hotline: 1900 6868 — 0988 123 456")
     context_parts.append("Email: contact@bayfood.vn")

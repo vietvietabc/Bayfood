@@ -182,7 +182,11 @@ def _session_to_response(session: LiveChatSession, db: Optional[Session] = None)
 @router.post("/sessions", response_model=LiveChatSessionResponse)
 def create_session(body: LiveChatSessionCreate, db: Session = Depends(get_db)):
     """Khách hàng tạo phiên chat mới."""
-    new_session = LiveChatSession(tenKhachHang=body.tenKhachHang, trangThai="cho_nhan")
+    new_session = LiveChatSession(
+        tenKhachHang=body.tenKhachHang,
+        id_nguoiDung=body.id_nguoiDung,  # Gán ID người dùng nếu đã đăng nhập
+        trangThai="cho_nhan"
+    )
     db.add(new_session)
     db.commit()
     db.refresh(new_session)

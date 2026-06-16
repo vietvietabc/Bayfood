@@ -114,3 +114,25 @@ def mark_notification_read(id_thongBao: int, db: Session = Depends(get_db), curr
     db.commit()
     db.refresh(notification)
     return notification
+
+
+@router.put("/me/read-all")
+def mark_all_notifications_read(db: Session = Depends(get_db), current_user: models.NguoiDung = Depends(get_current_user)):
+    role_name = _get_user_role_name(db, current_user)
+
+    notifications = (
+        db.query(models.ThongBao)
+        .filter(
+            ((models.ThongBao.id_nguoiDung == current_user.id_nguoiDung) | (models.ThongBao.vaiTroNhan == role_name)),
+            models.ThongBao.daDoc.is_(False),
+        )
+        .all()
+    )
+    
+    count = len(notifications)
+    if count > 0:
+        for notification in notifications:
+            notification.daDoc = True
+        db.commit()
+
+    return {"message": "Đã đánh dấu tất cả là đã đọc", "count": count}

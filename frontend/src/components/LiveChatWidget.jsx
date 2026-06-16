@@ -162,6 +162,7 @@ const LiveChatWidget = () => {
 
       const res = await axios.post(`${API_URL}/livechat/sessions`, {
         tenKhachHang: name.trim(),
+        id_nguoiDung: user?.id_nguoiDung || null,  // Gán ID nếu đã đăng nhập
       });
       const sid = res.data.id_phien;
       setSessionId(sid);

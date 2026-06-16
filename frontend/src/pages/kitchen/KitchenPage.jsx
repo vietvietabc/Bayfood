@@ -51,7 +51,7 @@ const KitchenPage = () => {
     const [activeTab, setActiveTab] = useState('active'); // 'active' or 'history'
     const [historyOrders, setHistoryOrders] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
-    
+
     const [upcomingOrders, setUpcomingOrders] = useState([]);
     const [upcomingLoading, setUpcomingLoading] = useState(false);
 
@@ -169,7 +169,7 @@ const KitchenPage = () => {
 
             let endHour = 12; // Mặc định Ca sáng
             if (shiftData.caLamViec === 'Ca chiều') endHour = 17;
-            else if (shiftData.caLamViec === 'Ca tối') endHour = 22;
+            else if (shiftData.caLamViec === 'Ca tối') endHour = 24;
 
             const endTotalMin = endHour * 60;
 
@@ -1159,7 +1159,7 @@ const KitchenPage = () => {
                                     color: '#b91c1c',
                                     lineHeight: '1.4'
                                 }}>
-                                    ⚠️ <strong>Lưu ý:</strong> Ca làm việc của bạn là <strong>{shiftData?.caLamViec}</strong> (kết thúc lúc {shiftData?.caLamViec === 'Ca chiều' ? '17' : shiftData?.caLamViec === 'Ca tối' ? '22' : '12'}:00). Bạn đang tan ca sớm!
+                                    ⚠️ <strong>Lưu ý:</strong> Ca làm việc của bạn là <strong>{shiftData?.caLamViec}</strong> (kết thúc lúc {shiftData?.caLamViec === 'Ca chiều' ? '17' : shiftData?.caLamViec === 'Ca tối' ? '24' : '12'}:00). Bạn đang tan ca sớm!
                                 </div>
 
                                 <label style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--ink)' }}>

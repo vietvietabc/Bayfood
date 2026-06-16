@@ -192,6 +192,7 @@ def get_shift_history(
 ):
     """Lấy lịch sử vào ca / tan ca của tất cả nhân viên."""
     from app.db.database import engine
+    from datetime import date as date_type, time as time_type
     models.LichSuCa.__table__.create(bind=engine, checkfirst=True)
 
     records = (
@@ -200,19 +201,130 @@ def get_shift_history(
         .limit(100)
         .all()
     )
+
+    today = (datetime.utcnow() + timedelta(hours=7)).date()
+
+    CA_END_TIME = {
+        "Ca sáng": time_type(13, 0),
+        "Ca chiều": time_type(18, 0),
+        "Ca tối": time_type(23, 59),
+    }
+
+    needs_commit = False
     result = []
     for r in records:
         nv = db.query(models.NhanVien).filter(models.NhanVien.id_nhanVien == r.id_nhanVien).first()
         nd = db.query(models.NguoiDung).filter(models.NguoiDung.id_nguoiDung == nv.id_nguoiDung).first() if nv else None
+
+        thoiGianRa = r.thoiGianRa
+        trang_thai = "Đang làm"
+
+        if thoiGianRa is None and r.ngay < today:
+            # Ca cũ chưa tan: tự động điền giờ kết thúc theo loại ca
+            end_time = CA_END_TIME.get(r.caLamViec, time_type(23, 59))
+            thoiGianRa = datetime.combine(r.ngay, end_time)
+            # Lưu vào DB để lần sau không cần tính lại
+            r.thoiGianRa = thoiGianRa
+            needs_commit = True
+            trang_thai = "Hoàn thành"
+        elif thoiGianRa is not None:
+            trang_thai = "Hoàn thành"
+
+        so_gio = None
+        if thoiGianRa is not None and r.thoiGianVao is not None:
+            diff = (thoiGianRa - r.thoiGianVao).total_seconds()
+            so_gio = round(max(0, diff) / 3600, 1)
+
         result.append({
             "id": r.id_lichSuCa,
             "hoTen": nd.hoTen if nd else "?",
             "ngay": r.ngay.strftime("%d/%m/%Y") if r.ngay else None,
             "caLamViec": r.caLamViec,
             "thoiGianVao": r.thoiGianVao.strftime("%H:%M") if r.thoiGianVao else None,
-            "thoiGianRa": r.thoiGianRa.strftime("%H:%M") if r.thoiGianRa else "Chưa tan ca",
-            "soGio": round((r.thoiGianRa - r.thoiGianVao).seconds / 3600, 1) if r.thoiGianRa else None,
+            "thoiGianRa": thoiGianRa.strftime("%H:%M") if thoiGianRa else "Chưa tan ca",
+            "soGio": so_gio,
+            "trangThai": trang_thai,
         })
+
+    if needs_commit:
+        db.commit()
+
+    return result
+
+
+# Admin xem lịch sử ca làm việc của 1 nhân viên cụ thể
+@router.get("/{id_nguoidung}/shift-history")
+def get_user_shift_history(
+    id_nguoidung: int,
+    db: Session = Depends(get_db),
+    current_admin: models.NguoiDung = Depends(get_current_admin),
+):
+    """Lấy lịch sử ca làm việc của 1 nhân viên cụ thể."""
+    user = db.query(models.NguoiDung).filter(models.NguoiDung.id_nguoiDung == id_nguoidung).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+
+    nv = db.query(models.NhanVien).filter(models.NhanVien.id_nguoiDung == id_nguoidung).first()
+    if not nv:
+        return []
+
+    from app.db.database import engine
+    from datetime import date as date_type, time as time_type
+    models.LichSuCa.__table__.create(bind=engine, checkfirst=True)
+
+    records = (
+        db.query(models.LichSuCa)
+        .filter(models.LichSuCa.id_nhanVien == nv.id_nhanVien)
+        .order_by(models.LichSuCa.ngay.desc(), models.LichSuCa.thoiGianVao.desc())
+        .limit(50)
+        .all()
+    )
+
+    today = (datetime.utcnow() + timedelta(hours=7)).date()
+
+    # Giờ kết thúc mặc định theo loại ca
+    CA_END_TIME = {
+        "Ca sáng": time_type(13, 0),
+        "Ca chiều": time_type(18, 0),
+        "Ca tối": time_type(23, 59),
+    }
+
+    needs_commit = False
+    result = []
+    for r in records:
+        thoiGianRa = r.thoiGianRa
+        trang_thai = "Đang làm"
+
+        if thoiGianRa is None and r.ngay < today:
+            # Ca cũ chưa tan: tự động điền giờ kết thúc theo loại ca
+            end_time = CA_END_TIME.get(r.caLamViec, time_type(23, 59))
+            thoiGianRa = datetime.combine(r.ngay, end_time)
+            # Lưu vào DB để lần sau không cần tính lại
+            r.thoiGianRa = thoiGianRa
+            needs_commit = True
+            trang_thai = "Hoàn thành"
+        elif thoiGianRa is not None:
+            trang_thai = "Hoàn thành"
+
+        so_gio = None
+        if thoiGianRa is not None and r.thoiGianVao is not None:
+            diff = (thoiGianRa - r.thoiGianVao).total_seconds()
+            so_gio = round(max(0, diff) / 3600, 1)
+
+        result.append({
+            "id": r.id_lichSuCa,
+            "hoTen": user.hoTen,
+            "ngay": r.ngay.strftime("%d/%m/%Y") if r.ngay else None,
+            "caLamViec": r.caLamViec,
+            "thoiGianVao": r.thoiGianVao.strftime("%H:%M") if r.thoiGianVao else None,
+            "thoiGianRa": thoiGianRa.strftime("%H:%M") if thoiGianRa else "Chưa tan ca",
+            "soGio": so_gio,
+            "trangThai": trang_thai,
+        })
+
+    if needs_commit:
+        db.commit()
+
     return result
 
 
@@ -228,6 +340,7 @@ def get_my_shift_history(
         return []
 
     from app.db.database import engine
+    from datetime import date as date_type, time as time_type
     models.LichSuCa.__table__.create(bind=engine, checkfirst=True)
 
     records = (
@@ -237,16 +350,51 @@ def get_my_shift_history(
         .limit(50)
         .all()
     )
+
+    today = (datetime.utcnow() + timedelta(hours=7)).date()
+
+    # Giờ kết thúc mặc định theo loại ca
+    CA_END_TIME = {
+        "Ca sáng": time_type(13, 0),
+        "Ca chiều": time_type(18, 0),
+        "Ca tối": time_type(23, 59),
+    }
+
+    needs_commit = False
     result = []
     for r in records:
+        thoiGianRa = r.thoiGianRa
+        trang_thai = "Đang làm"
+
+        if thoiGianRa is None and r.ngay < today:
+            # Ca cũ chưa tan: tự động điền giờ kết thúc theo loại ca
+            end_time = CA_END_TIME.get(r.caLamViec, time_type(23, 59))
+            thoiGianRa = datetime.combine(r.ngay, end_time)
+            # Lưu vào DB để lần sau không cần tính lại
+            r.thoiGianRa = thoiGianRa
+            needs_commit = True
+            trang_thai = "Hoàn thành"
+        elif thoiGianRa is not None:
+            trang_thai = "Hoàn thành"
+
+        so_gio = None
+        if thoiGianRa is not None and r.thoiGianVao is not None:
+            diff = (thoiGianRa - r.thoiGianVao).total_seconds()
+            so_gio = round(max(0, diff) / 3600, 1)
+
         result.append({
             "id": r.id_lichSuCa,
             "ngay": r.ngay.strftime("%d/%m/%Y") if r.ngay else None,
             "caLamViec": r.caLamViec,
             "thoiGianVao": r.thoiGianVao.strftime("%H:%M") if r.thoiGianVao else None,
-            "thoiGianRa": r.thoiGianRa.strftime("%H:%M") if r.thoiGianRa else "Chưa tan ca",
-            "soGio": round((r.thoiGianRa - r.thoiGianVao).seconds / 3600, 1) if r.thoiGianRa else None,
+            "thoiGianRa": thoiGianRa.strftime("%H:%M") if thoiGianRa else "Chưa tan ca",
+            "soGio": so_gio,
+            "trangThai": trang_thai,
         })
+
+    if needs_commit:
+        db.commit()
+
     return result
 
 

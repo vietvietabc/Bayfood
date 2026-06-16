@@ -52,6 +52,7 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
     chi_tiets = db.query(models.ChiTietDonHang).filter(models.ChiTietDonHang.id_donHang == db_order.id_donHang).all()
     tong_tien = Decimal("0")
     chi_tiet_list = []
+    lich_su_list = []
 
     for ct in chi_tiets:
         mon_an = db.query(models.ThucDon).filter(models.ThucDon.id_monAn == ct.id_monAn).first()
@@ -67,22 +68,26 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
 
         so_luong = ct.soLuong or 0
         gia = ct.giaTaiThoiDiemBan or Decimal("0")
-        tong_tien += gia * so_luong
 
-        chi_tiet_list.append(
-            schemas.ChiTietDonHangDetail(
-                id_chiTietDonHang=ct.id_chiTietDonHang,
-                id_donHang=ct.id_donHang,
-                id_monAn=ct.id_monAn,
-                tenMon=ten_mon,
-                hinhAnhMon=hinh_anh_mon,
-                soLuong=so_luong,
-                giaTaiThoiDiemBan=gia,
-                trangThaiMon=ct.trangThaiMon or "",
-                id_nhanVien_bep=ct.id_nhanVien,
-                tenNhanVienBep=ten_nv_bep,
-            )
+        item = schemas.ChiTietDonHangDetail(
+            id_chiTietDonHang=ct.id_chiTietDonHang,
+            id_donHang=ct.id_donHang,
+            id_monAn=ct.id_monAn,
+            tenMon=ten_mon,
+            hinhAnhMon=hinh_anh_mon,
+            soLuong=so_luong,
+            giaTaiThoiDiemBan=gia,
+            trangThaiMon=ct.trangThaiMon or "",
+            id_nhanVien_bep=ct.id_nhanVien,
+            tenNhanVienBep=ten_nv_bep,
         )
+
+        if ct.trangThaiMon == "Đã hủy":
+            # Món đã bị hủy trong lịch sử chỉnh sửa → vào lịch sử
+            lich_su_list.append(item)
+        else:
+            tong_tien += gia * so_luong
+            chi_tiet_list.append(item)
 
     tien_coc = None
     trang_thai_coc = None
@@ -112,6 +117,7 @@ def _build_order_detail(db: Session, db_order: models.DonHang) -> schemas.DonHan
         trangThaiCoc=trang_thai_coc,
         tongThanhToan=tong_thanh_toan,
         chi_tiet=chi_tiet_list,
+        lich_su_chi_tiet=lich_su_list,
     )
 
 
@@ -462,10 +468,13 @@ def edit_my_order(
         if db_order.tinhTrang == "Đang chờ món":
             db_order.tinhTrang = "Chờ khách đến"
 
-    # Xóa chi tiết cũ
-    db.query(models.ChiTietDonHang).filter(models.ChiTietDonHang.id_donHang == db_order.id_donHang).delete()
+    # Đánh dấu các món cũ là "Dã hủy" để lưu lịch sử (không xóa)
+    db.query(models.ChiTietDonHang).filter(
+        models.ChiTietDonHang.id_donHang == db_order.id_donHang,
+        models.ChiTietDonHang.trangThaiMon != "Đã hủy"
+    ).update({"trangThaiMon": "Đã hủy"})
 
-    # Thêm chi tiết mới
+    # Thêm các món mới
     for item in req.chi_tiet:
         db_order_item = models.ChiTietDonHang(
             id_donHang=db_order.id_donHang,
@@ -519,9 +528,10 @@ def initiate_order_edit(
     if not req.chi_tiet:
         raise HTTPException(status_code=400, detail="Đơn hàng phải có ít nhất 1 món")
 
-    # Tính tổng đơn CŨ
+    # Tính tổng đơn CŨ (chỉ tính các món đang active, bỏ qua món "Đã hủy" từ lịch sử)
     old_items = db.query(models.ChiTietDonHang).filter(
-        models.ChiTietDonHang.id_donHang == db_order.id_donHang
+        models.ChiTietDonHang.id_donHang == db_order.id_donHang,
+        models.ChiTietDonHang.trangThaiMon != "Đã hủy"
     ).all()
     old_total = sum(
         (ct.giaTaiThoiDiemBan or Decimal("0")) * (ct.soLuong or 0)
@@ -589,9 +599,11 @@ def initiate_order_edit(
                 detail=f"Đơn hàng kèm đặt bàn cần tối thiểu {MIN_ORDER_FOR_TABLE:,} VNĐ. Không thể chỉnh sửa xuống dưới mức này.".replace(",", ".")
             )
 
+        # Đánh dấu món cũ là "Đã hủy" để lưu lịch sử
         db.query(models.ChiTietDonHang).filter(
-            models.ChiTietDonHang.id_donHang == db_order.id_donHang
-        ).delete()
+            models.ChiTietDonHang.id_donHang == db_order.id_donHang,
+            models.ChiTietDonHang.trangThaiMon != "Đã hủy"
+        ).update({"trangThaiMon": "Đã hủy"})
         for item in req.chi_tiet:
             db.add(models.ChiTietDonHang(
                 id_donHang=db_order.id_donHang,
@@ -681,6 +693,13 @@ def checkin_my_order(
             raise HTTPException(status_code=400, detail="Chưa đến thời gian báo tới cho đơn hàng này")
 
     db_order.tinhTrang = "Đang chờ món"
+
+    # Cập nhật trạng thái bàn thành "Đang phục vụ" khi khách check-in
+    if db_order.id_ban is not None:
+        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == db_order.id_ban).first()
+        if db_ban and db_ban.trangThai != "Có khách":
+            db_ban.trangThai = "Có khách"
+
     db.commit()
     return _build_order_detail(db, db_order)
 
@@ -858,6 +877,12 @@ def update_order_status(
     if nv:
         db_order.id_nhanVien = nv.id_nhanVien
 
+    # Cập nhật trạng thái bàn khi đơn chuyển sang trạng thái đang phục vụ
+    if req.tinhTrang in ["Đang chờ món", "Đang chế biến"] and db_order.id_ban is not None:
+        db_ban = db.query(models.Ban).filter(models.Ban.id_ban == db_order.id_ban).first()
+        if db_ban and db_ban.trangThai not in ["Có khách"]:
+            db_ban.trangThai = "Có khách"
+
     if req.tinhTrang in ["Đã thanh toán", "Hoàn thành"]:
         # Reset bàn về Trống khi đơn hoàn thành
         if db_order.id_ban is not None:
@@ -873,7 +898,10 @@ def update_order_status(
     if req.tinhTrang == "Đã thanh toán":
         from decimal import Decimal
         # Tính toán số tiền còn thiếu và thêm vào bảng THANHTOAN
-        chi_tiets = db.query(models.ChiTietDonHang).filter(models.ChiTietDonHang.id_donHang == db_order.id_donHang).all()
+        chi_tiets = db.query(models.ChiTietDonHang).filter(
+            models.ChiTietDonHang.id_donHang == db_order.id_donHang,
+            models.ChiTietDonHang.trangThaiMon != "Đã hủy"  # Chỉ tính món active
+        ).all()
         tong_tien = sum((Decimal(str(ct.giaTaiThoiDiemBan or 0))) * (ct.soLuong or 0) for ct in chi_tiets)
 
         tien_coc = Decimal("0")
@@ -1029,7 +1057,8 @@ def get_waiter_orders(
         is_unassigned = order.id_nhanVien is None
         
         chi_tiets = db.query(models.ChiTietDonHang).filter(
-            models.ChiTietDonHang.id_donHang == order.id_donHang
+            models.ChiTietDonHang.id_donHang == order.id_donHang,
+            models.ChiTietDonHang.trangThaiMon != "Đã hủy"  # Chỉ hiển món đang active
         ).all()
         items = []
         tong_tien = Decimal("0")
@@ -1114,7 +1143,8 @@ def get_waiter_history(
     for order in done_orders:
         is_mine = nv and order.id_nhanVien == nv.id_nhanVien
         chi_tiets = db.query(models.ChiTietDonHang).filter(
-            models.ChiTietDonHang.id_donHang == order.id_donHang
+            models.ChiTietDonHang.id_donHang == order.id_donHang,
+            models.ChiTietDonHang.trangThaiMon != "Đã hủy"  # Chỉ hiển món đang active
         ).all()
         items = []
         tong_tien = Decimal("0")
@@ -1201,9 +1231,10 @@ def _build_upcoming_orders(db: Session):
                 models.DatBan.id_datBan == order.id_datBan
             ).first()
 
-        # Chi tiết món ăn
+        # Chi tiết món ăn (chỉ hiển món active, không hiển lịch sử)
         chi_tiets = db.query(models.ChiTietDonHang).filter(
-            models.ChiTietDonHang.id_donHang == order.id_donHang
+            models.ChiTietDonHang.id_donHang == order.id_donHang,
+            models.ChiTietDonHang.trangThaiMon != "Đã hủy"
         ).all()
         items = []
         tong_tien = Decimal("0")
@@ -1290,7 +1321,7 @@ def waiter_shift_checkin(
     shift_hours = {
         "Ca sáng":  {"start": 7,  "end": 12, "time_str": "07:00 - 12:00"},
         "Ca chiều": {"start": 12, "end": 17, "time_str": "12:00 - 17:00"},
-        "Ca tối":   {"start": 17, "end": 22, "time_str": "17:00 - 22:00"},
+        "Ca tối":   {"start": 17, "end": 24, "time_str": "17:00 - 24:00"},
     }
     assigned_shift = nv.caLamViec.strip()
     local_now = datetime.utcnow() + timedelta(hours=7)
@@ -1390,7 +1421,10 @@ def get_kitchen_orders(
     for order in active_orders:
         chi_tiets = (
             db.query(models.ChiTietDonHang)
-            .filter(models.ChiTietDonHang.id_donHang == order.id_donHang)
+            .filter(
+                models.ChiTietDonHang.id_donHang == order.id_donHang,
+                models.ChiTietDonHang.trangThaiMon != "Đã hủy"  # Bếp chỉ thấy món active
+            )
             .all()
         )
         items = []
@@ -1618,7 +1652,7 @@ def kitchen_shift_checkin(
     shift_hours = {
         "Ca sáng": {"start": 7, "end": 12, "time_str": "07:00 - 12:00"},
         "Ca chiều": {"start": 12, "end": 17, "time_str": "12:00 - 17:00"},
-        "Ca tối": {"start": 17, "end": 22, "time_str": "17:00 - 22:00"},
+        "Ca tối": {"start": 17, "end": 24, "time_str": "17:00 - 24:00"},
     }
     
     assigned_shift = nv.caLamViec.strip()

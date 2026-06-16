@@ -19,7 +19,7 @@ const AdminLayout = () => {
     { path: '/admin/orders', icon: <ShoppingBag size={20} />, label: 'Cập nhật đơn hàng' },
     { path: '/admin/users', icon: <Users size={20} />, label: 'Cập nhật tài khoản' },
     { path: '/admin/reviews', icon: <Star size={20} />, label: 'Cập nhật đánh giá' },
-    { path: '/admin/working-hours', icon: <Clock3 size={20} />, label: 'Giờ làm việc' },
+    // { path: '/admin/working-hours', icon: <Clock3 size={20} />, label: 'Giờ làm việc' },
   ];
 
   const handleLogout = () => {

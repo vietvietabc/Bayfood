@@ -139,16 +139,31 @@ const useCustomerDashboard = () => {
 
     const handleCloseOrderModal = () => { setShowOrderModal(false); setSelectedOrder(null); };
 
-    const handleEditOrder = (order) => {
-        const cartItems = order.chi_tiet.map((ct) => ({
-            id_monAn: ct.id_monAn,
-            tenMon: ct.tenMon,
-            hinhAnh: ct.hinhAnhMon,
-            giaTien: ct.giaTaiThoiDiemBan,
-            quantity: ct.soLuong,
-        }));
-        setCartFromOrder(cartItems, order.id_donHang, order.thoiGianDen);
-        navigate('/cart');
+    const handleEditOrder = async (order) => {
+        try {
+            // Fetch chi tiết đơn hàng đầy đủ (list orders không có chi_tiet)
+            const res = await axios.get(`${BASE_URL}/api/donhang/me/${order.id_donHang}`);
+            const fullOrder = res.data;
+            // Chỉ lấy các món active (không lấy món "Đã hủy" từ lịch sử)
+            const activeItems = (fullOrder.chi_tiet || []).filter(ct => ct.trangThaiMon !== 'Đã hủy');
+            const cartItems = activeItems.map((ct) => ({
+                id_monAn: ct.id_monAn,
+                tenMon: ct.tenMon,
+                hinhAnh: ct.hinhAnhMon,
+                giaTien: Number(ct.giaTaiThoiDiemBan),
+                quantity: ct.soLuong,
+            }));
+            // Lưu vào sessionStorage trước khi navigate để tránh race condition
+            sessionStorage.setItem('pendingEditOrder', JSON.stringify({
+                orderId: order.id_donHang,
+                items: cartItems,
+                thoiGianDen: fullOrder.thoiGianDen || null,
+            }));
+            navigate('/cart');
+        } catch (err) {
+            console.error('Lỗi khi tải chi tiết đơn hàng để chỉnh sửa:', err);
+            alert('Không thể tải thông tin đơn hàng. Vui lòng thử lại.');
+        }
     };
 
     const handleCheckinOrder = async (orderId) => {

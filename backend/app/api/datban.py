@@ -97,11 +97,35 @@ def _has_time_overlap(start_a: datetime, end_a: datetime, start_b: datetime, end
 
 
 def _get_active_reservations_for_table(db: Session, id_ban: int):
+    """
+    Lấy danh sách đặt bàn active cho bàn cụ thể.
+    Chỉ lấy các booking chưa bị hủy/hoàn thành (dùng cho kiểm tra conflict khi đặt mới).
+    """
     return (
         db.query(models.DatBan)
         .filter(
             models.DatBan.id_ban == id_ban,
-            ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành"]),
+            ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành", "Vắng mặt"]),
+        )
+        .order_by(models.DatBan.thoiGianDen.asc())
+        .all()
+    )
+
+
+def _get_all_reservations_for_table_on_date(db: Session, id_ban: int, ngay: date):
+    """
+    Lấy TẤT CẢ đặt bàn trong một ngày cụ thể (kể cả đã hoàn thành, vắng mặt)
+    dùng để hiển thị lịch sử timeline của ngày đó.
+    """
+    day_start = datetime.combine(ngay, time.min)
+    day_end = datetime.combine(ngay + timedelta(days=1), time.min)
+    return (
+        db.query(models.DatBan)
+        .filter(
+            models.DatBan.id_ban == id_ban,
+            models.DatBan.trangThai != "Đã hủy",  # Chỉ bỏ qua đặt bàn bị hủy
+            models.DatBan.thoiGianDen >= day_start,
+            models.DatBan.thoiGianDen < day_end,
         )
         .order_by(models.DatBan.thoiGianDen.asc())
         .all()
@@ -217,9 +241,45 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
         if requested_start > day_start:
             day_start = requested_start
     slot_delta = timedelta(minutes=TIMELINE_SLOT_MINUTES)
-    schedule = _get_table_schedule(db, table.id_ban)
 
-    if working_hours["isNghi"]:
+    # Khi xem ngày quá khứ: dùng query đầy đủ bao gồm cả "Hoàn thành" / "Vắng mặt"
+    # để hiển thị đúng lịch sử các đặt bàn trong ngày đó.
+    today = _now_utc_naive().date()
+    if ngay < today:
+        # Ngày quá khứ: lấy tất cả đặt bàn (trừ đã hủy)
+        raw_reservations = _get_all_reservations_for_table_on_date(db, table.id_ban, ngay)
+        schedule = []
+        for i, res in enumerate(raw_reservations):
+            start = _normalize_datetime(res.thoiGianDen)
+            next_start = _normalize_datetime(raw_reservations[i + 1].thoiGianDen) if i + 1 < len(raw_reservations) else None
+            occupied_end = start + SERVICE_DURATION
+            if next_start is not None and next_start < occupied_end:
+                occupied_end = next_start
+            schedule.append({"reservation": res, "start": start, "occupied_end": occupied_end, "next_start": next_start})
+    else:
+        schedule = _get_table_schedule(db, table.id_ban)
+
+    # Với ngày quá khứ mà không có giờ làm việc (isNghi), vẫn fallback sang giờ mặc định
+    # để hiển thị lịch sử đặt bàn nếu có
+    if working_hours["isNghi"] and ngay < today:
+        # Dùng giờ mặc định cho ngày nghỉ quá khứ
+        day_start = datetime.combine(ngay, time(hour=int(DEFAULT_OPEN_TIME.split(":")[0]), minute=int(DEFAULT_OPEN_TIME.split(":")[1])))
+        day_end = datetime.combine(ngay, time(hour=int(DEFAULT_CLOSE_TIME.split(":")[0]) if DEFAULT_CLOSE_TIME != "24:00" else 0,
+                                              minute=int(DEFAULT_CLOSE_TIME.split(":")[1]) if DEFAULT_CLOSE_TIME != "24:00" else 0))
+        if DEFAULT_CLOSE_TIME == "24:00":
+            day_end = datetime.combine(ngay + timedelta(days=1), time.min)
+        # Nếu không có reservations thì vẫn trả về empty
+        if not schedule:
+            return {
+                "table": {
+                    "id_ban": table.id_ban, "tenBan": table.tenBan, "sucChua": table.sucChua,
+                    "viTri": table.viTri, "trangThai": table.trangThai, "maQR_url": table.maQR_url,
+                    "hinhAnh": table.hinhAnh,
+                    "tienCocMacDinh": float(table.tienCocMacDinh) if table.tienCocMacDinh else 0,
+                },
+                "reservations": [], "slots": [],
+            }
+    elif working_hours["isNghi"]:
         return {
             "table": {
                 "id_ban": table.id_ban,
@@ -239,6 +299,9 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
     for item in schedule:
         reservation_start = item["start"]
         reservation_end = item["occupied_end"]
+        
+        # Vẫn hiển thị tất cả reservation trong ngày (kể cả đã kết thúc)
+        # để admin có thể xem lịch sử
         if reservation_end <= day_start or reservation_start >= day_end:
             continue
 
@@ -255,6 +318,7 @@ def _build_table_timeline(db: Session, table: models.Ban, ngay: date, working_ho
     # Cho phép đặt đến trước giờ đóng cửa tối thiểu 2 tiếng (ví dụ 22:00 nếu đóng 24:00)
     last_start = day_end - timedelta(hours=2)
     used_requested_start = False
+    
     while current <= last_start:
         if current + slot_delta > day_end:
             break
@@ -315,10 +379,12 @@ def validate_restaurant_hours(db: Session, target_time: datetime, is_booking: bo
             detail="Nhà hàng nghỉ vào ngày bạn đã chọn. Vui lòng chọn ngày khác."
         )
 
-    if arrival_time <= _now_utc_naive():
+    now_time = _now_utc_naive()
+    # Cho phép buffer nhỏ 30 giây để tránh race condition khi đặt đúng giây hiện tại
+    if arrival_time < (now_time - timedelta(seconds=30)):
         raise HTTPException(
             status_code=400,
-            detail="Thời gian hẹn đến phải lớn hơn thời gian hiện tại"
+            detail="Thời gian hẹn đến phải lớn hơn hoặc bằng thời gian hiện tại"
         )
 
     if is_booking:
@@ -604,11 +670,26 @@ def update_status(id_datBan: int, req: StatusUpdate, db: Session = Depends(get_d
     if db_res.id_ban is not None:
         db_ban = db.query(models.Ban).filter(models.Ban.id_ban == db_res.id_ban).first()
 
+    old_status = db_res.trangThai
     db_res.trangThai = req.trangThai
 
     if db_ban is not None:
-        if req.trangThai in ["Đã hủy", "Hoàn thành"]:
-            db_ban.trangThai = "Trống"
+        if req.trangThai in ["Đã hủy", "Hoàn thành", "Vắng mặt"]:
+            # Chỉ giải phóng bàn nếu không còn booking/order nào khác đang active
+            active_reservations = db.query(models.DatBan).filter(
+                models.DatBan.id_ban == db_ban.id_ban,
+                models.DatBan.id_datBan != id_datBan,
+                models.DatBan.trangThai.in_(["Đã xác nhận", "Đã checkin"])
+            ).count()
+            
+            active_orders = db.query(models.DonHang).filter(
+                models.DonHang.id_ban == db_ban.id_ban,
+                models.DonHang.id_datBan != id_datBan,
+                models.DonHang.tinhTrang.in_(["Đang chờ món", "Đang phục vụ", "Chờ khách đến"])
+            ).count()
+            
+            if active_reservations == 0 and active_orders == 0:
+                db_ban.trangThai = "Trống"
         elif req.trangThai == "Đã xác nhận":
             db_ban.trangThai = "Đã đặt"
         elif req.trangThai == "Đã checkin":

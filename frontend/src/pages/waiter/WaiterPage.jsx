@@ -325,6 +325,7 @@ const WaiterPage = () => {
         setTimelineLoading(true);
         try {
             const res = await axios.get(`${BASE_URL}/api/datban/timeline?ngay=${date}`);
+            const now = new Date();
             const formattedTables = (res.data.tables || []).map(t => {
                 return {
                     id_ban: t.table.id_ban,
@@ -332,25 +333,38 @@ const WaiterPage = () => {
                     sucChua: t.table.sucChua,
                     slots: t.slots.map(s => {
                         const dateObj = new Date(s.batDau);
+                        const slotEndObj = new Date(s.ketThuc || (dateObj.getTime() + 60 * 60 * 1000));
                         const timeStr = dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+                        // Slot quá khứ: giờ kết thúc đã trôi qua
+                        const isPast = slotEndObj <= now;
+
                         let statusStr = 'available';
-                        if (s.trangThai === 'Trống') statusStr = 'available';
-                        else if (s.trangThai === 'Đã đặt' || s.trangThai === 'Chờ xác nhận') statusStr = 'warning';
-                        else statusStr = 'occupied';
-                        
-                        // Extract reservation details if available
+                        if (isPast) {
+                            // Slot đã qua: nếu có đặt bàn thì hiển thị "past-booked", ngược lại "past"
+                            statusStr = s.id_datBan ? 'past-booked' : 'past';
+                        } else if (s.trangThai === 'Trống') {
+                            statusStr = 'available';
+                        } else if (s.trangThai === 'Đã đặt' || s.trangThai === 'Chờ xác nhận') {
+                            statusStr = 'warning';
+                        } else {
+                            statusStr = 'occupied';
+                        }
+
                         let khachName = null;
-                        let soNguoi = null;
+                        let reservationStatus = null;
                         if (s.id_datBan) {
                             khachName = `Đơn #${s.id_datBan}`;
-                            // If we had soNguoi in slot, we could set it, else null
+                            // trangThai được trả về từ backend nếu có
+                            reservationStatus = s.trangThai || null;
                         }
 
                         return {
                             time: timeStr,
                             status: statusStr,
                             khach: khachName,
-                            soNguoi: soNguoi
+                            soNguoi: null,
+                            reservationStatus,
                         };
                     })
                 };
@@ -362,6 +376,7 @@ const WaiterPage = () => {
             setTimelineLoading(false);
         }
     }, []);
+
 
     useEffect(() => {
         if (!authLoading && user) { fetchOrders(); fetchShift(); }
@@ -1140,18 +1155,31 @@ const WaiterPage = () => {
                                                     </td>
                                                     {row.slots && row.slots.map((slot, idx) => {
                                                         const SLOT_STYLE = {
-                                                            'available': { bg: 'transparent', color: 'var(--muted)', label: '' },
-                                                            'occupied': { bg: 'rgba(239,68,68,0.12)', color: '#f87171', label: '🔴' },
-                                                            'blocked': { bg: 'rgba(234,179,8,0.12)', color: '#fbbf24', label: '🟡' },
-                                                            'warning': { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', label: '🟠' },
+                                                            'available':    { bg: 'transparent', color: 'var(--muted)', label: '' },
+                                                            'occupied':     { bg: 'rgba(239,68,68,0.12)', color: '#f87171', label: '🔴' },
+                                                            'blocked':      { bg: 'rgba(234,179,8,0.12)', color: '#fbbf24', label: '🟡' },
+                                                            'warning':      { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', label: '🟠' },
+                                                            'past':         { bg: 'rgba(100,116,139,0.07)', color: 'var(--muted)', label: '' },
+                                                            'past-booked':  { bg: 'rgba(100,116,139,0.1)', color: '#64748b', label: '⬜' },
                                                         };
                                                         const ss = SLOT_STYLE[slot.status] || SLOT_STYLE['available'];
+                                                        const isPast = slot.status === 'past' || slot.status === 'past-booked';
                                                         return (
-                                                            <td key={idx} style={{ padding: '0.4rem', textAlign: 'center', background: ss.bg, fontSize: '0.72rem', color: ss.color, fontWeight: slot.status !== 'available' ? '600' : '400' }}>
-                                                                {slot.khach ? (
+                                                            <td key={idx} style={{ padding: '0.4rem', textAlign: 'center', background: ss.bg, fontSize: '0.72rem', color: ss.color, fontWeight: slot.status !== 'available' && !isPast ? '600' : '400', opacity: isPast ? 0.5 : 1 }}>
+                                                                {slot.khach && !isPast ? (
                                                                     <div title={`${slot.khach} - ${slot.soNguoi || ''} người`}>
                                                                         <div>{ss.label} {slot.khach}</div>
                                                                         {slot.soNguoi && <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{slot.soNguoi} người</div>}
+                                                                    </div>
+                                                                ) : isPast && slot.khach ? (
+                                                                    <div title={`${slot.khach}${slot.reservationStatus ? ' — ' + slot.reservationStatus : ''}`}>
+                                                                        <div style={{ fontSize: '0.65rem' }}>Đã qua</div>
+                                                                        <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>{slot.khach}</div>
+                                                                        {slot.reservationStatus && (
+                                                                            <div style={{ fontSize: '0.58rem', opacity: 0.55, fontStyle: 'italic' }}>
+                                                                                {slot.reservationStatus === 'Hoàn thành' ? '✓ HT' : slot.reservationStatus === 'Vắng mặt' ? '✗ VM' : slot.reservationStatus}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
                                                                     <span style={{ opacity: 0.3 }}>—</span>

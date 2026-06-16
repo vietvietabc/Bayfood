@@ -262,6 +262,13 @@ const ReservationPage = () => {
         return;
       }
 
+      const soNguoiVal = parseInt(formData.soNguoi) || 1;
+      if (selectedTable.sucChua && soNguoiVal > selectedTable.sucChua) {
+        setStatus('error');
+        setStatusMessage(`Số người vượt sức chứa của bàn (tối đa ${selectedTable.sucChua} người).`);
+        return;
+      }
+
       const dateTime = `${formData.date}T${formData.time}:00`;
       const tienCoc = selectedTable.tienCocMacDinh || 0;
 
@@ -680,7 +687,13 @@ const ReservationPage = () => {
                                       const slotStartDate = new Date(slot.batDau);
                                       const slotEndDate = new Date(slot.ketThuc);
                                       const isPastSlot = slotStartDate <= new Date();
-                                      const slotStart = formatTimelineTime(slotStartDate);
+                                      // Nếu slot bắt đầu trước fromTime đã lọc, hiển thị fromTime thay vì slotStart gốc
+                                      const fromTimeMinutes = toMinutes(timelineSearch.fromTime);
+                                      const slotStartMinutes = slotStartDate.getHours() * 60 + slotStartDate.getMinutes();
+                                      const displaySlotStart = (fromTimeMinutes != null && slotStartMinutes < fromTimeMinutes)
+                                        ? timelineSearch.fromTime
+                                        : formatTimelineTime(slotStartDate);
+                                      const slotStart = displaySlotStart;
                                       const slotEnd = formatTimelineTime(slotEndDate, true);
                                       const slotKey = `${dayKey}-${table.id_ban}-${slot.batDau}`;
                                       const isSelectedSlot = selectedSlotKey === slotKey;
@@ -811,9 +824,41 @@ const ReservationPage = () => {
                 <div style={{ fontWeight: 'bold', fontSize: '1.05rem', marginBottom: '0.25rem' }}>
                   {selectedTable ? `${selectedTable.tenBan} (${selectedTable.viTri})` : 'Bấm vào ô timeline trống để chọn'}
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                   {selectedDateTime ? selectedDateTime.toLocaleString('vi-VN') : 'Chưa có ngày giờ'}
                 </div>
+
+                {/* Input số người */}
+                {selectedTable && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                    <label htmlFor="reservation-so-nguoi" style={{ fontSize: '0.875rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      👥 Số người
+                    </label>
+                    <input
+                      id="reservation-so-nguoi"
+                      type="number"
+                      min={1}
+                      max={selectedTable.sucChua}
+                      value={formData.soNguoi}
+                      onChange={e => {
+                        const val = parseInt(e.target.value) || 1;
+                        const max = selectedTable.sucChua || 20;
+                        setFormData(f => ({ ...f, soNguoi: Math.min(Math.max(1, val), max) }));
+                      }}
+                      style={{
+                        width: '72px', padding: '0.3rem 0.5rem', borderRadius: '0.45rem',
+                        border: `1px solid ${parseInt(formData.soNguoi) > (selectedTable.sucChua || 99) ? '#ef4444' : 'var(--border)'}`,
+                        background: 'var(--surface)', color: 'var(--text)', fontSize: '0.9rem', textAlign: 'center'
+                      }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      / tối đa {selectedTable.sucChua} chỗ
+                    </span>
+                    {parseInt(formData.soNguoi) > (selectedTable.sucChua || 99) && (
+                      <span style={{ color: '#ef4444', fontSize: '0.78rem' }}>Vượt sức chứa!</span>
+                    )}
+                  </div>
+                )}
                 {/* Hiển thị thông tin tiền cọc */}
                 {selectedTable && (
                   <div style={{ marginTop: '0.5rem' }}>

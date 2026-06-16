@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Minus, Plus, ShoppingBag, Trash2, ArrowRight, ShoppingCart, Calendar, Clock, Users, Edit3 } from 'lucide-react';
 import axios from 'axios';
@@ -14,7 +14,10 @@ const todayString = toLocalDateString(new Date());
 const CartPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { cart, updateQuantity, removeFromCart, cartTotal, clearCart, selectedTableId, editingOrderId, setEditingOrderId } = useCart();
+    const { cart, updateQuantity, removeFromCart, cartTotal, clearCart, selectedTableId, editingOrderId, setEditingOrderId, setCartFromOrder } = useCart();
+
+    // Đã xóa logic unmount clear cart để giữ state khi sang trang menu.
+    // Khách hàng có thể chủ động bấm "Hủy chỉnh sửa" nếu muốn thoát chế độ edit.
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -45,7 +48,7 @@ const CartPage = () => {
     // Timeline State
     const [timelineSearch, setTimelineSearch] = useState({
         fromDate: todayString,
-        toDate: nextWeekString,
+        toDate: todayString,
         fromTime: '07:00',
     });
     const [orderDate, setOrderDate] = useState(todayString);
@@ -149,6 +152,21 @@ const CartPage = () => {
             setHasPendingBooking(true); // Đánh dấu có booking kèm — KHÔNG mở modal cũ
         } catch (e) {
             console.error('Failed to parse pendingReservation', e);
+        }
+    }, []);
+
+    // Đọc pendingEditOrder từ sessionStorage (set bởi handleEditOrder khi khách bấm Chỉnh sửa)
+    useEffect(() => {
+        const raw = sessionStorage.getItem('pendingEditOrder');
+        if (!raw) return;
+        try {
+            const { orderId, items, thoiGianDen } = JSON.parse(raw);
+            sessionStorage.removeItem('pendingEditOrder');
+            if (orderId && items && items.length > 0) {
+                setCartFromOrder(items, orderId, thoiGianDen);
+            }
+        } catch (e) {
+            console.error('Failed to parse pendingEditOrder', e);
         }
     }, []);
 
@@ -379,14 +397,22 @@ const CartPage = () => {
                 );
                 return;
             }
-            // Sync timeline search với giờ/ngày đã nhập
+            // Tính ngày hiển thị: nếu hôm nay đã qua 20:00, tự nhảy sang ngày mai
+            const now = new Date();
+            const isToday = (orderDate || todayString) === todayString;
+            const targetDate = (isToday && now.getHours() >= 20)
+                ? toLocalDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
+                : (orderDate || todayString);
+            // Chỉ load 1 ngày để tránh quá nhiều request
             setTimelineSearch(prev => ({
                 ...prev,
-                fromDate: orderDate || prev.fromDate,
-                fromTime: orderTime || prev.fromTime,
+                fromDate: targetDate,
+                toDate: targetDate,
+                fromTime: '07:00',
             }));
             setShowModal(true);
         }
+
     };
 
     const submitOrderEdit = async () => {
@@ -1232,15 +1258,26 @@ const CartPage = () => {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="input-group mb-0">
-                                        <label className="input-label" htmlFor="booking-so-nguoi" style={{ fontSize: '0.85rem' }}><Users size={14} className="inline" /> Số người</label>
+                                        <label className="input-label" htmlFor="booking-so-nguoi" style={{ fontSize: '0.85rem' }}><Users size={14} className="inline" /> Số người <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(tối đa {selectedTableLocal.sucChua} chỗ)</span></label>
                                         <input
                                             id="booking-so-nguoi"
-                                            type="number" min="1"
+                                            type="number" min="1" max={selectedTableLocal.sucChua}
                                             className="input-field"
                                             value={bookingForm.soNguoi}
-                                            onChange={e => setBookingForm({ ...bookingForm, soNguoi: e.target.value })}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 1;
+                                                const max = selectedTableLocal.sucChua || 20;
+                                                const clamped = Math.min(Math.max(1, val), max);
+                                                setBookingForm({ ...bookingForm, soNguoi: clamped });
+                                            }}
+                                            style={{ borderColor: parseInt(bookingForm.soNguoi) > (selectedTableLocal.sucChua || 20) ? '#ef4444' : '' }}
                                             aria-label="Số người đi cùng"
                                         />
+                                        {parseInt(bookingForm.soNguoi) > (selectedTableLocal.sucChua || 20) && (
+                                            <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                                Bàn này chỉ chứa tối đa {selectedTableLocal.sucChua} người.
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="input-group mb-0">
                                         <label className="input-label" htmlFor="booking-ghi-chu" style={{ fontSize: '0.85rem' }}><Edit3 size={14} className="inline" /> Ghi chú</label>

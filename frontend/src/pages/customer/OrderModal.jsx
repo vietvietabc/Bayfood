@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Star, UtensilsCrossed, ChevronDown } from 'lucide-react';
+import { X, Star, UtensilsCrossed, ChevronDown, History, RotateCcw } from 'lucide-react';
 import { BASE_URL, formatDateTime, formatCurrency, getStatusStyle, getMonStatusColor } from './customerDashboardUtils';
 
 /* Status filter options for dishes */
@@ -332,6 +332,84 @@ const OrderModal = ({
                                 <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Tổng tiền</span>
                                 <span style={{ fontWeight: 800, fontSize: '1.35rem', color: '#f97316' }}>{formatCurrency(selectedOrder.tongTien)}</span>
                             </div>
+
+                            {/* Lịch sử chỉnh sửa */}
+                            {selectedOrder.lich_su_chi_tiet?.length > 0 && (
+                                <div style={{ marginTop: '1.25rem' }}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                        marginBottom: '0.85rem',
+                                        paddingBottom: '0.6rem',
+                                        borderBottom: '1px dashed var(--border)',
+                                    }}>
+                                        <RotateCcw size={15} style={{ color: '#94a3b8' }} />
+                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                            Lịch sử chỉnh sửa
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.72rem', fontWeight: 700,
+                                            background: 'rgba(148,163,184,0.1)',
+                                            border: '1px solid rgba(148,163,184,0.2)',
+                                            color: '#94a3b8',
+                                            borderRadius: '999px',
+                                            padding: '0.1rem 0.5rem',
+                                        }}>
+                                            {selectedOrder.lich_su_chi_tiet.length} món đã được chỉnh sửa
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                        {selectedOrder.lich_su_chi_tiet.map((item) => (
+                                            <div
+                                                key={item.id_chiTietDonHang}
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'auto 1fr auto',
+                                                    gap: '0.75rem',
+                                                    alignItems: 'center',
+                                                    padding: '0.65rem 0.85rem',
+                                                    borderRadius: '0.75rem',
+                                                    background: 'rgba(148,163,184,0.04)',
+                                                    border: '1px dashed rgba(148,163,184,0.2)',
+                                                    opacity: 0.7,
+                                                }}
+                                            >
+                                                {/* Image */}
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '0.4rem', overflow: 'hidden', background: 'var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'grayscale(0.6)' }}>
+                                                    {item.hinhAnhMon
+                                                        ? <img src={item.hinhAnhMon.startsWith('http') ? item.hinhAnhMon : `${BASE_URL}${item.hinhAnhMon.startsWith('/') ? '' : '/'}${item.hinhAnhMon}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }} />
+                                                        : null}
+                                                    <span style={{ fontSize: '1rem', display: item.hinhAnhMon ? 'none' : 'block' }}>🍽️</span>
+                                                </div>
+
+                                                {/* Info */}
+                                                <div>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-muted)', textDecoration: 'line-through', marginBottom: '0.2rem' }}>
+                                                        {item.tenMon || `Món #${item.id_monAn}`}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                        <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '999px', padding: '0.1rem 0.45rem' }}>
+                                                            SL: <strong style={{ color: '#94a3b8' }}>{item.soLuong}</strong>
+                                                        </span>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8', background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: '999px', padding: '0.1rem 0.45rem' }}>
+                                                            Đã xóa
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Price (struck through) */}
+                                                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    <div style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.85rem', textDecoration: 'line-through' }}>
+                                                        {formatCurrency(item.giaTaiThoiDiemBan * item.soLuong)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                                        Những món trên đã được xóa khỏi đơn trong lần chỉnh sửa trước.
+                                    </div>
+                                </div>
+                            )}
                         </>
                     ) : null}
                 </div>

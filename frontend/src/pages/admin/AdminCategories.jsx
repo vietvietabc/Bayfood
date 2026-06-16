@@ -9,6 +9,10 @@ const AdminCategories = () => {
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ tenDanhMuc: '', moTa: '' });
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
   const fetchCategories = async () => {
     try {
       const response = await api.get('http://localhost:8000/api/danhmuc');
@@ -75,7 +79,15 @@ const AdminCategories = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      {(() => {
+        const indexOfLastItem = currentPage * itemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+        const currentCategories = categories.slice(indexOfFirstItem, indexOfLastItem);
+        const totalPages = Math.ceil(categories.length / itemsPerPage);
+
+        return (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', margin: 0 }}>Cập nhật danh mục</h1>
         <button onClick={handleOpenAdd} className="btn btn-primary">Thêm Danh Mục</button>
       </div>
@@ -94,7 +106,7 @@ const AdminCategories = () => {
               </tr>
             </thead>
             <tbody>
-              {categories.map(cat => (
+              {currentCategories.map(cat => (
                 <tr key={cat.id_danhMuc} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '1rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>#DM{cat.id_danhMuc}</td>
                   <td style={{ padding: '1rem', fontWeight: 'bold' }}>{cat.tenDanhMuc}</td>
@@ -119,6 +131,67 @@ const AdminCategories = () => {
         )}
       </div>
 
+      {/* Pagination UI */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface-light)' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, categories.length)} trong tổng số {categories.length} danh mục
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              style={{
+                padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+              }}
+            >
+              Trước
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      style={{
+                        padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                        background: currentPage === page ? 'var(--primary)' : 'transparent',
+                        color: currentPage === page ? '#fff' : 'var(--text-main)',
+                        fontWeight: currentPage === page ? 'bold' : 'normal',
+                        cursor: 'pointer', fontSize: '0.85rem'
+                      }}
+                    >
+                      {page}
+                    </button>
+                  );
+                }
+                if (page === currentPage - 2 || page === currentPage + 2) {
+                  return <span key={page} style={{ padding: '0 0.2rem', color: 'var(--text-muted)' }}>...</span>;
+                }
+                return null;
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                background: currentPage === totalPages ? 'var(--surface-card)' : 'var(--surface)',
+                color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+              }}
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      )}
+
+
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card" style={{ width: '480px', padding: '2rem', position: 'relative', borderRadius: '14px' }}>
@@ -142,6 +215,9 @@ const AdminCategories = () => {
           </div>
         </div>
       )}
+      </>
+      );
+    })()}
     </div>
   );
 };

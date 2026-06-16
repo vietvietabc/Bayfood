@@ -85,6 +85,7 @@ class DonHangDetail(BaseModel):
     trangThaiCoc: Optional[str] = None
     tongThanhToan: Optional[Decimal] = 0.0 # Tổng số tiền đã thanh toán (từ bảng THANHTOAN)
     chi_tiet: List[ChiTietDonHangDetail] = []
+    lich_su_chi_tiet: List[ChiTietDonHangDetail] = []  # Lịch sử các món đã hủy khi chỉnh sửa
     class Config:
         from_attributes = True
 

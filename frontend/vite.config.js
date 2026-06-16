@@ -9,10 +9,13 @@ export default defineConfig({
     cssMinify: 'lightningcss',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['lucide-react', '@phosphor-icons/react'],
-          'data-vendor': ['@tanstack/react-query', 'axios'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'react-vendor';
+            if (id.includes('lucide-react') || id.includes('@phosphor-icons')) return 'ui-vendor';
+            if (id.includes('@tanstack') || id.includes('axios')) return 'data-vendor';
+            return 'vendor';
+          }
         },
       },
     },
@@ -20,5 +23,11 @@ export default defineConfig({
   },
   server: {
     open: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
 })

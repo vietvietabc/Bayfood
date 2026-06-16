@@ -14,7 +14,7 @@ const TableTimeline = ({ timelineData }) => {
   const parseTime = (timeStr) => {
     if (timeStr === "24:00") return 24;
     const [h, m] = timeStr.split(':');
-    return parseInt(h) + parseInt(m)/60;
+    return parseInt(h) + parseInt(m) / 60;
   };
   const startHour = Math.floor(parseTime(workingHours.gioMoCua));
   let endHour = Math.ceil(parseTime(workingHours.gioDongCua));
@@ -26,22 +26,22 @@ const TableTimeline = ({ timelineData }) => {
   }
 
   const calculatePosition = (timeStr) => {
-     const d = new Date(timeStr);
-     let h = d.getHours() + d.getMinutes()/60;
-     if (h < startHour && endHour > 24) h += 24; // next day
-     const offset = h - startHour;
-     const left = (offset / (endHour - startHour)) * 100;
-     return Math.max(0, Math.min(100, left));
+    const d = new Date(timeStr);
+    let h = d.getHours() + d.getMinutes() / 60;
+    if (h < startHour && endHour > 24) h += 24; // next day
+    const offset = h - startHour;
+    const left = (offset / (endHour - startHour)) * 100;
+    return Math.max(0, Math.min(100, left));
   };
 
   const getStatusColor = (trangThai) => {
-     switch(trangThai) {
-       case 'Chờ xác nhận': return { bg: 'rgba(234,179,8,0.2)', border: '#f59e0b', color: '#b45309' };
-       case 'Đã xác nhận': return { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', color: '#1d4ed8' };
-       case 'Đã checkin': return { bg: 'rgba(16,185,129,0.2)', border: '#10b981', color: '#047857' };
-       case 'Đã đặt': return { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', color: '#1d4ed8' };
-       default: return { bg: 'rgba(156,163,175,0.2)', border: '#9ca3af', color: '#374151' };
-     }
+    switch (trangThai) {
+      case 'Chờ xác nhận': return { bg: 'rgba(234,179,8,0.2)', border: '#f59e0b', color: '#b45309' };
+      case 'Đã xác nhận': return { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', color: '#1d4ed8' };
+      case 'Đã checkin': return { bg: 'rgba(16,185,129,0.2)', border: '#10b981', color: '#047857' };
+      case 'Đã đặt': return { bg: 'rgba(59,130,246,0.2)', border: '#3b82f6', color: '#1d4ed8' };
+      default: return { bg: 'rgba(156,163,175,0.2)', border: '#9ca3af', color: '#374151' };
+    }
   };
 
   return (
@@ -51,7 +51,7 @@ const TableTimeline = ({ timelineData }) => {
         {hours.map((h, i) => (
           <div key={h} style={{ flex: i === hours.length - 1 ? '0 0 1px' : 1, position: 'relative' }}>
             <span style={{ position: 'absolute', left: '-15px', width: '30px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {h >= 24 ? h-24 : h}:00
+              {h >= 24 ? h - 24 : h}:00
             </span>
             <div style={{ position: 'absolute', left: 0, top: '100%', height: 'calc(100vh - 300px)', minHeight: '300px', borderLeft: '1px dashed var(--border)', zIndex: 0, opacity: 0.5, marginTop: '8px' }} />
           </div>
@@ -69,48 +69,48 @@ const TableTimeline = ({ timelineData }) => {
               {tableRow.table.sucChua} người • {tableRow.table.viTri}
             </div>
           </div>
-          
+
           {/* Timeline Track */}
           <div style={{ flex: 1, position: 'relative', height: '44px', margin: '0.5rem 0' }}>
-             {tableRow.reservations.map(res => {
-               const left = calculatePosition(res.thoiGianDen);
-               const right = calculatePosition(res.thoiGianKetThuc);
-               let width = right - left;
-               if (width < 2) width = 2; // minimum width
-               const style = getStatusColor(res.trangThai);
-               
-               if (width <= 0) return null;
-               
-               return (
-                 <div key={res.id_datBan} 
-                   title={`Đơn #${res.id_datBan}\nTrạng thái: ${res.trangThai}\nSố người: ${res.soNguoi}\nTừ: ${new Date(res.thoiGianDen).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})} đến ${new Date(res.thoiGianKetThuc).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}`}
-                   style={{
-                     position: 'absolute',
-                     left: `${left}%`,
-                     width: `${width}%`,
-                     height: '100%',
-                     background: style.bg,
-                     border: `1px solid ${style.border}`,
-                     borderRadius: '8px',
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center',
-                     fontSize: '0.75rem',
-                     fontWeight: 600,
-                     color: style.color,
-                     overflow: 'hidden',
-                     whiteSpace: 'nowrap',
-                     textOverflow: 'ellipsis',
-                     cursor: 'help',
-                     padding: '0 6px',
-                     boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                     zIndex: 2,
-                     transition: 'transform 0.1s',
-                 }}>
-                    {width > 8 ? res.trangThai : (width > 4 ? '...' : '')}
-                 </div>
-               );
-             })}
+            {tableRow.reservations.map(res => {
+              const left = calculatePosition(res.thoiGianDen);
+              const right = calculatePosition(res.thoiGianKetThuc);
+              let width = right - left;
+              if (width < 2) width = 2; // minimum width
+              const style = getStatusColor(res.trangThai);
+
+              if (width <= 0) return null;
+
+              return (
+                <div key={res.id_datBan}
+                  title={`Đơn #${res.id_datBan}\nTrạng thái: ${res.trangThai}\nSố người: ${res.soNguoi}\nTừ: ${new Date(res.thoiGianDen).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} đến ${new Date(res.thoiGianKetThuc).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${left}%`,
+                    width: `${width}%`,
+                    height: '100%',
+                    background: style.bg,
+                    border: `1px solid ${style.border}`,
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: style.color,
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    cursor: 'help',
+                    padding: '0 6px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                    zIndex: 2,
+                    transition: 'transform 0.1s',
+                  }}>
+                  {width > 8 ? res.trangThai : (width > 4 ? '...' : '')}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -334,6 +334,10 @@ const AdminTables = () => {
   const [selectedQrTable, setSelectedQrTable] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
   // Timeline states
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'floorplan' | 'timeline'
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -526,7 +530,7 @@ const AdminTables = () => {
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <h1 style={{ fontSize: '2rem', margin: 0 }}>Cập Nhật Bàn</h1>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {/* View Toggle */}
           <div style={{ display: 'flex', background: 'var(--surface-card)', borderRadius: 'var(--rounded-pill)', padding: '4px', border: '1px solid var(--border)' }}>
@@ -600,102 +604,163 @@ const AdminTables = () => {
         />
       ) : viewMode === 'list' ? (
         <div className="card" style={{ overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu...</div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: 'var(--surface-light)', borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tên Bàn</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Sức Chứa</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Vị Trí</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tiền Cọc Mặc Định</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Hình Ảnh View</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã QR</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold' }}>Trạng Thái</th>
-                <th style={{ padding: '1rem', fontWeight: 'bold', textAlign: 'right' }}>Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tables.map(table => (
-                <tr key={table.id_ban} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '1rem', fontWeight: 'bold' }}>{table.tenBan}</td>
-                  <td style={{ padding: '1rem' }}>{table.sucChua} người</td>
-                  <td style={{ padding: '1rem' }}>{table.viTri}</td>
-                  <td style={{ padding: '1rem' }}>
-                    {table.tienCocMacDinh > 0 ? (
-                      <span style={{ fontWeight: 'bold', color: '#f97316' }}>
-                        {Number(table.tienCocMacDinh).toLocaleString('vi-VN')} ₫
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Miễn cọc</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    {table.hinhAnh ? (
-                      <img src={getImageUrl(table.hinhAnh)} alt="View" style={{ width: '80px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <ImageIcon size={16} /> Chưa có
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    {table.maQR_url ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenQrPreview(table)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-                      >
-                        <img src={getImageUrl(table.maQR_url)} alt={`QR ${table.tenBan}`} style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '8px', background: 'white', border: '1px solid var(--border)' }} />
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text)' }}>
-                            <QrCode size={14} /> Quét để mở menu
+          {loading ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu...</div>
+          ) : (() => {
+            const indexOfLastItem = currentPage * itemsPerPage;
+            const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+            const currentTables = tables.slice(indexOfFirstItem, indexOfLastItem);
+            const totalPages = Math.ceil(tables.length / itemsPerPage);
+
+            return (
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-light)', borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tên Bàn</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Sức Chứa</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Vị Trí</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Tiền Cọc Mặc Định</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Hình Ảnh View</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Mã QR</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold' }}>Trạng Thái</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', textAlign: 'right' }}>Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentTables.map(table => (
+                      <tr key={table.id_ban} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '1rem', fontWeight: 'bold' }}>{table.tenBan}</td>
+                        <td style={{ padding: '1rem' }}>{table.sucChua} người</td>
+                        <td style={{ padding: '1rem' }}>{table.viTri}</td>
+                        <td style={{ padding: '1rem' }}>
+                          {table.tienCocMacDinh > 0 ? (
+                            <span style={{ fontWeight: 'bold', color: '#f97316' }}>
+                              {Number(table.tienCocMacDinh).toLocaleString('vi-VN')} ₫
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Miễn cọc</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          {table.hinhAnh ? (
+                            <img src={getImageUrl(table.hinhAnh)} alt="View" style={{ width: '80px', height: '55px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <ImageIcon size={16} /> Chưa có
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          {table.maQR_url ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenQrPreview(table)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                            >
+                              <img src={getImageUrl(table.maQR_url)} alt={`QR ${table.tenBan}`} style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '8px', background: 'white', border: '1px solid var(--border)' }} />
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text)' }}>
+                                  <QrCode size={14} /> Quét để mở menu
+                                </div>
+                                <div style={{ marginTop: '0.2rem' }}>Bấm để phóng to</div>
+                              </div>
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>Đang tạo...</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '1rem',
+                            fontSize: '0.875rem',
+                            background: table.trangThai === 'Trống' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                            color: table.trangThai === 'Trống' ? '#10b981' : '#ef4444'
+                          }}>
+                            {table.trangThai}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <button onClick={() => handleOpenEditModal(table)} style={{ padding: '0.5rem', background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(table.id_ban)}
+                              style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
-                          <div style={{ marginTop: '0.2rem' }}>Bấm để phóng to</div>
-                        </div>
-                      </button>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>Đang tạo...</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {tables.length === 0 && (
+                      <tr>
+                        <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          Không có bàn nào trong hệ thống.
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <span style={{
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '1rem',
-                      fontSize: '0.875rem',
-                      background: table.trangThai === 'Trống' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                      color: table.trangThai === 'Trống' ? '#10b981' : '#ef4444'
-                    }}>
-                      {table.trangThai}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                      <button onClick={() => handleOpenEditModal(table)} style={{ padding: '0.5rem', background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                        <Edit size={16} />
-                      </button>
+                  </tbody>
+                </table>
+
+                {/* Pagination UI */}
+                {totalPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface-light)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, tables.length)} trong tổng số {tables.length} bàn
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
-                        onClick={() => handleDelete(table.id_ban)}
-                        style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                          padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                          background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                          color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                          cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                        }}
                       >
-                        <Trash2 size={16} />
+                        Trước
+                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            style={{
+                              padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                              background: currentPage === page ? 'var(--primary)' : 'transparent',
+                              color: currentPage === page ? '#fff' : 'var(--text-main)',
+                              fontWeight: currentPage === page ? 'bold' : 'normal',
+                              cursor: 'pointer', fontSize: '0.85rem'
+                            }}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                          padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                          background: currentPage === totalPages ? 'var(--surface-card)' : 'var(--surface)',
+                          color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                          cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                        }}
+                      >
+                        Sau
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {tables.length === 0 && (
-                <tr>
-                  <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Không có bàn nào trong hệ thống.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
       ) : (
         /* ===== TIMELINE VIEW - Enhanced ===== */
         <div className="card" style={{ overflow: 'hidden', padding: '1.5rem', overflowX: 'auto' }}>

@@ -7,6 +7,7 @@ from datetime import datetime
 
 class LiveChatSessionCreate(BaseModel):
     tenKhachHang: str  # Tên hiển thị của khách
+    id_nguoiDung: Optional[int] = None  # ID tài khoản nếu khách đã đăng nhập
 
 class LiveChatSessionResponse(BaseModel):
     id_phien: str

@@ -24,6 +24,21 @@ const AdminUsers = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'customer'
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
+
+  // Shift History state
+  const [showShiftHistoryModal, setShowShiftHistoryModal] = useState(false);
+  const [selectedUserForHistory, setSelectedUserForHistory] = useState(null);
+  const [userShiftHistory, setUserShiftHistory] = useState([]);
+  const [loadingShiftHistory, setLoadingShiftHistory] = useState(false);
+
   const [form, setForm] = useState({
     hoTen: '', email: '', soDienThoai: '', matKhau: '', vaiTro: 'nv_phuc_vu',
   });
@@ -74,6 +89,13 @@ const AdminUsers = () => {
       u.soDienThoai?.includes(q)
     );
   }, [customerUsers, searchQuery]);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentStaff = filteredStaff.slice(indexOfFirstItem, indexOfLastItem);
+  const totalStaffPages = Math.ceil(filteredStaff.length / itemsPerPage);
+  const currentCustomers = filteredCustomers.slice(indexOfFirstItem, indexOfLastItem);
+  const totalCustomerPages = Math.ceil(filteredCustomers.length / itemsPerPage);
 
   const handleFormChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -138,6 +160,23 @@ const AdminUsers = () => {
   const showSuccess = (msg) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const handleViewShiftHistory = async (user) => {
+    setSelectedUserForHistory(user);
+    setShowShiftHistoryModal(true);
+    setLoadingShiftHistory(true);
+    setUserShiftHistory([]);
+    try {
+      const res = await axios.get(`${API}/${user.id_nguoiDung}/shift-history`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      setUserShiftHistory(res.data);
+    } catch (err) {
+      alert('Không thể tải lịch sử ca làm việc');
+    } finally {
+      setLoadingShiftHistory(false);
+    }
   };
 
   const BanUnbanButton = ({ user }) => {
@@ -292,7 +331,7 @@ const AdminUsers = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredStaff.map(user => {
+              {currentStaff.map(user => {
                 const role = getRoleConfig(user.tenVaiTro);
                 const isBanned = user.trangThai === 'Bị khóa';
                 return (
@@ -333,15 +372,36 @@ const AdminUsers = () => {
                           <option value="">Chưa gán ca</option>
                           <option value="Ca sáng">Ca sáng (07h-12h)</option>
                           <option value="Ca chiều">Ca chiều (12h-17h)</option>
-                          <option value="Ca tối">Ca tối (17h-22h)</option>
+                          <option value="Ca tối">Ca tối (17h-24h)</option>
                         </select>
                       ) : (
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>
                       )}
                     </td>
                     <td style={{ padding: '1rem' }}><StatusBadge user={user} /></td>
-                    <td style={{ padding: '1rem', textAlign: 'center' }}><BanUnbanButton user={user} /></td>
+                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        {(user.tenVaiTro === 'Nhân viên nhà bếp' || user.tenVaiTro === 'Nhân viên phục vụ') && (
+                          <button
+                            onClick={() => handleViewShiftHistory(user)}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                              padding: '0.45rem 0.9rem', borderRadius: '0.5rem', border: 'none',
+                              cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                              background: 'var(--surface-light)', color: 'var(--text)', transition: 'all 0.2s',
+                              border: '1px solid var(--border)'
+                            }}
+                            onMouseEnter={e => e.target.style.background = 'var(--surface)'}
+                            onMouseLeave={e => e.target.style.background = 'var(--surface-light)'}
+                          >
+                            Lịch sử ca
+                          </button>
+                        )}
+                        <BanUnbanButton user={user} />
+                      </div>
+                    </td>
                   </tr>
+
                 );
               })}
               {filteredStaff.length === 0 && (
@@ -365,7 +425,7 @@ const AdminUsers = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredCustomers.map(user => {
+              {currentCustomers.map(user => {
                 const isBanned = user.trangThai === 'Bị khóa';
                 return (
                   <tr key={user.id_nguoiDung} style={{ borderBottom: '1px solid var(--border)', opacity: isBanned ? 0.7 : 1 }}>
@@ -395,6 +455,131 @@ const AdminUsers = () => {
               )}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination UI */}
+        {!loading && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface-light)' }}>
+            {activeTab === 'staff' ? (
+              <>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredStaff.length)} trong tổng số {filteredStaff.length} nhân viên
+                </div>
+                {totalStaffPages > 1 && (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      style={{
+                        padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                        background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                        color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                      }}
+                    >
+                      Trước
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      {Array.from({ length: totalStaffPages }, (_, i) => i + 1).map(page => {
+                        if (page === 1 || page === totalStaffPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentPage(page)}
+                              style={{
+                                padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                                background: currentPage === page ? 'var(--primary)' : 'transparent',
+                                color: currentPage === page ? '#fff' : 'var(--text-main)',
+                                fontWeight: currentPage === page ? 'bold' : 'normal',
+                                cursor: 'pointer', fontSize: '0.85rem'
+                              }}
+                            >
+                              {page}
+                            </button>
+                          );
+                        }
+                        if (page === currentPage - 2 || page === currentPage + 2) {
+                          return <span key={page} style={{ padding: '0 0.2rem', color: 'var(--text-muted)' }}>...</span>;
+                        }
+                        return null;
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalStaffPages))}
+                      disabled={currentPage === totalStaffPages}
+                      style={{
+                        padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                        background: currentPage === totalStaffPages ? 'var(--surface-card)' : 'var(--surface)',
+                        color: currentPage === totalStaffPages ? 'var(--text-muted)' : 'var(--text-main)',
+                        cursor: currentPage === totalStaffPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                      }}
+                    >
+                      Sau
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredCustomers.length)} trong tổng số {filteredCustomers.length} khách hàng
+                </div>
+                {totalCustomerPages > 1 && (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      style={{
+                        padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                        background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                        color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                      }}
+                    >
+                      Trước
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      {Array.from({ length: totalCustomerPages }, (_, i) => i + 1).map(page => {
+                        if (page === 1 || page === totalCustomerPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentPage(page)}
+                              style={{
+                                padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                                background: currentPage === page ? 'var(--primary)' : 'transparent',
+                                color: currentPage === page ? '#fff' : 'var(--text-main)',
+                                fontWeight: currentPage === page ? 'bold' : 'normal',
+                                cursor: 'pointer', fontSize: '0.85rem'
+                              }}
+                            >
+                              {page}
+                            </button>
+                          );
+                        }
+                        if (page === currentPage - 2 || page === currentPage + 2) {
+                          return <span key={page} style={{ padding: '0 0.2rem', color: 'var(--text-muted)' }}>...</span>;
+                        }
+                        return null;
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalCustomerPages))}
+                      disabled={currentPage === totalCustomerPages}
+                      style={{
+                        padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                        background: currentPage === totalCustomerPages ? 'var(--surface-card)' : 'var(--surface)',
+                        color: currentPage === totalCustomerPages ? 'var(--text-muted)' : 'var(--text-main)',
+                        cursor: currentPage === totalCustomerPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                      }}
+                    >
+                      Sau
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -480,6 +665,81 @@ const AdminUsers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Lịch sử ca làm */}
+      {showShiftHistoryModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="card" style={{ width: '800px', maxWidth: '95vw', maxHeight: '90vh', padding: '2rem', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <button
+              onClick={() => setShowShiftHistoryModal(false)}
+              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+            >
+              <X size={22} />
+            </button>
+
+            <h2 style={{ marginTop: 0, marginBottom: '0.25rem', fontSize: '1.35rem' }}>
+              Lịch sử ca làm - {selectedUserForHistory?.hoTen}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.75rem' }}>
+              Lịch sử vào ca và tan ca của nhân viên này.
+            </p>
+
+            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
+              {loadingShiftHistory ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải dữ liệu…</div>
+              ) : userShiftHistory.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nhân viên này chưa có lịch sử ca làm.</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, boxShadow: '0 1px 0 var(--border)' }}>
+                    <tr>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Ngày</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Ca Làm</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Giờ Vào</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Giờ Ra</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Thời Lượng</th>
+                      <th style={{ padding: '1rem', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Trạng Thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {userShiftHistory.map(shift => (
+                      <tr key={shift.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '1rem', fontWeight: '600' }}>{shift.ngay}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{ padding: '0.25rem 0.65rem', borderRadius: '0.5rem', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '0.75rem', fontWeight: '700' }}>
+                            {shift.caLamViec}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', fontWeight: '600' }}>{shift.thoiGianVao}</td>
+                        <td style={{ padding: '1rem', color: shift.thoiGianRa === 'Chưa tan ca' ? 'var(--text-muted)' : 'inherit', fontWeight: '600' }}>
+                          {shift.thoiGianRa}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#f97316', fontWeight: '700' }}>
+                          {shift.soGio !== null ? `${shift.soGio} giờ` : '-'}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          {shift.trangThai === 'Đang làm' ? (
+                            <span style={{ padding: '0.25rem 0.65rem', borderRadius: '1rem', background: 'rgba(16,185,129,0.15)', color: '#10b981', fontSize: '0.75rem', fontWeight: '700' }}>
+                              Đang làm
+                            </span>
+                          ) : (
+                            <span style={{ padding: '0.25rem 0.65rem', borderRadius: '1rem', background: 'var(--surface-light)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700' }}>
+                              {shift.trangThai}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       )}

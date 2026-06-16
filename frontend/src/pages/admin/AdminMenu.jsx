@@ -13,6 +13,14 @@ const AdminMenu = () => {
   const [imagePreview, setImagePreview] = useState('');
   const fileInputRef = useRef(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCat]);
+
   const [formData, setFormData] = useState({
     tenMon: '',
     id_danhMuc: '',
@@ -122,6 +130,11 @@ const AdminMenu = () => {
 
   const filtered = filterCat === 0 ? items : items.filter(i => i.id_danhMuc === filterCat);
 
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+
   const getCatName = (id) => categories.find(c => c.id_danhMuc === id)?.tenDanhMuc || `DM${id}`;
 
   const inputStyle = {
@@ -171,7 +184,7 @@ const AdminMenu = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(item => (
+              {currentItems.map(item => (
                 <tr key={item.id_monAn} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     {item.hinhAnh
@@ -206,6 +219,66 @@ const AdminMenu = () => {
               )}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface-light)' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filtered.length)} trong tổng số {filtered.length} món
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                  background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                  color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                }}
+              >
+                Trước
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                          background: currentPage === page ? 'var(--primary)' : 'transparent',
+                          color: currentPage === page ? '#fff' : 'var(--text-main)',
+                          fontWeight: currentPage === page ? 'bold' : 'normal',
+                          cursor: 'pointer', fontSize: '0.85rem'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    );
+                  }
+                  if (page === currentPage - 2 || page === currentPage + 2) {
+                    return <span key={page} style={{ padding: '0 0.2rem', color: 'var(--text-muted)' }}>...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                  background: currentPage === totalPages ? 'var(--surface-card)' : 'var(--surface)',
+                  color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                }}
+              >
+                Sau
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

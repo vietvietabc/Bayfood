@@ -47,11 +47,6 @@ class DanhGia(Base):
 
 
 class DonHangChoThanhToan(Base):
-    """
-    Lưu trữ tạm dữ liệu giỏ hàng + đặt bàn của khách.
-    Chỉ tồn tại đến khi VNPay trả về SUCCESS → chuyển thành DatBan + DonHang thật rồi bị xóa.
-    Nếu thất bại → xóa luôn.
-    """
     __tablename__ = "DONHANG_CHOTHANHTOAN"
     id               = Column(Integer, primary_key=True, index=True)
     id_nguoiDung     = Column(Integer, ForeignKey("NGUOIDUNG.id_nguoiDung", ondelete="CASCADE"), nullable=False)
@@ -69,12 +64,6 @@ class DonHangChoThanhToan(Base):
 
 
 class ChinhSuaDonHangChoThanhToan(Base):
-    """
-    Lưu trữ tạm dữ liệu chỉnh sửa đơn hàng khi tổng mới > tổng cũ và đơn đã có cọc.
-    Chờ khách thanh toán phần chênh lệch qua VNPay trước khi áp dụng thay đổi.
-    Nếu thanh toán thành công → cập nhật chi tiết đơn hàng + ghi nhận ThanhToan bổ sung.
-    Nếu thất bại / bỏ qua → xóa luôn, đơn giữ nguyên.
-    """
     __tablename__ = "CHINHSUA_DONHANG_CHOTHANHTOAN"
     id               = Column(Integer, primary_key=True, index=True)
     id_nguoiDung     = Column(Integer, ForeignKey("NGUOIDUNG.id_nguoiDung", ondelete="CASCADE"), nullable=False)

@@ -39,6 +39,14 @@ const AdminReservations = () => {
   const [noShowReason, setNoShowReason] = useState('Khách không đến đúng giờ');
   const [noShowLoading, setNoShowLoading] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, searchQuery]);
+
   const fetchReservations = async () => {
     try {
       const res = await api.get(`${BASE_URL}/api/datban/all/list`);
@@ -110,6 +118,11 @@ const AdminReservations = () => {
     return list;
   }, [reservations, filterStatus, searchQuery]);
 
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+
   return (
     <div>
       {/* Header */}
@@ -156,7 +169,7 @@ const AdminReservations = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(res => {
+              {currentItems.map(res => {
                 const ss = STATUS_STYLE[res.trangThai] || { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
                 const cs = res.trangThaiCoc ? (COC_STYLE[res.trangThaiCoc] || {}) : null;
                 const isPast = res.thoiGianDen && new Date(res.thoiGianDen) < new Date();
@@ -253,6 +266,67 @@ const AdminReservations = () => {
               )}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface-light)' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Hiển thị {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filtered.length)} trong tổng số {filtered.length} đặt bàn
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                  background: currentPage === 1 ? 'var(--surface-card)' : 'var(--surface)',
+                  color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-main)',
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                }}
+              >
+                Trước
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Hiển thị các trang xung quanh trang hiện tại (tối đa 5 nút)
+                  if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          padding: '0.4rem 0.75rem', border: 'none', borderRadius: '0.4rem',
+                          background: currentPage === page ? 'var(--primary)' : 'transparent',
+                          color: currentPage === page ? '#fff' : 'var(--text-main)',
+                          fontWeight: currentPage === page ? 'bold' : 'normal',
+                          cursor: 'pointer', fontSize: '0.85rem'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    );
+                  }
+                  if (page === currentPage - 2 || page === currentPage + 2) {
+                    return <span key={page} style={{ padding: '0 0.2rem', color: 'var(--text-muted)' }}>...</span>;
+                  }
+                  return null;
+                })}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '0.4rem 0.8rem', border: '1px solid var(--border)', borderRadius: '0.5rem',
+                  background: currentPage === totalPages ? 'var(--surface-card)' : 'var(--surface)',
+                  color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-main)',
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '0.85rem'
+                }}
+              >
+                Sau
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
