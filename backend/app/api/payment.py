@@ -500,6 +500,20 @@ def _activate_pending_order(db: Session, pending: "models.DonHangChoThanhToan", 
         dat_ban_data = json.loads(pending.datBan_json)
         thoiGianDen  = datetime.fromisoformat(dat_ban_data["thoiGianDen"].replace("Z", ""))
         ghiChu_default = "Đặt bàn" if is_reservation_only else "Đặt bàn kèm đơn hàng"
+        # Tính tienCoc thực sự = phí bàn + 10% bill (dùng làm khoản phạt khi vắng mặt)
+        # Nếu khách chọn "toàn bộ" thì soTienThanhToan = 100% bill, nhưng tienCoc vẫn chỉ là phần cọc
+        if pending.hinhThucThanhToan == "toàn bộ":
+            _table_fee = TABLE_DEPOSIT_FEE
+            _id_ban = dat_ban_data.get("id_ban")
+            if _id_ban:
+                _db_ban = db.query(models.Ban).filter(models.Ban.id_ban == _id_ban).first()
+                if _db_ban and _db_ban.tienCocMacDinh and float(_db_ban.tienCocMacDinh) > 0:
+                    _table_fee = int(float(_db_ban.tienCocMacDinh))
+            tien_coc_actual = int(float(pending.tongTien) * 0.1) + _table_fee
+        else:
+            # Khách chỉ đặt cọc → soTienThanhToan chính là tiền cọc
+            tien_coc_actual = float(pending.soTienThanhToan)
+
         db_reservation = models.DatBan(
             id_ban=dat_ban_data.get("id_ban"),
             id_nguoiDung=pending.id_nguoiDung,
@@ -507,7 +521,7 @@ def _activate_pending_order(db: Session, pending: "models.DonHangChoThanhToan", 
             soNguoi=dat_ban_data["soNguoi"],
             ghiChu=dat_ban_data.get("ghiChu") or ghiChu_default,
             trangThai="Đã xác nhận",   # Đã trả cọc → xác nhận luôn
-            tienCoc=float(pending.soTienThanhToan),
+            tienCoc=tien_coc_actual,
             trangThaiCoc="Đã cọc",
         )
         db.add(db_reservation)
