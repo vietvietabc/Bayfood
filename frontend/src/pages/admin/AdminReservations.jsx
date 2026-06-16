@@ -504,7 +504,7 @@ const AdminReservations = () => {
               <div><strong>Giờ hẹn:</strong> {fmt(noShowModal.thoiGianDen)}</div>
               {noShowModal.tienCoc > 0 && (
                 <div style={{ marginTop: '0.5rem', color: '#dc2626', fontWeight: 'bold' }}>
-                  ⚠️ Khách sẽ mất tiền cọc: {fmtMoney(noShowModal.tienCoc)}
+                  ⚠️ Khách sẽ mất tiền cọc <strong>{fmtMoney(noShowModal.tienCoc)}</strong> — chỉ mất phần cọc đã đặt trước.
                 </div>
               )}
             </div>
