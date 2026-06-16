@@ -336,7 +336,7 @@ const AdminReservations = () => {
       {detailModal && (
         <div onClick={() => setDetailModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid var(--border)', width: '100%', maxWidth: '600px', padding: '2rem', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
-            
+
             {/* Modal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
               <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -503,13 +503,8 @@ const AdminReservations = () => {
               <div><strong>Đặt bàn:</strong> #DB{noShowModal.id_datBan} — Bàn {noShowModal.id_ban || 'chưa xếp'}</div>
               <div><strong>Giờ hẹn:</strong> {fmt(noShowModal.thoiGianDen)}</div>
               {noShowModal.tienCoc > 0 && (
-                <div style={{ marginTop: '0.5rem', color: '#dc2626' }}>
-                  <div style={{ fontWeight: 'bold' }}>
-                    ⚠️ Khách sẽ mất tiền cọc: <strong>{fmtMoney(noShowModal.tienCoc)}</strong>
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '0.25rem', fontWeight: 'normal' }}>
-                    (Tiền cọc = phí giữ bàn + 10% tổng bill — khách không bị trừ thêm ngoài khoản này)
-                  </div>
+                <div style={{ marginTop: '0.5rem', color: '#dc2626', fontWeight: 'bold' }}>
+                  ⚠️ Khách sẽ mất tiền cọc: {fmtMoney(noShowModal.tienCoc)}
                 </div>
               )}
             </div>
