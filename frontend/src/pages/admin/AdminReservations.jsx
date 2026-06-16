@@ -38,6 +38,9 @@ const AdminReservations = () => {
   const [noShowModal, setNoShowModal] = useState(null);
   const [noShowReason, setNoShowReason] = useState('Khách không đến đúng giờ');
   const [noShowLoading, setNoShowLoading] = useState(false);
+  const [noShowOrderData, setNoShowOrderData] = useState(null);
+  const [noShowOrderLoading, setNoShowOrderLoading] = useState(false);
+  const TABLE_FEE = 50000;
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -173,7 +176,8 @@ const AdminReservations = () => {
                 const ss = STATUS_STYLE[res.trangThai] || { bg: 'var(--surface-light)', color: 'var(--text-muted)' };
                 const cs = res.trangThaiCoc ? (COC_STYLE[res.trangThaiCoc] || {}) : null;
                 const isPast = res.thoiGianDen && new Date(res.thoiGianDen) < new Date();
-                const canNoShow = ['Đã xác nhận', 'Chờ xác nhận', 'Đã đặt'].includes(res.trangThai) && isPast;
+                const is3HoursPast = res.thoiGianDen && new Date(new Date(res.thoiGianDen).getTime() + 3 * 60 * 60 * 1000) < new Date();
+                const canNoShow = ['Đã xác nhận', 'Chờ xác nhận', 'Đã đặt'].includes(res.trangThai) && is3HoursPast;
 
                 return (
                   <tr key={res.id_datBan} style={{ borderBottom: '1px solid var(--border)', background: res.trangThai === 'Vắng mặt' ? 'rgba(239,68,68,0.04)' : 'transparent' }}>
@@ -244,7 +248,18 @@ const AdminReservations = () => {
 
                         {/* Vắng mặt */}
                         {canNoShow && (
-                          <button onClick={() => { setNoShowModal(res); setNoShowReason('Khách không đến đúng giờ'); }}
+                          <button onClick={() => {
+                            setNoShowModal(res);
+                            setNoShowReason('Khách không đến đúng giờ');
+                            setNoShowOrderData(null);
+                            if (res.id_donHang) {
+                              setNoShowOrderLoading(true);
+                              api.get(`${BASE_URL}/api/donhang/${res.id_donHang}/detail`)
+                                .then(r => setNoShowOrderData(r.data))
+                                .catch(() => setNoShowOrderData(null))
+                                .finally(() => setNoShowOrderLoading(false));
+                            }
+                          }}
                             style={{ padding: '0.35rem 0.75rem', background: 'rgba(239,68,68,0.1)', color: '#dc2626', border: '1px solid #dc2626', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>
                             Vắng mặt
                           </button>
@@ -502,16 +517,48 @@ const AdminReservations = () => {
             <div style={{ padding: '1rem', borderRadius: '0.75rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
               <div><strong>Đặt bàn:</strong> #DB{noShowModal.id_datBan} — Bàn {noShowModal.id_ban || 'chưa xếp'}</div>
               <div><strong>Giờ hẹn:</strong> {fmt(noShowModal.thoiGianDen)}</div>
-              {noShowModal.tienCoc > 0 && (
-                <div style={{ marginTop: '0.5rem', color: '#dc2626', fontWeight: 'bold' }}>
-                  ⚠️ Khách sẽ mất tiền cọc: {fmtMoney(noShowModal.tienCoc)}
-                </div>
-              )}
-            </div>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.4rem' }}>Lý do</label>
-              <textarea value={noShowReason} onChange={e => setNoShowReason(e.target.value)} rows={3}
-                className="input-field" style={{ width: '100%', resize: 'none' }} />
+              {noShowModal.tienCoc > 0 && (() => {
+                // Tính penalty đúng: nếu khách trả toàn bộ thì chỉ phạt 10% + phí bàn
+                let penaltyAmt = noShowModal.tienCoc;
+                let refundAmt = 0;
+                let isPaidFull = false;
+                if (noShowOrderData && noShowOrderData.chi_tiet) {
+                  const billTotal = noShowOrderData.chi_tiet.reduce((s, i) => s + i.giaTaiThoiDiemBan * i.soLuong, 0);
+                  if (billTotal > 0 && noShowModal.tienCoc >= billTotal * 0.85) {
+                    isPaidFull = true;
+                    penaltyAmt = Math.ceil(billTotal * 0.1) + 50000;
+                    refundAmt = Math.max(0, noShowModal.tienCoc - penaltyAmt);
+                  }
+                }
+                return (
+                  <div style={{ marginTop: '0.5rem', color: '#dc2626' }}>
+                    {noShowOrderLoading ? (
+                      <div style={{ fontSize: '0.82rem', color: '#b91c1c' }}>Đang tính tiền phạt...</div>
+                    ) : (
+                      <>
+                        <div style={{ fontWeight: 'bold' }}>
+                          ⚠️ Tiền phạt vắng mặt: <strong>{fmtMoney(penaltyAmt)}</strong>
+                        </div>
+                        {isPaidFull && refundAmt > 0 && (
+                          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '0.25rem', fontWeight: '600' }}>
+                            ↩ Hoàn lại cho khách: {fmtMoney(refundAmt)}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.75rem', color: '#b91c1c', marginTop: '0.2rem' }}>
+                          {isPaidFull
+                            ? `(Phí giữ bàn + 10% bill — phần còn lại ${fmtMoney(refundAmt)} cần hoàn lại)`
+                            : '(Khách mất toàn bộ tiền cọc đã đặt)'}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+              <div style={{ marginTop: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.4rem' }}>Lý do</label>
+                <textarea value={noShowReason} onChange={e => setNoShowReason(e.target.value)} rows={3}
+                  className="input-field" style={{ width: '100%', resize: 'none' }} />
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button onClick={() => setNoShowModal(null)} className="btn btn-outline">Hủy</button>

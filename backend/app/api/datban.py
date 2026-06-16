@@ -774,8 +774,8 @@ def mark_no_show(
 
     now = _now_utc_naive()
     if db_res.thoiGianDen:
-        # Ngưỡng thủ công: 1 giờ 30 phút sau giờ hẹn
-        allowed_time = db_res.thoiGianDen + timedelta(hours=1, minutes=30)
+        # Ngưỡng thủ công: 3 tiếng sau giờ hẹn
+        allowed_time = db_res.thoiGianDen + timedelta(hours=3)
         if now < allowed_time:
             remaining_seconds = (allowed_time - now).total_seconds()
             remaining_hours = int(remaining_seconds // 3600)
@@ -788,7 +788,7 @@ def mark_no_show(
             
             raise HTTPException(
                 status_code=400,
-                detail=f"Chỉ có thể đánh dấu vắng mặt sau giờ hẹn ít nhất 1 tiếng 30 phút. Vui lòng đợi thêm {time_str}."
+                detail=f"Chỉ có thể đánh dấu vắng mặt sau giờ hẹn ít nhất 3 tiếng. Vui lòng đợi thêm {time_str}."
             )
 
     # Đánh dấu vắng mặt
