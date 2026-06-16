@@ -56,8 +56,8 @@ class DonHangChoThanhToan(Base):
     id_datBan        = Column(Integer, ForeignKey("DATBAN.id_datBan", ondelete="SET NULL"), nullable=True)     # Đặt bàn sẵn có
     thoiGianDen      = Column(String(50), nullable=True)  # ISO string
     hinhThucThanhToan = Column(String(20), nullable=False)                 # "đặt cọc" | "toàn bộ"
-    tongTien         = Column(Numeric(12, 2), CheckConstraint('tongTien >= 0'), nullable=False)             # Tổng tiền món ăn
-    soTienThanhToan  = Column(Numeric(12, 2), CheckConstraint('soTienThanhToan >= 0'), nullable=False)           # Số tiền cần trả ngay
+    tongTien         = Column(Numeric(12, 2), CheckConstraint('"tongTien" >= 0'), nullable=False)             # Tổng tiền món ăn
+    soTienThanhToan  = Column(Numeric(12, 2), CheckConstraint('"soTienThanhToan" >= 0'), nullable=False)           # Số tiền cần trả ngay
     maGiaoDich       = Column(String(100), nullable=True) # VNPay TxnRef (set sau khi tạo URL)
     thoiGianTao      = Column(DateTime, default=get_vn_time, nullable=False)
     trangThai        = Column(String(50), default="Đang chờ", nullable=False)

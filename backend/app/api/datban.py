@@ -774,7 +774,6 @@ def mark_no_show(
 
     now = _now_utc_naive()
     if db_res.thoiGianDen:
-        # Ngưỡng thủ công: 3 tiếng sau giờ hẹn
         allowed_time = db_res.thoiGianDen + timedelta(hours=3)
         if now < allowed_time:
             remaining_seconds = (allowed_time - now).total_seconds()
