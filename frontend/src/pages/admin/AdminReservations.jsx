@@ -503,8 +503,13 @@ const AdminReservations = () => {
               <div><strong>Đặt bàn:</strong> #DB{noShowModal.id_datBan} — Bàn {noShowModal.id_ban || 'chưa xếp'}</div>
               <div><strong>Giờ hẹn:</strong> {fmt(noShowModal.thoiGianDen)}</div>
               {noShowModal.tienCoc > 0 && (
-                <div style={{ marginTop: '0.5rem', color: '#dc2626', fontWeight: 'bold' }}>
-                  ⚠️ Khách sẽ mất tiền cọc <strong>{fmtMoney(noShowModal.tienCoc)}</strong> — chỉ mất phần cọc đã đặt trước.
+                <div style={{ marginTop: '0.5rem', color: '#dc2626' }}>
+                  <div style={{ fontWeight: 'bold' }}>
+                    ⚠️ Khách sẽ mất tiền cọc: <strong>{fmtMoney(noShowModal.tienCoc)}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#b91c1c', marginTop: '0.25rem', fontWeight: 'normal' }}>
+                    (Tiền cọc = phí giữ bàn + 10% tổng bill — khách không bị trừ thêm ngoài khoản này)
+                  </div>
                 </div>
               )}
             </div>
