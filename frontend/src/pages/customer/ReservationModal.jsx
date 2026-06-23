@@ -134,9 +134,30 @@ const ReservationModal = ({
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                             <StickyNote size={15} /> Ghi chú
                         </span>
-                        <div style={{ padding: '0.75rem 1rem', background: 'var(--surface-light)', borderRadius: '0.6rem', border: '1px solid var(--border)', fontSize: '0.9rem', minHeight: '50px' }}>
-                            {selectedReservation.ghiChu || <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>}
-                        </div>
+                        {selectedReservation.ghiChu ? (() => {
+                            const lines = selectedReservation.ghiChu.split('\n').filter(l => l.trim());
+                            return (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    {lines.map((line, idx) => {
+                                        const isMerge = line.includes('[GHÉP BÀN]');
+                                        return isMerge ? (
+                                            <div key={idx} style={{ padding: '0.6rem 0.85rem', background: 'rgba(124,58,237,0.08)', borderRadius: '0.6rem', border: '1px solid rgba(124,58,237,0.25)', fontSize: '0.875rem', color: '#a78bfa', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                                                <span style={{ fontSize: '1rem', lineHeight: 1.2, flexShrink: 0 }}>🪑</span>
+                                                <span>{line.replace('[GHÉP BÀN]', '').trim()}</span>
+                                            </div>
+                                        ) : (
+                                            <div key={idx} style={{ padding: '0.6rem 0.85rem', background: 'var(--surface-light)', borderRadius: '0.6rem', border: '1px solid var(--border)', fontSize: '0.9rem' }}>
+                                                {line}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })() : (
+                            <div style={{ padding: '0.75rem 1rem', background: 'var(--surface-light)', borderRadius: '0.6rem', border: '1px solid var(--border)', fontSize: '0.9rem', minHeight: '50px' }}>
+                                <em style={{ color: 'var(--text-muted)' }}>Không có ghi chú</em>
+                            </div>
+                        )}
                     </div>
 
                     {/* Lý do hủy */}

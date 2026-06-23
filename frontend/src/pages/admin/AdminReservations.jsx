@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../utils/axiosSetup';
-import { Eye, X, Calendar, User, Info, DollarSign, Table, Search } from 'lucide-react';
+import { Eye, X, Calendar, User, Info, DollarSign, Table, Search, GitMerge, Trash2 } from 'lucide-react';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const fmt = (d) => d ? new Date(d).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -42,6 +42,16 @@ const AdminReservations = () => {
   const [noShowOrderLoading, setNoShowOrderLoading] = useState(false);
   const TABLE_FEE = 50000;
 
+  // Ghép bàn state
+  const [mergeModal, setMergeModal] = useState(null);        // reservation đang mở modal ghép bàn
+  const [rooftopTables, setRooftopTables] = useState([]);    // bàn tầng thượng từ API
+  const [rooftopLoading, setRooftopLoading] = useState(false);
+  const [selectedTables, setSelectedTables] = useState([]);  // ban_ids đã tick
+  const [mergeNote, setMergeNote] = useState('');
+  const [mergeSoNguoi, setMergeSoNguoi] = useState(1);       // số người mới
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [activeMerges, setActiveMerges] = useState({});      // { id_datBan: merge_info }
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -61,7 +71,76 @@ const AdminReservations = () => {
     }
   };
 
-  useEffect(() => { fetchReservations(); }, []);
+  const fetchActiveMerges = async () => {
+    try {
+      const res = await api.get(`${BASE_URL}/api/ghepban/`);
+      const map = {};
+      (res.data || []).forEach(m => { map[m.id_datBan] = m; });
+      setActiveMerges(map);
+    } catch (e) {
+      console.error('Lỗi tải ghép bàn:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchReservations();
+    fetchActiveMerges();
+  }, []);
+
+  const handleOpenMergeModal = async (res) => {
+    setMergeModal(res);
+    setMergeSoNguoi(res.soNguoi || 1);
+    setSelectedTables([]);
+    setMergeNote('');
+    setRooftopLoading(true);
+    try {
+      const resp = await api.get(`${BASE_URL}/api/ghepban/tables`, {
+        params: { thoiGianDen: res.thoiGianDen, id_datBan: res.id_datBan },
+      });
+      setRooftopTables(resp.data || []);
+    } catch (e) {
+      console.error(e);
+      setRooftopTables([]);
+    } finally {
+      setRooftopLoading(false);
+    }
+  };
+
+  const handleToggleTable = (id_ban) => {
+    setSelectedTables(prev =>
+      prev.includes(id_ban) ? prev.filter(x => x !== id_ban) : [...prev, id_ban]
+    );
+  };
+
+  const handleSubmitMerge = async () => {
+    if (!mergeModal || selectedTables.length === 0) return;
+    setMergeLoading(true);
+    try {
+      await api.post(`${BASE_URL}/api/ghepban/${mergeModal.id_datBan}`, {
+        ban_ids: selectedTables,
+        ghi_chu: mergeNote || null,
+        so_nguoi_moi: mergeSoNguoi,
+      });
+      setMergeModal(null);
+      await fetchActiveMerges();
+      await fetchReservations();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Không thể ghép bàn. Vui lòng thử lại.');
+    } finally {
+      setMergeLoading(false);
+    }
+  };
+
+  const handleCancelMerge = async (id_datBan) => {
+    if (!window.confirm('Bạn có chắc muốn hủy ghép bàn này không?')) return;
+    try {
+      await api.delete(`${BASE_URL}/api/ghepban/${id_datBan}`);
+      await fetchActiveMerges();
+      await fetchReservations();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Không thể hủy ghép bàn.');
+    }
+  };
 
   const handleUpdateStatus = async (id, newStatus) => {
     try {
@@ -193,7 +272,20 @@ const AdminReservations = () => {
                     </td>
                     <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap', color: isPast && res.trangThai !== 'Đã checkin' && res.trangThai !== 'Hoàn thành' ? '#ef4444' : 'inherit' }}>{fmt(res.thoiGianDen)}</td>
                     <td style={{ padding: '0.875rem 1rem', whiteSpace: 'nowrap', color: '#059669' }}>{fmt(res.thoiGianDenThucTe)}</td>
-                    <td style={{ padding: '0.875rem 1rem' }}>{res.soNguoi} người</td>
+                    <td style={{ padding: '0.875rem 1rem' }}>
+                      <div>{res.soNguoi} người</div>
+                      {res.ghiChu && (() => {
+                        const isGhep = res.ghiChu.toLowerCase().includes('ghép') || res.ghiChu.toLowerCase().includes('ghep') || res.ghiChu.toLowerCase().includes('bàn thêm') || res.ghiChu.toLowerCase().includes('nhóm đông');
+                        return (
+                          <div title={res.ghiChu} style={{ marginTop: '0.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.25rem', padding: '0.2rem 0.5rem', borderRadius: '0.35rem', background: isGhep ? 'rgba(124,58,237,0.1)' : 'rgba(234,179,8,0.08)', border: `1px solid ${isGhep ? 'rgba(124,58,237,0.25)' : 'rgba(234,179,8,0.2)'}`, maxWidth: '160px', cursor: 'help' }}>
+                            <span style={{ flexShrink: 0 }}>{isGhep ? '🪑' : '📝'}</span>
+                            <span style={{ fontSize: '0.72rem', color: isGhep ? '#a78bfa' : '#ca8a04', fontWeight: isGhep ? 700 : 500, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+                              {res.ghiChu}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </td>
                     {/* Tiền cọc */}
                     <td style={{ padding: '0.875rem 1rem', minWidth: '160px' }}>
                       {res.tienCoc ? (
@@ -232,6 +324,23 @@ const AdminReservations = () => {
                           style={{ padding: '0.35rem 0.75rem', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid #3b82f6', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold' }}>
                           Chi tiết
                         </button>
+                        {/* Ghép bàn */}
+                        {['Chờ xác nhận', 'Đã xác nhận', 'Đã checkin'].includes(res.trangThai) && (
+                          activeMerges[res.id_datBan] ? (
+                            <button
+                              onClick={() => handleCancelMerge(res.id_datBan)}
+                              title={`Đang ghép: ${activeMerges[res.id_datBan].ban_details?.map(b => b.tenBan).join(', ')}`}
+                              style={{ padding: '0.35rem 0.75rem', background: 'rgba(168,85,247,0.12)', color: '#9333ea', border: '1px solid #9333ea', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Trash2 size={13} /> Huỷ ghép
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenMergeModal(res)}
+                              style={{ padding: '0.35rem 0.75rem', background: 'rgba(168,85,247,0.1)', color: '#7c3aed', border: '1px solid #7c3aed', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <GitMerge size={13} /> Ghép bàn
+                            </button>
+                          )
+                        )}
                         {/* Xác nhận / Hủy */}
                         {res.trangThai === 'Chờ xác nhận' && (
                           <>
@@ -508,6 +617,154 @@ const AdminReservations = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL GHÉP BÀN */}
+      {mergeModal && (() => {
+        const mergedBans = rooftopTables.filter(t => selectedTables.includes(t.id_ban));
+        const totalCapacity = mergedBans.reduce((s, t) => s + t.sucChua, 0);
+        const isEnough = totalCapacity >= mergeSoNguoi;
+        return (
+          <div onClick={() => setMergeModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: '1.25rem', border: '1px solid rgba(124,58,237,0.3)', width: '100%', maxWidth: '540px', padding: '2rem', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
+
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#7c3aed' }}>
+                  <GitMerge size={20} /> Ghép bàn #DB{mergeModal.id_datBan}
+                </h2>
+                <button onClick={() => setMergeModal(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <X size={22} />
+                </button>
+              </div>
+
+              {/* Info bar */}
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', background: 'rgba(124,58,237,0.06)', padding: '0.85rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(124,58,237,0.15)', fontSize: '0.875rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  👤 <strong>{mergeModal.tenKhachHang || `KH${mergeModal.id_nguoiDung}`}</strong>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  👥 Số khách:
+                  <input 
+                    type="number" 
+                    min={1} 
+                    value={mergeSoNguoi} 
+                    onChange={e => setMergeSoNguoi(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{ width: '60px', padding: '0.2rem 0.4rem', borderRadius: '0.35rem', border: '1px solid rgba(124,58,237,0.3)', background: 'var(--surface)', color: 'var(--text-main)', textAlign: 'center', fontWeight: 'bold' }}
+                  /> 
+                  người
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  🕐 {new Date(mergeModal.thoiGianDen).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+
+              {/* Capacity indicator */}
+              <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '0.75rem', background: selectedTables.length === 0 ? 'var(--surface-light)' : isEnough ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${selectedTables.length === 0 ? 'var(--border)' : isEnough ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Tổng sức chứa đã chọn:</span>
+                <span style={{ fontWeight: 'bold', fontSize: '1rem', color: selectedTables.length === 0 ? 'var(--text-muted)' : isEnough ? '#059669' : '#dc2626' }}>
+                  {totalCapacity} / {mergeSoNguoi} người&nbsp;
+                  {selectedTables.length > 0 && (isEnough ? '✅ Đủ chỗ' : '❌ Chưa đủ')}
+                </span>
+              </div>
+
+              {/* Table list */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Bàn Tầng Thượng
+                </div>
+                {rooftopLoading ? (
+                  <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Đang tải danh sách bàn...</div>
+                ) : rooftopTables.length === 0 ? (
+                  <div style={{ padding: '1.25rem', textAlign: 'center', color: '#ef4444', fontSize: '0.875rem', background: 'rgba(239,68,68,0.05)', borderRadius: '0.5rem', border: '1px solid rgba(239,68,68,0.2)' }}>
+                    Không có bàn nào ở Tầng Thượng.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {rooftopTables.map(table => {
+                      const isChecked = selectedTables.includes(table.id_ban);
+                      const isDisabled = table.coLichTrungGio;
+                      return (
+                        <label
+                          key={table.id_ban}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            padding: '0.75rem 1rem', borderRadius: '0.75rem', cursor: isDisabled ? 'not-allowed' : 'pointer',
+                            background: isChecked ? 'rgba(124,58,237,0.08)' : isDisabled ? 'var(--surface-light)' : 'var(--surface-light)',
+                            border: `1px solid ${isChecked ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+                            opacity: isDisabled ? 0.5 : 1,
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onChange={() => !isDisabled && handleToggleTable(table.id_ban)}
+                            style={{ width: '16px', height: '16px', accentColor: '#7c3aed' }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{table.tenBan}</div>
+                            <div style={{ fontSize: '0.77rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                              Sức chứa: {table.sucChua} người · {table.viTri}
+                            </div>
+                          </div>
+                          <span style={{
+                            padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 'bold',
+                            background: isDisabled ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.1)',
+                            color: isDisabled ? '#dc2626' : '#059669',
+                          }}>
+                            {isDisabled ? 'Trùng giờ' : table.trangThai}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Preview Ghi chú tự động */}
+              <div style={{ marginBottom: '1rem', marginTop: '0.5rem', fontSize: '0.78rem', padding: '0.4rem 0.75rem', borderRadius: '0.4rem', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)', color: '#7c3aed', fontStyle: 'italic' }}>
+                📋 Ghi chú tự động: [GHÉP BÀN] Ghép bàn: {selectedTables.map(id => {
+                  const tb = rooftopTables.find(t => t.id_ban === id);
+                  return tb ? tb.tenBan : id;
+                }).join(', ')} {mergeNote ? `| ${mergeNote}` : ''}
+              </div>
+
+
+              {/* Note */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Ghi chú thêm (tuỳ chọn)</label>
+                <input
+                  type="text"
+                  value={mergeNote}
+                  onChange={e => setMergeNote(e.target.value)}
+                  placeholder="VD: Khách sinh nhật, cần sắp xếp đặc biệt..."
+                  style={{ width: '100%', padding: '0.6rem 0.875rem', borderRadius: '0.5rem', border: '1px solid var(--border)', background: 'var(--surface-light)', color: 'var(--text)', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Footer */}
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button onClick={() => setMergeModal(null)} className="btn btn-outline">Hủy</button>
+                <button
+                  onClick={handleSubmitMerge}
+                  disabled={mergeLoading || selectedTables.length === 0 || !isEnough}
+                  style={{
+                    padding: '0.6rem 1.5rem', borderRadius: '0.5rem', fontWeight: 'bold', fontSize: '0.875rem', cursor: 'pointer', border: 'none',
+                    background: (selectedTables.length === 0 || !isEnough) ? 'var(--surface-light)' : 'linear-gradient(135deg,#7c3aed,#9333ea)',
+                    color: (selectedTables.length === 0 || !isEnough) ? 'var(--text-muted)' : '#fff',
+                    transition: 'all 0.2s',
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  }}
+                >
+                  <GitMerge size={15} />
+                  {mergeLoading ? 'Đang xử lý...' : 'Xác nhận ghép bàn'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL VẮNG MẶT */}
       {noShowModal && (

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, giolamviec, payment, ws_thongbao, chatbot, livechat
+from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, giolamviec, payment, ws_thongbao, chatbot, livechat, ghepban
 from app.db.database import engine, Base
 from app.db.migrations import run_migrations
 import os
@@ -131,6 +131,7 @@ app.include_router(payment.router)
 app.include_router(ws_thongbao.router)
 app.include_router(chatbot.router)
 app.include_router(livechat.router)
+app.include_router(ghepban.router)
 
 # Phục vụ file tĩnh (ảnh upload) tại đường dẫn /static
 os.makedirs("app/static/uploads/tables", exist_ok=True)

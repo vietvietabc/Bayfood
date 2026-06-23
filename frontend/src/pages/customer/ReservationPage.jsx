@@ -859,6 +859,37 @@ const ReservationPage = () => {
                     )}
                   </div>
                 )}
+
+                {/* Cảnh báo ghép bàn khi số người vượt sức chứa */}
+                {selectedTable && parseInt(formData.soNguoi) > (selectedTable.sucChua || 99) && (
+                  <div style={{ marginBottom: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(124,58,237,0.2)', fontSize: '0.8rem', color: '#a78bfa' }}>
+                    🪑 Số khách vượt sức chứa bàn — hãy ghi chú <strong>"cần ghép bàn"</strong> bên dưới để nhà hàng sắp xếp thêm bàn Tầng Thượng.
+                  </div>
+                )}
+
+                {/* Input ghi chú */}
+                {selectedTable && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <label htmlFor="reservation-ghi-chu" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
+                      <AlignLeft size={14} /> Ghi chú cho nhà hàng <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(tuỳ chọn)</span>
+                    </label>
+                    <textarea
+                      id="reservation-ghi-chu"
+                      name="ghiChu"
+                      rows={2}
+                      value={formData.ghiChu}
+                      onChange={handleChange}
+                      placeholder="VD: Cần ghép bàn, nhóm 10 người — sinh nhật — dị ứng hải sản..."
+                      style={{
+                        width: '100%', padding: '0.5rem 0.75rem', borderRadius: '0.5rem',
+                        border: '1px solid var(--border)', background: 'var(--surface)',
+                        color: 'var(--text)', fontSize: '0.875rem', resize: 'vertical',
+                        outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+                        lineHeight: 1.5,
+                      }}
+                    />
+                  </div>
+                )}
                 {/* Hiển thị thông tin tiền cọc */}
                 {selectedTable && (
                   <div style={{ marginTop: '0.5rem' }}>

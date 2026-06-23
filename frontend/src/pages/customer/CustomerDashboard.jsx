@@ -415,7 +415,16 @@ const ReservationsTab = ({ reservations, orders, checkinLoadingId, handleCheckin
                                     <span className="cd-item-row"><Clock3 size={14} /> Thời gian: {formatDateTime(res.thoiGianDen)}</span>
                                     <span className="cd-item-row"><MapPinned size={14} /> Đến thực tế: {formatDateTime(res.thoiGianDenThucTe)}</span>
                                     <span className="cd-item-row"><UserCircle2 size={14} /> Số người: {res.soNguoi}</span>
-                                    {res.ghiChu && <span className="cd-item-row">📝 Ghi chú: {res.ghiChu}</span>}
+                                    {res.ghiChu && (() => {
+                                        const lines = res.ghiChu.split('\n').filter(l => l.trim());
+                                        return lines.map((line, i) => line.includes('[GHÉP BÀN]') ? (
+                                            <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', padding: '0.4rem 0.7rem', borderRadius: '0.5rem', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', color: '#a78bfa', fontWeight: 600, fontSize: '0.82rem', marginTop: '0.2rem' }}>
+                                                🪑 {line.replace('[GHÉP BÀN]', '').trim()}
+                                            </span>
+                                        ) : (
+                                            <span key={i} className="cd-item-row">📝 Ghi chú: {line}</span>
+                                        ));
+                                    })()}
 
                                     {res.tienCoc > 0 && (
                                         <span className="cd-deposit-info">

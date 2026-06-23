@@ -96,49 +96,80 @@ def _has_time_overlap(start_a: datetime, end_a: datetime, start_b: datetime, end
 
 
 
-def _get_active_reservations_for_table(db: Session, id_ban: int):
-    """
-    Lấy danh sách đặt bàn active cho bàn cụ thể.
-    Chỉ lấy các booking chưa bị hủy/hoàn thành (dùng cho kiểm tra conflict khi đặt mới).
-    """
-    return (
-        db.query(models.DatBan)
-        .filter(
-            models.DatBan.id_ban == id_ban,
-            ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành", "Vắng mặt"]),
-        )
-        .order_by(models.DatBan.thoiGianDen.asc())
-        .all()
+def _get_active_reservations_for_table(db: Session, id_ban: int, exclude_id_datBan: int = None):
+
+    query = db.query(models.DatBan).filter(
+        models.DatBan.id_ban == id_ban,
+        ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành", "Vắng mặt"]),
     )
+    if exclude_id_datBan:
+        query = query.filter(models.DatBan.id_datBan != exclude_id_datBan)
+    
+    direct_reservations = query.all()
+
+    # Lấy các đặt bàn qua ghép bàn
+    try:
+        from app.api.ghepban import _merge_registry
+        for id_datBan, info in _merge_registry.items():
+            if id_ban in info["ban_ids"]:
+                if exclude_id_datBan and id_datBan == exclude_id_datBan:
+                    continue
+                if any(r.id_datBan == id_datBan for r in direct_reservations):
+                    continue
+                db_datban = db.query(models.DatBan).filter(
+                    models.DatBan.id_datBan == id_datBan,
+                    ~models.DatBan.trangThai.in_(["Đã hủy", "Hoàn thành", "Vắng mặt"])
+                ).first()
+                if db_datban:
+                    direct_reservations.append(db_datban)
+    except ImportError:
+        pass
+
+    direct_reservations.sort(key=lambda r: r.thoiGianDen)
+    return direct_reservations
 
 
 def _get_all_reservations_for_table_on_date(db: Session, id_ban: int, ngay: date):
-    """
-    Lấy TẤT CẢ đặt bàn trong một ngày cụ thể (kể cả đã hoàn thành, vắng mặt)
-    dùng để hiển thị lịch sử timeline của ngày đó.
-    """
+
     day_start = datetime.combine(ngay, time.min)
     day_end = datetime.combine(ngay + timedelta(days=1), time.min)
-    return (
-        db.query(models.DatBan)
-        .filter(
-            models.DatBan.id_ban == id_ban,
-            models.DatBan.trangThai != "Đã hủy",  # Chỉ bỏ qua đặt bàn bị hủy
-            models.DatBan.thoiGianDen >= day_start,
-            models.DatBan.thoiGianDen < day_end,
-        )
-        .order_by(models.DatBan.thoiGianDen.asc())
-        .all()
-    )
+    
+    direct_reservations = db.query(models.DatBan).filter(
+        models.DatBan.id_ban == id_ban,
+        models.DatBan.trangThai != "Đã hủy",
+        models.DatBan.thoiGianDen >= day_start,
+        models.DatBan.thoiGianDen < day_end,
+    ).all()
+
+    # Lấy các đặt bàn qua ghép bàn
+    try:
+        from app.api.ghepban import _merge_registry
+        for id_datBan, info in _merge_registry.items():
+            if id_ban in info["ban_ids"]:
+                if any(r.id_datBan == id_datBan for r in direct_reservations):
+                    continue
+                db_datban = db.query(models.DatBan).filter(
+                    models.DatBan.id_datBan == id_datBan,
+                    models.DatBan.trangThai != "Đã hủy",
+                    models.DatBan.thoiGianDen >= day_start,
+                    models.DatBan.thoiGianDen < day_end,
+                ).first()
+                if db_datban:
+                    direct_reservations.append(db_datban)
+    except ImportError:
+        pass
+
+    direct_reservations.sort(key=lambda r: r.thoiGianDen)
+    return direct_reservations
 
 
-def _get_table_schedule(db: Session, id_ban: int):
+def _get_table_schedule(db: Session, id_ban: int, exclude_id_datBan: int = None):
     reservations = [
         {
             "reservation": reservation,
             "start": _normalize_datetime(reservation.thoiGianDen),
         }
-        for reservation in _get_active_reservations_for_table(db, id_ban)
+        for reservation in _get_active_reservations_for_table(db, id_ban, exclude_id_datBan)
     ]
     reservations.sort(key=lambda item: item["start"])
 
@@ -224,8 +255,8 @@ def _classify_table_time(schedule, candidate_start: datetime):
     }
 
 
-def _find_conflicting_reservation(db: Session, id_ban: int, thoiGianDen: datetime):
-    schedule = _get_table_schedule(db, id_ban)
+def _find_conflicting_reservation(db: Session, id_ban: int, thoiGianDen: datetime, exclude_id_datBan: int = None):
+    schedule = _get_table_schedule(db, id_ban, exclude_id_datBan)
     classification = _classify_table_time(schedule, thoiGianDen)
 
     if classification["status"] in {"occupied", "blocked"}:
@@ -367,9 +398,7 @@ def _is_checkin_allowed(thoiGianDen: datetime) -> bool:
 
 
 def validate_restaurant_hours(db: Session, target_time: datetime, is_booking: bool = False) -> None:
-    """
-    Kiểm tra xem thời gian hẹn đến có hợp lệ so với giờ hoạt động và tình trạng đóng/mở cửa của quán không.
-    """
+
     arrival_time = _normalize_datetime(target_time)
     business_start, business_end, working_hours = _business_day_window(db, arrival_time.date())
 

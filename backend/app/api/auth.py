@@ -56,6 +56,29 @@ def get_current_admin(current_user: models.NguoiDung = Depends(get_current_user)
         )
     return current_user
 
+
+def get_current_staff(current_user: models.NguoiDung = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Cho phép cả Quản lý (id_vaiTro=2) VÀ Nhân viên phục vụ (id_vaiTro=4).
+    Dùng cho các endpoint mà waiter cần truy cập nhưng khách hàng thì không.
+    """
+    vai_tro_hien_tai = None
+    if current_user.id_vaiTro is not None:
+        vai_tro_hien_tai = db.query(models.VaiTro).filter(models.VaiTro.id_vaiTro == current_user.id_vaiTro).first()
+
+    ten_vai_tro = (vai_tro_hien_tai.tenVaiTro if vai_tro_hien_tai else "").strip().lower()
+    is_staff = (
+        current_user.id_vaiTro in {2, 4}  # 2 = Quản lý, 4 = Nhân viên phục vụ
+        or ten_vai_tro in {"quản lý", "quan ly", "nhân viên phục vụ", "nhan vien phuc vu"}
+    )
+
+    if not is_staff:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền thực hiện hành động này (Yêu cầu quyền nhân viên hoặc quản lý)"
+        )
+    return current_user
+
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Check if email exists

@@ -200,11 +200,10 @@ def create_order_with_booking(
                 trangThai="Chờ xác nhận",
             )
             db.add(db_reservation)
-            db.flush() # Flush để lấy id_datBan mà vẫn giữ Transaction
+            db.flush()
             id_datBan = db_reservation.id_datBan
             id_ban = db_reservation.id_ban
 
-        # Tạo Đơn Hàng (Step 2)
         thoi_gian_den = req.thoiGianDen
         if req.dat_ban:
             thoi_gian_den = req.dat_ban.thoiGianDen
@@ -219,7 +218,6 @@ def create_order_with_booking(
         db.add(db_order)
         db.flush()
 
-        # Tạo Chi Tiết Đơn Hàng (Step 3)
         tong_tien = Decimal("0")
         for item in req.chi_tiet:
             db_order_item = models.ChiTietDonHang(
@@ -249,7 +247,7 @@ def create_order_with_booking(
             "hasReservation": has_reservation,
         }
     except Exception as e:
-        db.rollback() # Rollback toàn bộ nếu có lỗi ở bất kỳ bước nào
+        db.rollback() 
         raise HTTPException(status_code=400, detail=f"Lỗi khi xử lý đơn hàng: {str(e)}")
 
 
@@ -296,7 +294,6 @@ def create_or_append_qr_order(
             if _now_utc_naive() < (active_order.thoiGianDen - timedelta(minutes=15)):
                 raise HTTPException(status_code=400, detail="Chưa đến thời gian nhận bàn (sớm nhất trước 15 phút). Vui lòng đợi thêm hoặc liên hệ nhân viên để check-in sớm.")
             
-            # Tự động checkin
             active_order.tinhTrang = "Đang chờ món"
             if active_order.id_datBan:
                 db_datban = db.query(models.DatBan).filter(models.DatBan.id_datBan == active_order.id_datBan).first()
