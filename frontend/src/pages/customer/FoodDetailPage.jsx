@@ -25,6 +25,7 @@ const FoodDetailPage = () => {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [isLoved, setIsLoved] = useState(false);
@@ -33,6 +34,7 @@ const FoodDetailPage = () => {
     const fetchFoodDetail = async () => {
       try {
         setLoading(true);
+        setErrorMsg(null);
         const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
         const [foodRes, reviewRes] = await Promise.all([
           axios.get(`${apiUrl}/api/thucdon/${id}/chi-tiet`),
@@ -42,6 +44,7 @@ const FoodDetailPage = () => {
         setReviews(reviewRes.data);
       } catch (error) {
         console.error("Error fetching food detail:", error);
+        setErrorMsg(error.response?.data?.detail || error.message || "Đã xảy ra lỗi khi tải món ăn.");
       } finally {
         setLoading(false);
         setLoadingReviews(false);
@@ -81,11 +84,11 @@ const FoodDetailPage = () => {
     );
   }
 
-  if (!item) {
+  if (errorMsg || !item) {
     return (
       <div className="container" style={{ padding: '6rem 1rem', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '1.75rem', color: 'var(--text-muted)' }}>Không tìm thấy món ăn</h2>
-        <p style={{ marginTop: '0.5rem', color: 'var(--muted)' }}>Món ăn này có thể đã ngừng phục vụ hoặc ID không hợp lệ.</p>
+        <h2 style={{ fontSize: '1.75rem', color: 'var(--text-muted)' }}>{errorMsg ? "Lỗi tải món ăn" : "Không tìm thấy món ăn"}</h2>
+        <p style={{ marginTop: '0.5rem', color: 'var(--muted)' }}>{errorMsg || "Món ăn này có thể đã ngừng phục vụ hoặc ID không hợp lệ."}</p>
         <button className="btn btn-outline" style={{ marginTop: '1.5rem', borderRadius: 'var(--rounded-md)' }} onClick={() => navigate('/menu')}>Quay lại thực đơn</button>
       </div>
     );
