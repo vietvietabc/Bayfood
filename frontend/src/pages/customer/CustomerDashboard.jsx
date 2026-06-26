@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import api from '../../utils/axiosSetup';
 import { Link } from 'react-router-dom';
 import {
     CalendarDays, ClipboardList, Clock3, LogIn, MapPin, UtensilsCrossed,
@@ -71,17 +72,10 @@ const CustomerDashboard = () => {
         setProfileMsg(null);
         setProfileLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/users/me/profile', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify(profileForm),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Cập nhật thất bại');
+            await api.put('/api/users/me/profile', profileForm);
             setProfileMsg({ type: 'success', text: 'Cập nhật thành công! Vui lòng tải lại trang.' });
         } catch (err) {
-            setProfileMsg({ type: 'error', text: err.message });
+            setProfileMsg({ type: 'error', text: err.response?.data?.detail || err.message });
         } finally {
             setProfileLoading(false);
         }
@@ -100,18 +94,11 @@ const CustomerDashboard = () => {
         }
         setPwLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/users/me/password', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ matKhauCu: pwForm.matKhauCu, matKhauMoi: pwForm.matKhauMoi }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Đổi mật khẩu thất bại');
+            await api.put('/api/users/me/password', { matKhauCu: pwForm.matKhauCu, matKhauMoi: pwForm.matKhauMoi });
             setPwMsg({ type: 'success', text: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại nếu cần.' });
             setPwForm({ matKhauCu: '', matKhauMoi: '', xacNhanMatKhau: '' });
         } catch (err) {
-            setPwMsg({ type: 'error', text: err.message });
+            setPwMsg({ type: 'error', text: err.response?.data?.detail || err.message });
         } finally {
             setPwLoading(false);
         }
