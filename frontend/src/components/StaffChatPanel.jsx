@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare, X, Send, User, Check, Clock, ArrowLeft } from 'lucide-react';
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 import { useAuth } from '../context/AuthContext';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+﻿import React, { useState, useEffect, useMemo } from 'react';
+import axios from '../../utils/axiosSetup';
 import { ChefHat, Truck, CheckCircle, Eye, X, User, UtensilsCrossed, Star, Search, Filter, AlertCircle } from 'lucide-react';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';

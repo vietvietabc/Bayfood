@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Star, CheckCircle } from 'lucide-react';
-import axios from 'axios';
+import axios from '../../utils/axiosSetup';
 import { BASE_URL } from './customerDashboardUtils';
 
 const ReviewModal = ({

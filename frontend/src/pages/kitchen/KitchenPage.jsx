@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
+﻿import React, { useEffect, useState, useCallback } from 'react';
+import axios from '../../utils/axiosSetup';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 

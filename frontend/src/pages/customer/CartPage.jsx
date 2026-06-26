@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, ArrowRight, ShoppingCart, Calendar, Clock, Users, Edit3 } from 'lucide-react';
-import axios from 'axios';
+import axios from '../../utils/axiosSetup';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 

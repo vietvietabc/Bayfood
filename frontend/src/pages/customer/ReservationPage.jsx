@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import axios from 'axios';
+﻿import React, { useEffect, useRef, useState } from 'react';
+import axios from '../../utils/axiosSetup';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Users, Clock, AlignLeft, MapPin, CreditCard } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
