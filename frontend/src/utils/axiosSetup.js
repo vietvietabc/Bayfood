@@ -50,10 +50,22 @@ axios.interceptors.response.use(
       
       if (!isAuthRequest) {
         console.error('Token expired or invalid. Please login again.');
-        // Xóa token và user, chuyển hướng về trang đăng nhập
+        // Xóa token và user
         localStorage.removeItem('token');
         localStorage.removeItem('user:v1');
-        window.location.href = '/login';
+        // Chỉ redirect nếu không đang ở trang dashboard (để tránh flash)
+        // Dùng setTimeout để các Promise.allSettled có cơ hội settle trước
+        const currentPath = window.location.pathname;
+        const dashboardPaths = ['/account', '/admin', '/kitchen', '/waiter'];
+        const isOnDashboard = dashboardPaths.some(p => currentPath.startsWith(p));
+        if (!isOnDashboard) {
+          window.location.href = '/login';
+        } else {
+          // Nếu đang ở dashboard, delay redirect để UI xử lý lỗi hiển thị trước
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1500);
+        }
       }
     }
     return Promise.reject(error);

@@ -44,19 +44,57 @@ const useCustomerDashboard = () => {
         return () => window.clearTimeout(id);
     }, [checkinToast]);
 
-    // ─── Fetch data ───────────────────────────────────────────────────
-    const fetchCustomerData = async (isSilent = false) => {
+    // ─── Fetch data ───────────────────────────────────────────────────────────
+    const fetchCustomerData = async (isSilent = false, retryCount = 0) => {
         if (!user) { setLoading(false); return; }
         if (!isSilent) setLoading(true);
-        setError('');
+        if (!isSilent) setError('');
         try {
-            const [reservationRes, orderRes, reviewRes] = await Promise.all([
+            // Dùng Promise.allSettled để từng API fail riêng không crash toàn bộ
+            const [reservationResult, orderResult, reviewResult] = await Promise.allSettled([
                 axios.get(`${BASE_URL}/api/datban/me`),
                 axios.get(`${BASE_URL}/api/donhang/me`),
                 axios.get(`${BASE_URL}/api/danhgia/me`),
             ]);
-            setData({ reservations: reservationRes.data || [], orders: orderRes.data || [] });
-            setReviews(reviewRes.data || []);
+
+            // Kiểm tra nếu tất cả đều fail (backend cold start / mất kết nối)
+            const allFailed = [reservationResult, orderResult, reviewResult].every(
+                r => r.status === 'rejected'
+            );
+
+            if (allFailed && retryCount < 1) {
+                // Retry 1 lần sau 3 giây (chờ Render backend wake up)
+                console.warn('All APIs failed, retrying in 3s...');
+                setTimeout(() => fetchCustomerData(isSilent, retryCount + 1), 3000);
+                return;
+            }
+
+            // Lấy data từ các request thành công, bỏ qua request thất bại
+            const reservations = reservationResult.status === 'fulfilled'
+                ? (reservationResult.value.data || [])
+                : [];
+            const orders = orderResult.status === 'fulfilled'
+                ? (orderResult.value.data || [])
+                : [];
+            const reviews = reviewResult.status === 'fulfilled'
+                ? (reviewResult.value.data || [])
+                : [];
+
+            setData({ reservations, orders });
+            setReviews(reviews);
+
+            // Nếu một số request thất bại nhưng không phải tất cả, log để debug
+            [reservationResult, orderResult, reviewResult].forEach((r, i) => {
+                if (r.status === 'rejected') {
+                    const names = ['datban/me', 'donhang/me', 'danhgia/me'];
+                    console.warn(`API ${names[i]} failed:`, r.reason?.response?.status, r.reason?.message);
+                }
+            });
+
+            // Chỉ show lỗi khi tất cả fail sau cả retry
+            if (allFailed && !isSilent) {
+                setError('Không thể tải dữ liệu khách hàng. Vui lòng thử lại sau.');
+            }
         } catch (err) {
             console.error('Failed to load customer dashboard', err);
             if (!isSilent) setError('Không thể tải dữ liệu khách hàng. Vui lòng thử lại sau.');
@@ -231,9 +269,11 @@ const useCustomerDashboard = () => {
     };
     const handleCloseReservationModal = () => { setShowReservationModal(false); setSelectedReservation(null); };
 
+    const refetch = () => fetchCustomerData(false);
+
     return {
         // auth / loading
-        user, authLoading, loading, error,
+        user, authLoading, loading, error, refetch,
         // data
         reservations, orders, reviews,
         activeReservations, activeOrders,

@@ -90,6 +90,21 @@ def run_migrations() -> None:
                 except Exception as e2:
                     print(f"Migration error (Drop old pending tables): {e} / {e2}")
 
+    # ─── Migrate bảng DANHGIA: thêm cột id_monAn nếu chưa có ────────────────
+    if inspector.has_table("DANHGIA"):
+        danhgia_columns = {column["name"] for column in inspector.get_columns("DANHGIA")}
+        if "id_monAn" not in danhgia_columns:
+            with engine.begin() as connection:
+                try:
+                    connection.execute(text('ALTER TABLE "DANHGIA" ADD COLUMN "id_monAn" INTEGER NULL'))
+                    print("Migration: Added Column 'id_monAn' to 'DANHGIA' successfully!")
+                except Exception as e:
+                    try:
+                        connection.execute(text("ALTER TABLE DANHGIA ADD COLUMN id_monAn INTEGER NULL"))
+                        print("Migration: Added Column 'id_monAn' to 'DANHGIA' (unquoted) successfully!")
+                    except Exception as e2:
+                        print(f"Migration error (DANHGIA.id_monAn): {e} / {e2}")
+
     # ── Migrate localhost image URLs → Render backend URL ──────────────────────
     # Chạy khi có biến môi trường BACKEND_URL (tức là đang chạy trên Render)
     import os

@@ -34,7 +34,7 @@ const TABS = [
 const CustomerDashboard = () => {
     const ctx = useCustomerDashboard();
     const {
-        user, authLoading, loading, error,
+        user, authLoading, loading, error, refetch,
         reservations, orders, reviews,
         activeReservations, activeOrders,
         checkinLoadingId, actionMessage, checkinToast,
@@ -145,7 +145,17 @@ const CustomerDashboard = () => {
             {checkinToast && <div className="cd-toast">{checkinToast}</div>}
 
             {/* Banners */}
-            {error && <div className="cd-banner cd-banner--error">{error}</div>}
+            {error && (
+                <div className="cd-banner cd-banner--error" style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'space-between' }}>
+                    <span>{error}</span>
+                    <button
+                        onClick={refetch}
+                        style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'inherit', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap' }}
+                    >
+                        🔄 Thử lại
+                    </button>
+                </div>
+            )}
             {actionMessage && <div className="cd-banner cd-banner--action">{actionMessage}</div>}
 
             {/* Hero */}
