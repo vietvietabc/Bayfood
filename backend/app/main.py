@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, giolamviec, payment, ws_thongbao, chatbot, livechat, ghepban
+from app.api import thucdon, datban, donhang, auth, nguoidung, danhmuc, ban, danhgia, upload, thongbao, payment, ws_thongbao, chatbot, livechat, ghepban
 from app.db.database import engine, Base
 from app.db.migrations import run_migrations
 import os
@@ -126,7 +126,6 @@ app.include_router(ban.router)
 app.include_router(danhgia.router)
 app.include_router(upload.router)
 app.include_router(thongbao.router)
-app.include_router(giolamviec.router)
 app.include_router(payment.router)
 app.include_router(ws_thongbao.router)
 app.include_router(chatbot.router)

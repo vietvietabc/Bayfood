@@ -31,20 +31,16 @@ const ReservationPage = () => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedSlotKey, setSelectedSlotKey] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [status, setStatus] = useState(null); // 'success', 'error', null
+  const [status, setStatus] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
-  const [showOrderPrompt, setShowOrderPrompt] = useState(false); // Modal hỏi đặt món
-  const [pendingBookingPayload, setPendingBookingPayload] = useState(null); // Dữ liệu đặt bàn chờ xử lý
-  const [heldTables, setHeldTables] = useState(new Set()); // Bàn đang bị người khác giữ chỗ
+  const [showOrderPrompt, setShowOrderPrompt] = useState(false);
+  const [pendingBookingPayload, setPendingBookingPayload] = useState(null);
+  const [heldTables, setHeldTables] = useState(new Set());
   const statusRef = useRef(null);
 
-  const currentTimelineWorkingHours = timelineDays[0]?.workingHours || null;
-  const timelineOpenTime = currentTimelineWorkingHours?.isNghi
-    ? timelineSearch.fromTime
-    : (currentTimelineWorkingHours?.gioMoCua || '07:00');
-  const timelineCloseTime = currentTimelineWorkingHours?.isNghi
-    ? timelineSearch.fromTime
-    : (currentTimelineWorkingHours?.gioDongCua || '24:00');
+  // Dùng khung giờ cố định 07:00 - 24:00
+  const timelineOpenTime = '07:00';
+  const timelineCloseTime = '24:00';
 
   const toMinutes = (value) => {
     if (!value) return null;
@@ -113,19 +109,6 @@ const ReservationPage = () => {
 
     loadTimeline();
   }, [timelineSearch.fromDate, timelineSearch.toDate, timelineSearch.fromTime]);
-
-  useEffect(() => {
-    if (!currentTimelineWorkingHours || currentTimelineWorkingHours.isNghi) {
-      return;
-    }
-
-    if (timelineSearch.fromTime === '07:00' && currentTimelineWorkingHours.gioMoCua) {
-      setTimelineSearch((current) => ({
-        ...current,
-        fromTime: currentTimelineWorkingHours.gioMoCua,
-      }));
-    }
-  }, [currentTimelineWorkingHours]);
 
   useEffect(() => {
     const loadTables = async () => {
@@ -459,7 +442,10 @@ const ReservationPage = () => {
         <div>
           <h1 className="text-gradient" style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Sơ Đồ Đặt Bàn</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.125rem', marginBottom: '1.5rem' }}>
-            Chọn bàn trên sơ đồ, rồi bấm vào ô timeline phù hợp của bàn đó để đặt.
+            Chọn bàn trên sơ đồ, rồi bấm vào ô timeline phù hợp của bàn đó để đặt.<br />
+            <span style={{ fontSize: '0.95rem', color: '#f59e0b', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '0.5rem', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+              <strong>Lưu ý:</strong> Nếu quý khách có nhu cầu ghép bàn cho nhóm đông người, vui lòng chọn đặt bàn tại khu vực <strong>Tầng Thượng</strong>.
+            </span>
           </p>
 
           <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
@@ -634,7 +620,6 @@ const ReservationPage = () => {
                 <div style={{ display: 'grid', gap: '1rem' }}>
                   {timelineDays.map((day) => {
                     const dayKey = day.date || day.ngay;
-                    const dayWorkingHours = day.workingHours || null;
 
                     return (
                       <div key={dayKey} style={{ border: '1px solid var(--border)', borderRadius: '1rem', padding: '1rem', background: 'var(--surface)' }}>
@@ -642,18 +627,10 @@ const ReservationPage = () => {
                           <div>
                             <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{new Date(`${dayKey}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
                             <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                              {dayWorkingHours?.isNghi
-                                ? 'Hôm nay quán nghỉ'
-                                : `Giờ làm: ${dayWorkingHours?.gioMoCua || '07:00'} - ${dayWorkingHours?.gioDongCua || '24:00'}`}
+                              Giờ mở cửa: 07:00 - 24:00
                             </div>
                           </div>
                         </div>
-
-                        {dayWorkingHours?.isNghi && (
-                          <div style={{ padding: '0.95rem 1rem', borderRadius: '0.75rem', background: 'rgba(239, 68, 68, 0.08)', color: 'var(--danger)', border: '1px solid rgba(239, 68, 68, 0.2)', marginBottom: '1rem' }}>
-                            Ngày này quán đang nghỉ, khách vui lòng chọn ngày khác.
-                          </div>
-                        )}
 
                         <div style={{ display: 'grid', gap: '1rem' }}>
                           {day.tables

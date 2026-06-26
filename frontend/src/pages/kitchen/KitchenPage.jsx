@@ -3,40 +3,16 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-const ITEM_STATUS_FLOW = ['Chờ chế biến', 'Đang chế biến', 'Hoàn thành'];
-
-const getItemStatusStyle = (status) => {
-    switch (status) {
-        case 'Chờ chế biến':
-            return { bg: 'rgba(234, 179, 8, 0.12)', color: '#ca8a04', border: '1px solid rgba(234,179,8,0.3)', label: 'Chờ chế biến' };
-        case 'Đang chế biến':
-            return { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c', border: '1px solid rgba(94,106,210,0.3)', label: 'Đang chế biến' };
-        case 'Hoàn thành':
-            return { bg: 'rgba(16, 185, 129, 0.12)', color: '#059669', border: '1px solid rgba(16,185,129,0.3)', label: 'Hoàn thành' };
-        default:
-            return { bg: 'var(--surface-soft)', color: 'var(--muted)', border: '1px solid var(--hairline)', label: status };
-    }
-};
-
-const getOrderStatusStyle = (status) => {
-    switch (status) {
-        case 'Đang chờ món': return { bg: 'rgba(234,179,8,0.12)', color: '#ca8a04' };
-        case 'Đang chế biến': return { bg: 'rgba(94,106,210,0.12)', color: '#ea580c' };
-        default: return { bg: 'var(--surface-soft)', color: 'var(--muted)' };
-    }
-};
-
-const formatTime = (value) => {
-    if (!value) return '-';
-    return new Date(value).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-};
-
-const getElapsedMinutes = (thoiGianTao) => {
-    if (!thoiGianTao) return 0;
-    return Math.floor((Date.now() - new Date(thoiGianTao).getTime()) / 60000);
-};
+// Sub-components
+import { 
+    BASE_URL, ITEM_STATUS_FLOW, formatTime, getElapsedMinutes,
+    getItemStatusStyle, getOrderStatusStyle 
+} from './components/KitchenConstants';
+import KitchenShiftModal from './components/KitchenShiftModal';
+import KitchenCheckoutModal from './components/KitchenCheckoutModal';
+import UpcomingView from './components/KitchenTabs/UpcomingView';
+import HistoryView from './components/KitchenTabs/HistoryView';
+import ShiftsView from './components/KitchenTabs/ShiftsView';
 
 const KitchenPage = () => {
     const { user, loading: authLoading } = useAuth();
@@ -321,7 +297,6 @@ const KitchenPage = () => {
             {/* Content */}
             <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '1.5rem 2rem' }}>
 
-
                 {/* Tab Selector */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <button
@@ -423,7 +398,6 @@ const KitchenPage = () => {
                                     fontSize: '2rem',
                                     marginBottom: '1rem'
                                 }}>
-
                                 </div>
                                 <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem', color: 'var(--ink)' }}>
                                     Chào đầu bếp {user.hoTen}! Bạn đang ở trạng thái nghỉ
@@ -680,566 +654,52 @@ const KitchenPage = () => {
                     </>
                 )}
 
+                {/* Upcoming tab */}
                 {activeTab === 'upcoming' && (
-                    upcomingLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải đơn sắp tới...
-                        </div>
-                    ) : upcomingOrders.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
-                            <h2 style={{ margin: '0 0 0.5rem' }}>Không có đơn đặt trước</h2>
-                            <p style={{ color: 'var(--muted)', margin: 0 }}>Hiện chưa có khách nào đặt trước cho hôm nay.</p>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
-                            {upcomingOrders.map(order => {
-                                const isArriving = order.soPhutConLai <= 30;
-                                const isOverdue = order.soPhutConLai <= 0;
-                                let remainingText = '';
-                                if (isOverdue) {
-                                    remainingText = 'Đã quá giờ';
-                                } else {
-                                    if (order.soPhutConLai >= 60) {
-                                        const h = Math.floor(order.soPhutConLai / 60);
-                                        const m = order.soPhutConLai % 60;
-                                        remainingText = `Còn ${h}h` + (m > 0 ? `${m}p` : '');
-                                    } else {
-                                        remainingText = `Còn ${order.soPhutConLai} phút`;
-                                    }
-                                }
-                                return (
-                                    <div key={order.id_donHang} style={{
-                                        background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)',
-                                        border: isOverdue ? '1.5px solid rgba(239,68,68,0.5)' : isArriving ? '1.5px solid rgba(234,179,8,0.5)' : '1px solid var(--hairline)',
-                                        overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                                    }}>
-                                        <div style={{ padding: '1rem 1.25rem', background: isOverdue ? 'rgba(239,68,68,0.07)' : isArriving ? 'rgba(234,179,8,0.07)' : 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                    <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--ink)' }}>
-                                                        {order.tenBan || (order.id_ban ? `Bàn ${order.id_ban}` : 'Chưa xếp bàn')}
-                                                    </span>
-                                                    <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
-                                                    {order.trangThaiCoc === 'Đã cọc' && (
-                                                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '0.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.68rem', fontWeight: '700' }}>Đã cọc</span>
-                                                    )}
-                                                </div>
-                                                {order.tenKhach && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>👤 {order.tenKhach}{order.soDienThoai ? ` · ${order.soDienThoai}` : ''}</div>}
-                                                {order.soNguoi && <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.15rem' }}>👥 {order.soNguoi} người</div>}
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: isOverdue ? 'rgba(239,68,68,0.15)' : isArriving ? 'rgba(234,179,8,0.15)' : 'rgba(59,130,246,0.15)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.35)' : isArriving ? 'rgba(234,179,8,0.35)' : 'rgba(59,130,246,0.35)'}`, color: isOverdue ? '#f87171' : isArriving ? '#fbbf24' : '#60a5fa', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                    ⏰ {remainingText}
-                                                </span>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                                                    Hẹn {order.thoiGianDen ? new Date(order.thoiGianDen).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            {order.chi_tiet.map((item, idx) => (
-                                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
-                                                    {item.hinhAnh && (
-                                                        <div style={{ width: '32px', height: '32px', borderRadius: '0.35rem', overflow: 'hidden', flexShrink: 0 }}>
-                                                            <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                                                        </div>
-                                                    )}
-                                                    <div style={{ flex: 1 }}>
-                                                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--ink)' }}>{item.tenMon}</span>
-                                                        <span style={{ color: 'var(--muted)', fontWeight: '400', marginLeft: '0.35rem' }}>x{item.soLuong}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--hairline)', background: 'var(--surface-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-                                                {order.chi_tiet.length} món{order.ghiChu ? ` · ${order.ghiChu}` : ''}
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )
+                    <UpcomingView 
+                        upcomingOrders={upcomingOrders} 
+                        upcomingLoading={upcomingLoading} 
+                    />
                 )}
 
+                {/* History tab */}
                 {activeTab === 'history' && (
-                    historyLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải lịch sử đơn hàng đã làm...
-                        </div>
-                    ) : historyOrders.length === 0 ? (
-                        <div style={{
-                            textAlign: 'center', padding: '5rem 2rem',
-                            borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)',
-                            background: 'var(--surface-card)',
-                        }}>
-                            <h2 style={{ margin: '0 0 0.5rem', color: 'var(--ink)' }}>Chưa làm đơn hàng nào</h2>
-                            <p style={{ color: 'var(--muted)' }}>Bạn chưa hoàn thành chế biến món ăn nào hoặc chưa có đơn hàng nào hoàn thành gần đây.</p>
-                        </div>
-                    ) : (
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                            gap: '1.25rem',
-                        }}>
-                            {historyOrders.map(order => (
-                                <div
-                                    key={order.id_donHang}
-                                    style={{
-                                        background: 'var(--surface-card)',
-                                        borderRadius: 'var(--rounded-lg)',
-                                        border: order.hasCookedItem ? '1.5px solid rgba(16,185,129,0.3)' : '1px solid var(--hairline)',
-                                        boxShadow: 'none',
-                                        overflow: 'hidden',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        transition: 'all 0.2s',
-                                        position: 'relative'
-                                    }}
-                                >
-                                    {order.hasCookedItem && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '12px',
-                                            right: '12px',
-                                            padding: '0.25rem 0.5rem',
-                                            background: 'rgba(16,185,129,0.1)',
-                                            border: '1px solid rgba(16,185,129,0.3)',
-                                            color: '#059669',
-                                            borderRadius: '0.35rem',
-                                            fontSize: '0.68rem',
-                                            fontWeight: 'bold',
-                                            zIndex: 2
-                                        }}>
-                                            Đã hoàn thành
-                                        </div>
-                                    )}
-
-                                    {/* Order Card Header */}
-                                    <div style={{
-                                        padding: '1rem 1.25rem',
-                                        background: 'var(--surface-soft)',
-                                        borderBottom: '1px solid var(--hairline)',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '0.25rem',
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                            <span style={{ fontWeight: 'bold', fontSize: '1.05rem' }}>
-                                                {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'}
-                                            </span>
-                                            <span style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>
-                                                #{order.id_donHang}
-                                            </span>
-                                        </div>
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-                                            Đặt lúc: {new Date(order.thoiGianTao).toLocaleString('vi-VN')}
-                                        </div>
-                                        {order.thoiGianHoanThanh && (
-                                            <div style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.15rem' }}>
-                                                <span>Hoàn thành:</span>
-                                                <span>{new Date(order.thoiGianHoanThanh).toLocaleString('vi-VN')}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Food Items List */}
-                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
-                                        {order.chi_tiet.map((item) => (
-                                            <div
-                                                key={item.id_chiTietDonHang}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.75rem',
-                                                    padding: '0.6rem',
-                                                    borderRadius: 'var(--rounded-md)',
-                                                    background: item.isMyItem ? 'rgba(16,185,129,0.05)' : 'var(--surface-soft)',
-                                                    border: item.isMyItem ? '1px solid rgba(16,185,129,0.2)' : '1px solid var(--hairline)',
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '40px', height: '40px', borderRadius: '0.4rem',
-                                                    overflow: 'hidden', flexShrink: 0,
-                                                    background: 'var(--hairline)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                }}>
-                                                    {item.hinhAnh ? (
-                                                        <img
-                                                            src={`${BASE_URL}${item.hinhAnh}`}
-                                                            alt={item.tenMon}
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                            onError={e => { e.target.style.display = 'none'; }}
-                                                        />
-                                                    ) : (
-                                                        <span style={{ fontSize: '1rem' }}></span>
-                                                    )}
-                                                </div>
-
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{
-                                                        fontWeight: 'bold',
-                                                        fontSize: '0.9rem',
-                                                        whiteSpace: 'nowrap',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                    }}>
-                                                        {item.tenMon}
-                                                        <span style={{ marginLeft: '0.4rem', color: 'var(--muted)', fontWeight: 'normal' }}>
-                                                            x{item.soLuong}
-                                                        </span>
-                                                    </div>
-
-                                                    <div style={{ fontSize: '0.75rem', marginTop: '0.15rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-
-                                                        {item.isMyItem ? (
-                                                            <strong style={{ color: '#059669' }}>Bạn chế biến</strong>
-                                                        ) : (
-                                                            <span>{item.tenNhanVienBep || 'Bếp khác / Chưa lưu'}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                <div style={{
-                                                    padding: '0.15rem 0.4rem',
-                                                    background: 'rgba(16,185,129,0.1)',
-                                                    color: '#059669',
-                                                    borderRadius: '0.25rem',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: '600'
-                                                }}>
-                                                    Xong
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Footer */}
-                                    <div style={{
-                                        padding: '0.75rem 1.25rem',
-                                        borderTop: '1px solid var(--hairline)',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        background: 'var(--surface-soft)',
-                                        fontSize: '0.8rem',
-                                        color: 'var(--muted)',
-                                    }}>
-                                        <span style={{
-                                            padding: '0.2rem 0.5rem',
-                                            borderRadius: '0.25rem',
-                                            background: order.tinhTrang === 'Đã thanh toán' ? 'rgba(16,185,129,0.1)' : 'rgba(168,85,247,0.1)',
-                                            color: order.tinhTrang === 'Đã thanh toán' ? '#059669' : '#a855f7',
-                                            fontWeight: 'bold'
-                                        }}>
-                                            {order.tinhTrang}
-                                        </span>
-                                        <span>{order.chi_tiet.length} món</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )
+                    <HistoryView 
+                        historyOrders={historyOrders} 
+                        historyLoading={historyLoading} 
+                    />
                 )}
 
                 {/* Shifts tab */}
                 {activeTab === 'shifts' && (
-                    personalShiftsLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải lịch sử ca làm...
-                        </div>
-                    ) : personalShifts.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-xl)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏰</div>
-                            <h2 style={{ margin: '0 0 0.5rem' }}>Chưa có lịch sử ca làm</h2>
-                            <p style={{ color: 'var(--muted)', margin: 0 }}>Lịch sử check-in và tan ca của bạn sẽ được hiển thị tại đây.</p>
-                        </div>
-                    ) : (
-                        <div style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-xl)', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--surface-soft)' }}>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ngày</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ca làm</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ vào ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ tan ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Thời lượng</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Trạng thái</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {personalShifts.map(s => (
-                                            <tr key={s.id} style={{ borderBottom: '1px solid var(--hairline)' }}>
-                                                <td style={{ padding: '1.1rem 1.5rem', fontWeight: '600', color: 'var(--ink)' }}>{s.ngay}</td>
-                                                <td style={{ padding: '1.1rem 1.5rem' }}>
-                                                    <span style={{ padding: '0.25rem 0.65rem', borderRadius: '0.5rem', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(94,106,210,0.25)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                        {s.caLamViec}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: 'var(--ink)', fontSize: '0.9rem', fontWeight: '600' }}>{s.thoiGianVao}</td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: s.thoiGianRa === 'Chưa tan ca' ? 'rgba(255,255,255,0.3)' : '#fff', fontSize: '0.9rem', fontWeight: '600' }}>
-                                                    {s.thoiGianRa}
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: '#fb923c', fontWeight: '700', fontSize: '0.9rem' }}>
-                                                    {s.soGio !== null ? `${s.soGio} giờ` : '-'}
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem' }}>
-                                                    {s.thoiGianRa === 'Chưa tan ca' ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(94,106,210,0.15)', border: '1px solid rgba(94,106,210,0.35)', color: '#fb923c', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', display: 'inline-block' }} />
-                                                            Đang làm
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', color: 'var(--muted)', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                            Đã hoàn thành
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )
+                    <ShiftsView 
+                        personalShifts={personalShifts} 
+                        personalShiftsLoading={personalShiftsLoading} 
+                    />
                 )}
             </div>
 
-            {/* SHIFT VERIFICATION MODAL */}
-            {showShiftModal && (
-                <div onClick={() => setShowShiftModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', width: '100%', maxWidth: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-soft)' }}>
-                            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0 }}>Xác Nhận Vào Ca Làm</h2>
-                            <button onClick={() => setShowShiftModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '1.2rem' }}>✕</button>
-                        </div>
-                        <div style={{ padding: '1.5rem' }}>
-                            {!shiftData?.caLamViec ? (
-                                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                                    <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>⚠️</div>
-                                    <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 0.5rem', color: '#dc2626' }}>Chưa được gán ca làm việc!</h3>
-                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)', lineHeight: '1.5' }}>
-                                        Bạn chưa được Quản lý phân chia ca làm việc trong hệ thống.<br />
-                                        Vui lòng liên hệ Quản lý để được xếp lịch ca làm việc trước khi thực hiện nhận ca.
-                                    </p>
-                                    <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-                                        <button type="button" className="btn btn-outline" onClick={() => setShowShiftModal(false)} style={{ padding: '0.5rem 1.5rem' }}>Đóng</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div>
-                                    <p style={{ margin: '0 0 1.25rem', fontSize: '0.95rem', color: 'var(--ink)', lineHeight: '1.5' }}>
-                                        Hệ thống sẽ thực hiện kiểm tra và check-in vào ca làm việc được gán bởi Quản lý cho tài khoản của bạn:
-                                    </p>
+            <KitchenShiftModal
+                showShiftModal={showShiftModal}
+                setShowShiftModal={setShowShiftModal}
+                shiftData={shiftData}
+                user={user}
+                handleShiftCheckIn={handleShiftCheckIn}
+                shiftLoading={shiftLoading}
+            />
 
-                                    <div style={{
-                                        padding: '1.25rem',
-                                        borderRadius: 'var(--rounded-md)',
-                                        border: '1px solid var(--hairline)',
-                                        background: 'var(--surface-soft)',
-                                        marginBottom: '1.5rem',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '0.75rem'
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Đầu bếp:</span>
-                                            <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>{user.hoTen}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Ca làm được gán:</span>
-                                            <span style={{
-                                                fontSize: '0.9rem',
-                                                fontWeight: 'bold',
-                                                color: '#2563eb',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '0.35rem'
-                                            }}>
-                                                {shiftData.caLamViec === 'Ca sáng' ? ' Ca sáng' : shiftData.caLamViec === 'Ca chiều' ? ' Ca chiều' : ' Ca tối'}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Khung giờ ca:</span>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                                                {shiftData.caLamViec === 'Ca sáng' ? '07:00 - 12:00' : shiftData.caLamViec === 'Ca chiều' ? '12:00 - 17:00' : '17:00 - 22:00'}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: '0.75rem' }}>
-                                            <span style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>Giờ hiện tại:</span>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10b981' }}>{formatTime(new Date())}</span>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                                        <button type="button" className="btn btn-outline" onClick={() => setShowShiftModal(false)} style={{ padding: '0.5rem 1.25rem' }}>Hủy</button>
-                                        <button
-                                            type="button"
-                                            onClick={handleShiftCheckIn}
-                                            disabled={shiftLoading}
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.5rem 1.5rem', background: '#2563eb', borderColor: '#2563eb', fontWeight: 'bold' }}
-                                        >
-                                            {shiftLoading ? 'Đang xác thực...' : 'Xác Nhận Vào Ca'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* CUSTOM PREMIUM CHECKOUT MODAL */}
-            {showCheckoutModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    background: 'rgba(15,23,42,0.6)',
-                    backdropFilter: 'blur(8px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    padding: '1rem'
-                }}>
-                    <div style={{
-                        background: 'var(--surface-card)',
-                        border: '1px solid var(--hairline)',
-                        borderRadius: 'var(--rounded-xl)',
-                        width: '100%',
-                        maxWidth: '480px',
-                        padding: '2rem',
-                        boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '1.25rem',
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{
-                                width: '44px',
-                                height: '44px',
-                                borderRadius: '50%',
-                                background: isEarlyCheckout ? 'rgba(239,68,68,0.1)' : 'rgba(249,115,22,0.1)',
-                                color: isEarlyCheckout ? '#ef4444' : 'var(--primary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '1.25rem'
-                            }}>
-                                🚪
-                            </div>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--ink)' }}>
-                                    {isEarlyCheckout ? 'Tan Ca Làm Sớm' : 'Xác Nhận Tan Ca'}
-                                </h3>
-                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                                    {isEarlyCheckout ? 'Bạn đang muốn rời ca khi chưa kết thúc thời gian làm việc' : 'Xác nhận kết thúc ca làm việc của bạn'}
-                                </p>
-                            </div>
-                        </div>
-
-                        {isEarlyCheckout ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <div style={{
-                                    padding: '0.85rem 1rem',
-                                    background: 'rgba(239,68,68,0.05)',
-                                    border: '1px solid rgba(239,68,68,0.15)',
-                                    borderRadius: 'var(--rounded-md)',
-                                    fontSize: '0.85rem',
-                                    color: '#b91c1c',
-                                    lineHeight: '1.4'
-                                }}>
-                                    ⚠️ <strong>Lưu ý:</strong> Ca làm việc của bạn là <strong>{shiftData?.caLamViec}</strong> (kết thúc lúc {shiftData?.caLamViec === 'Ca chiều' ? '17' : shiftData?.caLamViec === 'Ca tối' ? '24' : '12'}:00). Bạn đang tan ca sớm!
-                                </div>
-
-                                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--ink)' }}>
-                                    Lý do tan ca sớm của bạn: <span style={{ color: '#ef4444' }}>*</span>
-                                </label>
-                                <textarea
-                                    value={checkoutReason}
-                                    onChange={(e) => {
-                                        setCheckoutReason(e.target.value);
-                                        if (e.target.value.trim()) setEarlyCheckoutError('');
-                                    }}
-                                    placeholder="Vui lòng nhập rõ lý do tan ca sớm (ví dụ: có việc đột xuất gia đình, đã được sự đồng ý của quản lý...)"
-                                    style={{
-                                        width: '100%',
-                                        height: '100px',
-                                        padding: '0.75rem',
-                                        borderRadius: 'var(--rounded-md)',
-                                        border: earlyCheckoutError ? '1px solid #ef4444' : '1px solid var(--hairline)',
-                                        background: 'var(--surface-soft)',
-                                        color: 'var(--ink)',
-                                        fontSize: '0.9rem',
-                                        outline: 'none',
-                                        resize: 'none',
-                                        fontFamily: 'inherit',
-                                        transition: 'border-color 0.2s'
-                                    }}
-                                />
-                                {earlyCheckoutError && (
-                                    <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: 'bold' }}>
-                                        {earlyCheckoutError}
-                                    </span>
-                                )}
-                            </div>
-                        ) : (
-                            <div style={{ fontSize: '0.92rem', color: 'var(--muted)', lineHeight: '1.5' }}>
-                                Bạn có chắc chắn muốn tan ca làm việc hiện tại không? Hệ thống sẽ ghi nhận thời điểm bạn tan ca và cập nhật trạng thái hoạt động của bạn thành <strong>Nghỉ</strong>.
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                            <button
-                                onClick={() => setShowCheckoutModal(false)}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.75rem',
-                                    borderRadius: 'var(--rounded-md)',
-                                    border: '1px solid var(--hairline)',
-                                    background: 'transparent',
-                                    color: 'var(--muted)',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.9rem',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s'
-                                }}
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                onClick={submitShiftCheckOut}
-                                disabled={shiftLoading}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.75rem',
-                                    borderRadius: 'var(--rounded-md)',
-                                    border: 'none',
-                                    background: isEarlyCheckout ? '#ef4444' : 'var(--primary)',
-                                    color: 'var(--ink)',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.9rem',
-                                    cursor: shiftLoading ? 'not-allowed' : 'pointer',
-                                    boxShadow: isEarlyCheckout ? '0 4px 12px rgba(239,68,68,0.2)' : '0 4px 12px rgba(94,106,210,0.2)',
-                                    transition: 'opacity 0.2s'
-                                }}
-                            >
-                                {shiftLoading ? 'Đang xử lý...' : 'Xác Nhận'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <KitchenCheckoutModal
+                showCheckoutModal={showCheckoutModal}
+                setShowCheckoutModal={setShowCheckoutModal}
+                isEarlyCheckout={isEarlyCheckout}
+                shiftData={shiftData}
+                checkoutReason={checkoutReason}
+                setCheckoutReason={setCheckoutReason}
+                earlyCheckoutError={earlyCheckoutError}
+                setEarlyCheckoutError={setEarlyCheckoutError}
+                submitShiftCheckOut={submitShiftCheckOut}
+                shiftLoading={shiftLoading}
+            />
         </div>
     );
 };

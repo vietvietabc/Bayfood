@@ -19,7 +19,7 @@ class ChatMessage(Base):
 
     id_tinNhan = Column(Integer, primary_key=True, index=True)
     id_phien = Column(String(36), ForeignKey("phien_chat_bot.id_phien"), nullable=False)
-    nguoiGui = Column(String(20), nullable=False) # 'khach_hang' or 'he_thong'
+    nguoiGui = Column(String(20), nullable=False) 
     noiDung = Column(Text, nullable=False)
     thoiGianGui = Column(DateTime, default=get_vn_time)
 

@@ -167,6 +167,66 @@ const ReservationModal = ({
                         </div>
                     )}
 
+                    {/* Thông tin hoàn tiền khi Đã hủy và có cọc */}
+                    {currentStatus === 'Đã hủy' && selectedReservation.tienCoc > 0 && (() => {
+                        const deposit = Number(selectedReservation.tienCoc || 0);
+                        const billTotal = linkedOrder
+                            ? Number(linkedOrder.tongTien || 0)
+                            : 0;
+                        const isPaidFull = billTotal > 0 && deposit >= billTotal * 0.85;
+                        const penaltyAmt = isPaidFull
+                            ? Math.ceil(billTotal * 0.1) + 50000
+                            : deposit;
+                        const refundAmt = isPaidFull ? Math.max(0, deposit - penaltyAmt) : 0;
+                        const depositLost = !isPaidFull;
+
+                        return (
+                            <div style={{
+                                marginTop: '0.75rem', padding: '1rem', borderRadius: '0.85rem',
+                                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+                                display: 'flex', flexDirection: 'column', gap: '0.5rem',
+                            }}>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.1rem' }}>
+                                    Thông tin hoàn tiền
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Tiền cọc đã đặt</span>
+                                    <strong style={{ color: '#fbbf24' }}>{deposit.toLocaleString('vi-VN')} ₫</strong>
+                                </div>
+                                {selectedReservation.trangThaiCoc === 'Đã cọc' ? (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                                            <span style={{ color: 'var(--text-muted)' }}>Tiền phạt hủy</span>
+                                            <strong style={{ color: '#f87171' }}>- {penaltyAmt.toLocaleString('vi-VN')} ₫</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', paddingTop: '0.4rem', borderTop: '1px dashed rgba(239,68,68,0.25)', fontWeight: 700 }}>
+                                            <span style={{ color: refundAmt > 0 ? '#34d399' : '#f87171' }}>
+                                                {refundAmt > 0 ? '↩ Số tiền hoàn lại' : '✕ Mất cọc'}
+                                            </span>
+                                            <span style={{ color: refundAmt > 0 ? '#34d399' : '#f87171' }}>
+                                                {refundAmt > 0 ? `${refundAmt.toLocaleString('vi-VN')} ₫` : `${penaltyAmt.toLocaleString('vi-VN')} ₫`}
+                                            </span>
+                                        </div>
+                                        {isPaidFull && refundAmt > 0 && (
+                                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                                (Phí giữ bàn 50.000 ₫ + 10% tổng bill — phần còn lại được hoàn lại)
+                                            </div>
+                                        )}
+                                        {depositLost && (
+                                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                                (Toàn bộ tiền cọc bị giữ lại theo chính sách nhà hàng)
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                        Chưa xác nhận thanh toán cọc — liên hệ nhà hàng để được hỗ trợ.
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+
                     {/* Linked order */}
                     {linkedOrder && (
                         <div style={{ marginTop: '0.75rem', padding: '1rem', background: 'rgba(96,165,250,0.07)', borderRadius: '0.85rem', border: '1px solid rgba(96,165,250,0.18)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>

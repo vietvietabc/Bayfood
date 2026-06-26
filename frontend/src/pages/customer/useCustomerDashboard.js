@@ -185,6 +185,26 @@ const useCustomerDashboard = () => {
         }
     };
 
+    const handleCancelReservation = async (reservationId, lyDoHuy) => {
+        try {
+            await axios.post(`${BASE_URL}/api/datban/${reservationId}/cancel`, { lyDoHuy });
+            setData((current) => ({
+                ...current,
+                reservations: current.reservations.map((r) =>
+                    r.id_datBan === reservationId
+                        ? { ...r, trangThai: 'Đã hủy', lyDoHuy }
+                        : r
+                ),
+            }));
+            setCheckinToast('Đơn đặt bàn đã được hủy thành công.');
+        } catch (err) {
+            console.error('Lỗi khi hủy đặt bàn', err);
+            const msg = err.response?.data?.detail || 'Không thể hủy đơn lúc này. Vui lòng thử lại.';
+            setCheckinToast(msg);
+            throw new Error(msg);
+        }
+    };
+
     const handleSubmittingReview = async (e) => {
         e.preventDefault();
         setIsSubmittingReview(true);
@@ -219,7 +239,7 @@ const useCustomerDashboard = () => {
         activeReservations, activeOrders,
         // checkin
         checkinLoadingId, actionMessage, checkinToast,
-        handleCheckin, handleCheckinOrder,
+        handleCheckin, handleCheckinOrder, handleCancelReservation,
         // order modal
         selectedOrder, orderDetailLoading, showOrderModal,
         handleViewOrder, handleCloseOrderModal, handleEditOrder,

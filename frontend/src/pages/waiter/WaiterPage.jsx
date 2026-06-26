@@ -2,41 +2,20 @@ import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import StaffChatPanel from '../../components/StaffChatPanel';
-import { MessageSquare, GitMerge, Trash2 } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-const STATUS_FLOW = ['Đang chờ món', 'Đang chế biến', 'Đã phục vụ', 'Đã thanh toán'];
-
-const formatTime = (v) => !v ? '-' : new Date(v).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-const formatDate = (v) => !v ? '-' : new Date(v).toLocaleString('vi-VN');
-const getElapsedMinutes = (t) => !t ? 0 : Math.floor((Date.now() - new Date(t).getTime()) / 60000);
-const fmtMoney = (v) => v != null ? Number(v).toLocaleString('vi-VN') + ' ₫' : '0 ₫';
-
-const STATUS_STYLE = {
-    'Đang chờ món': { bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.35)', color: '#fbbf24', dot: '#f59e0b' },
-    'Đang chế biến': { bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.35)', color: '#fb923c', dot: '#f97316' },
-    'Đã phục vụ': { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.35)', color: '#34d399', dot: '#10b981' },
-    'Đã thanh toán': { bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.35)', color: '#c084fc', dot: '#a855f7' },
-};
-
-const ITEM_STATUS_STYLE = {
-    'Chờ chế biến': { color: '#fbbf24', bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.25)' },
-    'Đang chế biến': { color: '#fb923c', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.25)' },
-    'Hoàn thành': { color: '#34d399', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)' },
-};
-
-
-const StatusBadge = ({ status }) => {
-    const s = STATUS_STYLE[status] || { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', dot: '#888' };
-    return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: s.bg, border: `1px solid ${s.border}`, color: s.color, fontSize: '0.75rem', fontWeight: '700' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
-            {status}
-        </span>
-    );
-};
+// Sub-components
+import {
+    BASE_URL, STATUS_FLOW, formatTime, formatDate, getElapsedMinutes, fmtMoney,
+    STATUS_STYLE, ITEM_STATUS_STYLE, StatusBadge
+} from './components/WaiterConstants';
+import WaiterCheckout from './components/WaiterCheckout';
+import HistoryView from './components/WaiterTabs/HistoryView';
+import ShiftsView from './components/WaiterTabs/ShiftsView';
+import UpcomingView from './components/WaiterTabs/UpcomingView';
+import TablesView from './components/WaiterTabs/TablesView';
+import ScheduleView from './components/WaiterTabs/ScheduleView';
 
 const WaiterPage = () => {
     const { user, loading: authLoading } = useAuth();
@@ -69,29 +48,15 @@ const WaiterPage = () => {
     const [timelineLoading, setTimelineLoading] = useState(false);
     const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Ghép bàn state
-    const [ghepBanReservations, setGhepBanReservations] = useState([]);
-    const [ghepBanLoading, setGhepBanLoading] = useState(false);
-    const [activeMerges, setActiveMerges] = useState({});
-    const [mergeModal, setMergeModal] = useState(null);
-    const [rooftopTables, setRooftopTables] = useState([]);
-    const [rooftopLoading, setRooftopLoading] = useState(false);
-    const [selectedMergeTables, setSelectedMergeTables] = useState([]);
-    const [mergeNote, setMergeNote] = useState('');
-    const [mergeSoNguoi, setMergeSoNguoi] = useState(1);
-    const [mergeSubmitLoading, setMergeSubmitLoading] = useState(false);
-
     // Checkout/Cashier modal state
     const [checkoutOrder, setCheckoutOrder] = useState(null);
     const [checkoutDetails, setCheckoutDetails] = useState(null);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
-    const [showQR, setShowQR] = useState(false);
 
     const handleOpenCheckout = async (order) => {
         setCheckoutOrder(order);
         setCheckoutDetails(null);
         setCheckoutLoading(true);
-        setShowQR(false);
         try {
             const res = await axios.get(`${BASE_URL}/api/donhang/${order.id_donHang}/detail`);
             setCheckoutDetails(res.data);
@@ -389,83 +354,6 @@ const WaiterPage = () => {
         }
     }, []);
 
-
-    const fetchGhepBanReservations = useCallback(async () => {
-        setGhepBanLoading(true);
-        try {
-            const res = await axios.get(`${BASE_URL}/api/datban/all/list`);
-            // Lấy đặt bàn còn active
-            const active = (res.data || []).filter(r =>
-                ['Chờ xác nhận', 'Đã xác nhận', 'Đã checkin'].includes(r.trangThai)
-            );
-            setGhepBanReservations(active);
-        } catch (e) {
-            console.error('Lỗi tải đặt bàn:', e);
-        } finally {
-            setGhepBanLoading(false);
-        }
-    }, []);
-
-    const fetchActiveMerges = useCallback(async () => {
-        try {
-            const res = await axios.get(`${BASE_URL}/api/ghepban/`);
-            const map = {};
-            (res.data || []).forEach(m => { map[m.id_datBan] = m; });
-            setActiveMerges(map);
-        } catch (e) {
-            console.error('Lỗi tải ghép bàn:', e);
-        }
-    }, []);
-
-    const handleOpenMergeModal = async (res) => {
-        setMergeModal(res);
-        setMergeSoNguoi(res.soNguoi || 1);
-        setSelectedMergeTables([]);
-        setMergeNote('');
-        setRooftopLoading(true);
-        try {
-            const resp = await axios.get(`${BASE_URL}/api/ghepban/tables`, {
-                params: { thoiGianDen: res.thoiGianDen, id_datBan: res.id_datBan },
-            });
-            setRooftopTables(resp.data || []);
-        } catch (e) {
-            console.error(e);
-            setRooftopTables([]);
-        } finally {
-            setRooftopLoading(false);
-        }
-    };
-
-    const handleSubmitMerge = async () => {
-        if (!mergeModal || selectedMergeTables.length === 0) return;
-        setMergeSubmitLoading(true);
-        try {
-            await axios.post(`${BASE_URL}/api/ghepban/${mergeModal.id_datBan}`, {
-                ban_ids: selectedMergeTables,
-                ghi_chu: mergeNote || null,
-                so_nguoi_moi: mergeSoNguoi,
-            });
-            setMergeModal(null);
-            await fetchActiveMerges();
-            await fetchGhepBanReservations();
-        } catch (e) {
-            alert(e.response?.data?.detail || 'Không thể ghép bàn. Vui lòng thử lại.');
-        } finally {
-            setMergeSubmitLoading(false);
-        }
-    };
-
-    const handleCancelMerge = async (id_datBan) => {
-        if (!window.confirm('Bạn có chắc muốn hủy ghép bàn này không?')) return;
-        try {
-            await axios.delete(`${BASE_URL}/api/ghepban/${id_datBan}`);
-            await fetchActiveMerges();
-            await fetchGhepBanReservations();
-        } catch (e) {
-            alert(e.response?.data?.detail || 'Không thể hủy ghép bàn.');
-        }
-    };
-
     useEffect(() => {
         if (!authLoading && user) { fetchOrders(); fetchShift(); }
     }, [user, authLoading, fetchOrders, fetchShift]);
@@ -584,7 +472,6 @@ const WaiterPage = () => {
                         { key: 'upcoming', label: `Đơn sắp tới (${upcomingOrders.length})` },
                         { key: 'tables', label: 'Sơ đồ bàn' },
                         { key: 'schedule', label: 'Lịch trình' },
-                        { key: 'ghepban', label: 'Ghép Bàn' },
                         { key: 'history', label: 'Lịch sử đơn phục vụ' },
                         { key: 'shifts', label: 'Lịch sử ca làm' },
                     ].map(tab => (
@@ -595,7 +482,6 @@ const WaiterPage = () => {
                             if (tab.key === 'upcoming') fetchUpcoming();
                             if (tab.key === 'tables') fetchTables();
                             if (tab.key === 'schedule') fetchTimeline(scheduleDate);
-                            if (tab.key === 'ghepban') { fetchGhepBanReservations(); fetchActiveMerges(); }
                         }}
                             style={{
                                 padding: '0.6rem 1.5rem',
@@ -834,818 +720,66 @@ const WaiterPage = () => {
 
                 {/* History tab */}
                 {activeTab === 'history' && (
-                    historyLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải lịch sử...
-                        </div>
-                    ) : historyOrders.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                            <h2 style={{ margin: '0 0 0.5rem' }}>Chưa có lịch sử</h2>
-                            <p style={{ color: 'var(--muted)', margin: 0 }}>Chưa có đơn hàng nào hoàn thành.</p>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
-                            {historyOrders.map(order => {
-                                const isExpanded = expandedOrder === order.id_donHang;
-                                return (
-                                    <div key={order.id_donHang} style={{
-                                        background: 'var(--surface-card)',
-                                        borderRadius: 'var(--rounded-lg)',
-                                        border: order.isMyOrder ? '1.5px solid rgba(16,185,129,0.35)' : '1px solid var(--hairline)',
-                                        overflow: 'hidden',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        boxShadow: 'none',
-                                        transition: 'all 0.25s'
-                                    }}>
-                                        <div style={{ padding: '1rem 1.25rem', background: 'var(--surface-soft)', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div>
-                                                <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--ink)', marginBottom: '0.2rem' }}>
-                                                    {order.id_ban ? `Bàn ${order.id_ban}` : 'Mang về'} <span style={{ color: 'var(--muted)', fontWeight: '400', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
-                                                </div>
-                                                {order.tenKhachHang && <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Khách: {order.tenKhachHang}</div>}
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                                                <StatusBadge status={order.tinhTrang} />
-                                                {order.isMyOrder && <span style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: '700' }}>Bạn phục vụ</span>}
-                                            </div>
-                                        </div>
-
-                                        {/* Summary row with toggle */}
-                                        <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                                {(order.chi_tiet || []).slice(0, 3).map((item, idx) => {
-                                                    const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--muted)', bg: 'transparent', border: 'var(--hairline)' };
-                                                    return (
-                                                        <span key={idx} style={{ padding: '0.2rem 0.55rem', borderRadius: 'var(--rounded-pill)', background: s.bg, border: `1px solid ${s.border}`, color: s.color, fontSize: '0.72rem', fontWeight: '600' }}>
-                                                            {item.tenMon} x{item.soLuong}
-                                                        </span>
-                                                    );
-                                                })}
-                                                {(order.chi_tiet || []).length > 3 && (
-                                                    <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>+{(order.chi_tiet || []).length - 3} món</span>
-                                                )}
-                                            </div>
-                                            <button onClick={() => setExpandedOrder(isExpanded ? null : order.id_donHang)}
-                                                style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', transition: 'all 0.15s' }}>
-                                                {isExpanded ? '▲ Thu gọn' : '▼ Chi tiết'}
-                                            </button>
-                                        </div>
-
-                                        {/* Expanded details */}
-                                        {isExpanded && (
-                                            <div style={{ padding: '0 1.25rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                {(order.chi_tiet || []).map((item, idx) => {
-                                                    const s = ITEM_STATUS_STYLE[item.trangThaiMon] || { color: 'var(--muted)', bg: 'rgba(255,255,255,0.03)', border: 'var(--hairline)' };
-                                                    return (
-                                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem', borderRadius: 'var(--rounded-pill)', background: s.bg, border: `1px solid ${s.border}` }}>
-                                                            {item.hinhAnh && (
-                                                                <div style={{ width: '36px', height: '36px', borderRadius: '0.4rem', overflow: 'hidden', flexShrink: 0 }}>
-                                                                    <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                                                                </div>
-                                                            )}
-                                                            <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                <div>
-                                                                    <div style={{ fontWeight: '600', fontSize: '0.88rem', color: 'var(--ink)' }}>{item.tenMon} <span style={{ color: 'var(--muted)', fontWeight: '400' }}>x{item.soLuong}</span></div>
-                                                                    <div style={{ fontSize: '0.73rem', color: s.color, fontWeight: '600', marginTop: '0.1rem' }}>{item.trangThaiMon}</div>
-                                                                </div>
-                                                                <strong style={{ color: 'var(--ink)', fontSize: '0.88rem' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-
-                                                {/* Bill Total in Expanded view */}
-                                                {(() => {
-                                                    const orderTotal = order.tongTien || (order.chi_tiet || []).reduce((sum, item) => sum + (item.giaTaiThoiDiemBan || 0) * (item.soLuong || 0), 0);
-                                                    const daCoc = order.trangThaiCoc === 'Đã cọc' ? (order.tienCoc || 0) : 0;
-                                                    const daThanhToan = Math.max(daCoc, order.tongThanhToan || 0);
-                                                    const tienThua = Math.max(0, daThanhToan - orderTotal);
-                                                    const conLai = Math.max(0, orderTotal - daThanhToan);
-                                                    return (
-                                                        <div style={{ borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 'bold' }}>TỔNG HÓA ĐƠN:</span>
-                                                                <strong style={{ fontSize: '1rem', color: '#10b981' }}>{fmtMoney(orderTotal)}</strong>
-                                                            </div>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                                                                <span style={{ color: 'var(--muted)' }}>Khách đã trả{daCoc > 0 ? ' (gồm cọc)' : ''}:</span>
-                                                                <strong style={{ color: '#34d399' }}>{fmtMoney(daThanhToan)}</strong>
-                                                            </div>
-                                                            {tienThua > 0 && (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', borderRadius: '0.6rem', background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.3)' }}>
-                                                                    <span style={{ fontSize: '0.82rem', color: '#f97316', fontWeight: '700' }}>⚠ Tiền thừa cần trả lại:</span>
-                                                                    <strong style={{ color: '#f97316' }}>{fmtMoney(tienThua)}</strong>
-                                                                </div>
-                                                            )}
-                                                            {conLai > 0 && (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                                                                    <span style={{ color: 'var(--muted)' }}>Còn cần thu:</span>
-                                                                    <strong style={{ color: '#f87171' }}>{fmtMoney(conLai)}</strong>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        )}
-
-                                        {/* Footer with dates */}
-                                        <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--hairline)', background: 'var(--surface-soft)', fontSize: '0.75rem', color: 'var(--muted)', display: 'grid', gap: '0.25rem' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                <span>Đặt: {formatDate(order.thoiGianTao)}</span>
-                                                <span>{order.soMon} món</span>
-                                            </div>
-                                            {order.thoiGianHoanThanh && (
-                                                <div style={{ color: '#34d399', fontWeight: '500' }}>
-                                                    Hoàn thành: {formatDate(order.thoiGianHoanThanh)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )
+                    <HistoryView
+                        historyOrders={historyOrders}
+                        historyLoading={historyLoading}
+                        expandedOrder={expandedOrder}
+                        setExpandedOrder={setExpandedOrder}
+                    />
                 )}
 
                 {/* Shifts tab */}
                 {activeTab === 'shifts' && (
-                    personalShiftsLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải lịch sử ca làm...
-                        </div>
-                    ) : personalShifts.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⏰</div>
-                            <h2 style={{ margin: '0 0 0.5rem' }}>Chưa có lịch sử ca làm</h2>
-                            <p style={{ color: 'var(--muted)', margin: 0 }}>Lịch sử check-in và tan ca của bạn sẽ được lưu ở đây.</p>
-                        </div>
-                    ) : (
-                        <div style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--surface-soft)' }}>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ngày</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Ca làm</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ vào ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Giờ tan ca</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Thời lượng</th>
-                                            <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: '700', color: 'var(--muted)' }}>Trạng thái</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {personalShifts.map(s => (
-                                            <tr key={s.id} style={{ borderBottom: '1px solid var(--hairline)', transition: 'background 0.2s', ':hover': { background: 'rgba(255,255,255,0.01)' } }}>
-                                                <td style={{ padding: '1.1rem 1.5rem', fontWeight: '600', color: 'var(--ink)' }}>{s.ngay}</td>
-                                                <td style={{ padding: '1.1rem 1.5rem' }}>
-                                                    <span style={{ padding: '0.25rem 0.65rem', borderRadius: '0.5rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                        {s.caLamViec}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: 'var(--ink)', fontSize: '0.9rem', fontWeight: '600' }}>{s.thoiGianVao}</td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: s.thoiGianRa === 'Chưa tan ca' ? 'rgba(255,255,255,0.3)' : '#fff', fontSize: '0.9rem', fontWeight: '600' }}>
-                                                    {s.thoiGianRa}
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem', color: '#fb923c', fontWeight: '700', fontSize: '0.9rem' }}>
-                                                    {s.soGio !== null ? `${s.soGio} giờ` : '-'}
-                                                </td>
-                                                <td style={{ padding: '1.1rem 1.5rem' }}>
-                                                    {s.thoiGianRa === 'Chưa tan ca' ? (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.35)', color: '#34d399', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-                                                            Đang làm
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', color: 'var(--muted)', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                            Đã hoàn thành
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )
+                    <ShiftsView
+                        personalShifts={personalShifts}
+                        personalShiftsLoading={personalShiftsLoading}
+                    />
                 )}
 
                 {/* Upcoming orders tab */}
                 {activeTab === 'upcoming' && (
-                    upcomingLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải đơn sắp tới...
-                        </div>
-                    ) : upcomingOrders.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
-                            <h2 style={{ margin: '0 0 0.5rem' }}>Không có đơn đặt trước</h2>
-                            <p style={{ color: 'var(--muted)', margin: 0 }}>Hiện chưa có khách nào đặt trước cho hôm nay.</p>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.25rem' }}>
-                            {upcomingOrders.map(order => {
-                                const isArriving = order.soPhutConLai <= 30;
-                                const isOverdue = order.soPhutConLai <= 0;
-                                let remainingText = '';
-                                if (isOverdue) {
-                                    remainingText = 'Đã quá giờ';
-                                } else {
-                                    if (order.soPhutConLai >= 60) {
-                                        const h = Math.floor(order.soPhutConLai / 60);
-                                        const m = order.soPhutConLai % 60;
-                                        remainingText = `Còn ${h}h` + (m > 0 ? `${m}p` : '');
-                                    } else {
-                                        remainingText = `Còn ${order.soPhutConLai} phút`;
-                                    }
-                                }
-                                return (
-                                    <div key={order.id_donHang} style={{
-                                        background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)',
-                                        border: isOverdue ? '1.5px solid rgba(239,68,68,0.5)' : isArriving ? '1.5px solid rgba(234,179,8,0.5)' : '1px solid var(--hairline)',
-                                        overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                                    }}>
-                                        {/* Header */}
-                                        <div style={{ padding: '1rem 1.25rem', background: isOverdue ? 'rgba(239,68,68,0.07)' : isArriving ? 'rgba(234,179,8,0.07)' : 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                    <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--ink)' }}>
-                                                        {order.tenBan || (order.id_ban ? `Bàn ${order.id_ban}` : 'Chưa xếp bàn')}
-                                                    </span>
-                                                    <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>#{order.id_donHang}</span>
-                                                    {order.trangThaiCoc === 'Đã cọc' && (
-                                                        <span style={{ padding: '0.15rem 0.5rem', borderRadius: '0.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontSize: '0.68rem', fontWeight: '700' }}>Đã cọc</span>
-                                                    )}
-                                                </div>
-                                                {order.tenKhach && <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>👤 {order.tenKhach}{order.soDienThoai ? ` · ${order.soDienThoai}` : ''}</div>}
-                                                {order.soNguoi && <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.15rem' }}>👥 {order.soNguoi} người</div>}
-                                            </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.25rem 0.65rem', borderRadius: 'var(--rounded-pill)', background: isOverdue ? 'rgba(239,68,68,0.15)' : isArriving ? 'rgba(234,179,8,0.15)' : 'rgba(59,130,246,0.15)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.35)' : isArriving ? 'rgba(234,179,8,0.35)' : 'rgba(59,130,246,0.35)'}`, color: isOverdue ? '#f87171' : isArriving ? '#fbbf24' : '#60a5fa', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                    ⏰ {remainingText}
-                                                </span>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                                                    Hẹn {order.thoiGianDen ? new Date(order.thoiGianDen).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Items */}
-                                        <div style={{ padding: '0.75rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            {order.chi_tiet.map((item, idx) => (
-                                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', borderRadius: 'var(--rounded-pill)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
-                                                    {item.hinhAnh && (
-                                                        <div style={{ width: '32px', height: '32px', borderRadius: '0.35rem', overflow: 'hidden', flexShrink: 0 }}>
-                                                            <img src={`${BASE_URL}${item.hinhAnh}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                                                        </div>
-                                                    )}
-                                                    <div style={{ flex: 1 }}>
-                                                        <span style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--ink)' }}>{item.tenMon}</span>
-                                                        <span style={{ color: 'var(--muted)', fontWeight: '400', marginLeft: '0.35rem' }}>x{item.soLuong}</span>
-                                                    </div>
-                                                    <strong style={{ color: 'var(--ink)', fontSize: '0.82rem' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {/* Footer */}
-                                        <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--hairline)', background: 'var(--surface-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-                                                {order.chi_tiet.length} món{order.ghiChu ? ` · ${order.ghiChu}` : ''}
-                                            </span>
-                                            <strong style={{ color: '#10b981', fontSize: '0.95rem' }}>{fmtMoney(order.tongTien)}</strong>
-                                        </div>
-                                        {order.tienCoc > 0 && (
-                                            <div style={{ padding: '0.4rem 1.25rem', background: 'rgba(16,185,129,0.05)', borderTop: '1px solid var(--hairline)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#34d399' }}>
-                                                <span>Tiền cọc:</span>
-                                                <span>{fmtMoney(order.tienCoc)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )
+                    <UpcomingView
+                        upcomingOrders={upcomingOrders}
+                        upcomingLoading={upcomingLoading}
+                    />
                 )}
 
                 {/* Tables tab */}
                 {activeTab === 'tables' && (
-                    tablesLoading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                            <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                            Đang tải sơ đồ bàn...
-                        </div>
-                    ) : (() => {
-                        const TABLE_STATUS = {
-                            'Trống': { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', color: '#34d399', icon: '🟢' },
-                            'Có khách': { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.35)', color: '#f87171', icon: '🔴' },
-                            'Đã đặt': { bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.35)', color: '#fbbf24', icon: '🟡' },
-                            'Đang phục vụ': { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.35)', color: '#60a5fa', icon: '🔵' },
-                        };
-                        const grouped = tables.reduce((acc, t) => {
-                            const loc = t.viTri || 'Khác';
-                            if (!acc[loc]) acc[loc] = [];
-                            acc[loc].push(t);
-                            return acc;
-                        }, {});
-                        return (
-                            <div>
-                                {/* Legend */}
-                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                                    {Object.entries(TABLE_STATUS).map(([status, s]) => (
-                                        <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: s.color, fontWeight: '600' }}>
-                                            <span>{s.icon}</span> {status} ({tables.filter(t => t.trangThai === status).length})
-                                        </div>
-                                    ))}
-                                </div>
-                                {Object.entries(grouped).map(([location, locationTables]) => (
-                                    <div key={location} style={{ marginBottom: '2rem' }}>
-                                        <h3 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--ink)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            📍 {location}
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: '400' }}>({locationTables.length} bàn)</span>
-                                        </h3>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
-                                            {locationTables.map(table => {
-                                                const s = TABLE_STATUS[table.trangThai] || TABLE_STATUS['Trống'];
-                                                return (
-                                                    <div key={table.id_ban} style={{
-                                                        background: s.bg, border: `1.5px solid ${s.border}`,
-                                                        borderRadius: 'var(--rounded-lg)', padding: '1rem',
-                                                        display: 'flex', flexDirection: 'column', gap: '0.35rem',
-                                                        transition: 'all 0.2s',
-                                                    }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <span style={{ fontWeight: '800', fontSize: '1rem', color: 'var(--ink)' }}>{table.tenBan}</span>
-                                                            <span style={{ fontSize: '0.7rem' }}>{s.icon}</span>
-                                                        </div>
-                                                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>Sức chứa: {table.sucChua} người</div>
-                                                        <div style={{ fontSize: '0.72rem', color: s.color, fontWeight: '700', marginTop: '0.15rem' }}>{table.trangThai}</div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })()
+                    <TablesView
+                        tables={tables}
+                        tablesLoading={tablesLoading}
+                    />
                 )}
 
                 {/* Schedule tab */}
                 {activeTab === 'schedule' && (
-                    <div>
-                        {/* Date picker */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                            <button onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() - 1); const ds = d.toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
-                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--muted)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>← Hôm trước</button>
-                            <input type="date" value={scheduleDate} onChange={e => { setScheduleDate(e.target.value); fetchTimeline(e.target.value); }}
-                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--ink)', fontSize: '0.85rem', fontWeight: '600' }} />
-                            <button onClick={() => { const d = new Date(scheduleDate); d.setDate(d.getDate() + 1); const ds = d.toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
-                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-card)', color: 'var(--muted)', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>Hôm sau →</button>
-                            <button onClick={() => { const ds = new Date().toISOString().split('T')[0]; setScheduleDate(ds); fetchTimeline(ds); }}
-                                style={{ padding: '0.4rem 0.8rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.12)', color: '#34d399', cursor: 'pointer', fontWeight: '700', fontSize: '0.85rem' }}>Hôm nay</button>
-                        </div>
-
-                        {timelineLoading ? (
-                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                                <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#10b981', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                                Đang tải lịch trình...
-                            </div>
-                        ) : !timeline || timeline.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                                <h2 style={{ margin: '0 0 0.5rem' }}>Không có dữ liệu lịch trình</h2>
-                                <p style={{ color: 'var(--muted)', margin: 0 }}>Chưa có đặt bàn nào cho ngày này.</p>
-                            </div>
-                        ) : (
-                            <div style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', overflow: 'hidden' }}>
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '1px solid var(--hairline)', background: 'var(--surface-soft)' }}>
-                                                <th style={{ padding: '0.75rem 1rem', fontSize: '0.82rem', fontWeight: '700', color: 'var(--muted)', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface-soft)', zIndex: 1 }}>Bàn</th>
-                                                {timeline.length > 0 && timeline[0].slots && timeline[0].slots.map((slot, idx) => (
-                                                    <th key={idx} style={{ padding: '0.75rem 0.5rem', fontSize: '0.72rem', fontWeight: '600', color: 'var(--muted)', textAlign: 'center', minWidth: '100px' }}>
-                                                        {slot.time}
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {timeline.map(row => (
-                                                <tr key={row.id_ban} style={{ borderBottom: '1px solid var(--hairline)' }}>
-                                                    <td style={{ padding: '0.65rem 1rem', fontWeight: '700', fontSize: '0.85rem', color: 'var(--ink)', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: 'var(--surface-card)', zIndex: 1 }}>
-                                                        {row.tenBan}
-                                                        <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: '400' }}>{row.sucChua} người</div>
-                                                    </td>
-                                                    {row.slots && row.slots.map((slot, idx) => {
-                                                        const SLOT_STYLE = {
-                                                            'available':    { bg: 'transparent', color: 'var(--muted)', label: '' },
-                                                            'occupied':     { bg: 'rgba(239,68,68,0.12)', color: '#f87171', label: '🔴' },
-                                                            'blocked':      { bg: 'rgba(234,179,8,0.12)', color: '#fbbf24', label: '🟡' },
-                                                            'warning':      { bg: 'rgba(249,115,22,0.12)', color: '#fb923c', label: '🟠' },
-                                                            'past':         { bg: 'rgba(100,116,139,0.07)', color: 'var(--muted)', label: '' },
-                                                            'past-booked':  { bg: 'rgba(100,116,139,0.1)', color: '#64748b', label: '⬜' },
-                                                        };
-                                                        const ss = SLOT_STYLE[slot.status] || SLOT_STYLE['available'];
-                                                        const isPast = slot.status === 'past' || slot.status === 'past-booked';
-                                                        return (
-                                                            <td key={idx} style={{ padding: '0.4rem', textAlign: 'center', background: ss.bg, fontSize: '0.72rem', color: ss.color, fontWeight: slot.status !== 'available' && !isPast ? '600' : '400', opacity: isPast ? 0.5 : 1 }}>
-                                                                {slot.khach && !isPast ? (
-                                                                    <div title={`${slot.khach} - ${slot.soNguoi || ''} người`}>
-                                                                        <div>{ss.label} {slot.khach}</div>
-                                                                        {slot.soNguoi && <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{slot.soNguoi} người</div>}
-                                                                    </div>
-                                                                ) : isPast && slot.khach ? (
-                                                                    <div title={`${slot.khach}${slot.reservationStatus ? ' — ' + slot.reservationStatus : ''}`}>
-                                                                        <div style={{ fontSize: '0.65rem' }}>Đã qua</div>
-                                                                        <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>{slot.khach}</div>
-                                                                        {slot.reservationStatus && (
-                                                                            <div style={{ fontSize: '0.58rem', opacity: 0.55, fontStyle: 'italic' }}>
-                                                                                {slot.reservationStatus === 'Hoàn thành' ? '✓ HT' : slot.reservationStatus === 'Vắng mặt' ? '✗ VM' : slot.reservationStatus}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <span style={{ opacity: 0.3 }}>—</span>
-                                                                )}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <ScheduleView
+                        timeline={timeline}
+                        timelineLoading={timelineLoading}
+                        scheduleDate={scheduleDate}
+                        setScheduleDate={setScheduleDate}
+                        fetchTimeline={fetchTimeline}
+                    />
                 )}
             </div>
 
-                {/* Ghép bàn tab */}
-                {activeTab === 'ghepban' && (
-                    <div>
-                        {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: '800', color: 'var(--ink)' }}>🪑 Ghép Bàn Tầng Thượng</h2>
-                                <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>Chỉ hiển thị đặt bàn đang active. Chọn đặt bàn để ghép bàn Tầng Thượng.</p>
-                            </div>
-                            <button
-                                onClick={() => { fetchGhepBanReservations(); fetchActiveMerges(); }}
-                                style={{ padding: '0.4rem 1rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.1)', color: '#a78bfa', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                                ↻ Làm mới
-                            </button>
-                        </div>
 
-                        {ghepBanLoading ? (
-                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--muted)' }}>
-                                <div style={{ width: '48px', height: '48px', border: '4px solid var(--hairline)', borderTopColor: '#a78bfa', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                                Đang tải danh sách đặt bàn...
-                            </div>
-                        ) : ghepBanReservations.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '5rem 2rem', borderRadius: 'var(--rounded-lg)', border: '2px dashed var(--hairline)', background: 'var(--surface-card)' }}>
-                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🪑</div>
-                                <h2 style={{ margin: '0 0 0.5rem' }}>Không có đặt bàn active</h2>
-                                <p style={{ color: 'var(--muted)', margin: 0 }}>Hiện không có đặt bàn nào đang hoạt động cần ghép bàn.</p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {ghepBanReservations.map(res => {
-                                    const merge = activeMerges[res.id_datBan];
-                                    const STATUS_COLOR = {
-                                        'Chờ xác nhận': { bg: 'rgba(234,179,8,0.12)', color: '#fbbf24' },
-                                        'Đã xác nhận': { bg: 'rgba(16,185,129,0.12)', color: '#34d399' },
-                                        'Đã checkin': { bg: 'rgba(168,85,247,0.12)', color: '#c084fc' },
-                                    };
-                                    const sc = STATUS_COLOR[res.trangThai] || { bg: 'var(--surface-soft)', color: 'var(--muted)' };
-                                    return (
-                                        <div key={res.id_datBan} style={{
-                                            background: 'var(--surface-card)',
-                                            border: merge ? '1.5px solid rgba(124,58,237,0.5)' : '1px solid var(--hairline)',
-                                            borderRadius: 'var(--rounded-lg)',
-                                            padding: '1rem 1.25rem',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                            gap: '1rem', flexWrap: 'wrap',
-                                            background: merge ? 'rgba(124,58,237,0.04)' : 'var(--surface-card)',
-                                        }}>
-                                            {/* Left info */}
-                                            <div style={{ flex: 1, minWidth: '180px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
-                                                    <span style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--ink)' }}>
-                                                        #DB{res.id_datBan}
-                                                    </span>
-                                                    <span style={{ padding: '0.15rem 0.55rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: '700', background: sc.bg, color: sc.color }}>
-                                                        {res.trangThai}
-                                                    </span>
-                                                    {merge && (
-                                                        <span style={{ padding: '0.15rem 0.55rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: '700', background: 'rgba(124,58,237,0.15)', color: '#a78bfa' }}>
-                                                            ✓ Đang ghép {merge.ban_details?.length} bàn
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div style={{ fontSize: '0.82rem', color: 'var(--muted)', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                                    <span>👤 {res.tenKhachHang || `KH${res.id_nguoiDung}`}</span>
-                                                    <span>👥 {res.soNguoi} người</span>
-                                                    <span>🕐 {new Date(res.thoiGianDen).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                                                    {res.tenBan && <span>🪑 {res.tenBan}</span>}
-                                                </div>
-                                                {merge && merge.ban_details && (
-                                                    <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: '#a78bfa', fontWeight: '600' }}>
-                                                        Bàn ghép: {merge.ban_details.map(b => b.tenBan).join(', ')} · Tổng: {merge.tong_suc_chua} chỗ
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* Actions */}
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                                {merge ? (
-                                                    <button
-                                                        onClick={() => handleCancelMerge(res.id_datBan)}
-                                                        style={{ padding: '0.45rem 1rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                                                    >
-                                                        <Trash2 size={14} /> Hủy ghép
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleOpenMergeModal(res)}
-                                                        style={{ padding: '0.45rem 1rem', borderRadius: 'var(--rounded-pill)', border: '1px solid rgba(124,58,237,0.5)', background: 'rgba(124,58,237,0.12)', color: '#a78bfa', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                                                    >
-                                                        <GitMerge size={14} /> Ghép bàn
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* MODAL GHÉP BÀN (waiter) */}
-                        {mergeModal && (() => {
-                            const mergedBans = rooftopTables.filter(t => selectedMergeTables.includes(t.id_ban));
-                            const totalCapacity = mergedBans.reduce((s, t) => s + t.sucChua, 0);
-                            const isEnough = totalCapacity >= mergeSoNguoi;
-                            return (
-                                <div onClick={() => setMergeModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid rgba(124,58,237,0.3)', width: '100%', maxWidth: '520px', padding: '1.75rem', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', maxHeight: '90vh', overflowY: 'auto' }}>
-
-                                        {/* Header */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--hairline)', paddingBottom: '1rem' }}>
-                                            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a78bfa' }}>
-                                                <GitMerge size={20} /> Ghép bàn #DB{mergeModal.id_datBan}
-                                            </h2>
-                                            <button onClick={() => setMergeModal(null)} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
-                                        </div>
-
-                                        {/* Info */}
-                                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', background: 'rgba(124,58,237,0.06)', padding: '0.85rem 1rem', borderRadius: 'var(--rounded-lg)', border: '1px solid rgba(124,58,237,0.15)', fontSize: '0.875rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                👤 <strong>{mergeModal.tenKhachHang || `KH${mergeModal.id_nguoiDung}`}</strong>
-                                            </span>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                👥 
-                                                <input 
-                                                    type="number" 
-                                                    min={1} 
-                                                    value={mergeSoNguoi} 
-                                                    onChange={e => setMergeSoNguoi(Math.max(1, parseInt(e.target.value) || 1))}
-                                                    style={{ width: '60px', padding: '0.2rem 0.4rem', borderRadius: '0.35rem', border: '1px solid rgba(124,58,237,0.3)', background: 'var(--surface-soft)', color: 'var(--ink)', textAlign: 'center', fontWeight: 'bold' }}
-                                                /> 
-                                                người
-                                            </span>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                🕐 {new Date(mergeModal.thoiGianDen).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        </div>
-
-                                        {/* Capacity bar */}
-                                        <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 'var(--rounded-lg)', background: selectedMergeTables.length === 0 ? 'var(--surface-soft)' : isEnough ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${selectedMergeTables.length === 0 ? 'var(--hairline)' : isEnough ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem' }}>
-                                            <span style={{ color: 'var(--muted)' }}>Tổng sức chứa đã chọn:</span>
-                                            <span style={{ fontWeight: 'bold', fontSize: '1rem', color: selectedMergeTables.length === 0 ? 'var(--muted)' : isEnough ? '#34d399' : '#f87171' }}>
-                                                {totalCapacity} / {mergeSoNguoi} người&nbsp;
-                                                {selectedMergeTables.length > 0 && (isEnough ? '✅' : '❌')}
-                                            </span>
-                                        </div>
-
-                                        {/* Rooftop tables */}
-                                        <div style={{ marginBottom: '1.25rem' }}>
-                                            <div style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--muted)', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bàn Tầng Thượng</div>
-                                            {rooftopLoading ? (
-                                                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.875rem' }}>Đang tải...</div>
-                                            ) : rooftopTables.length === 0 ? (
-                                                <div style={{ padding: '1.25rem', textAlign: 'center', color: '#f87171', fontSize: '0.875rem', background: 'rgba(239,68,68,0.05)', borderRadius: '0.5rem' }}>Không có bàn nào ở Tầng Thượng.</div>
-                                            ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                    {rooftopTables.map(table => {
-                                                        const isChecked = selectedMergeTables.includes(table.id_ban);
-                                                        const isDisabled = table.coLichTrungGio;
-                                                        return (
-                                                            <label key={table.id_ban} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: 'var(--rounded-lg)', cursor: isDisabled ? 'not-allowed' : 'pointer', background: isChecked ? 'rgba(124,58,237,0.08)' : 'var(--surface-soft)', border: `1px solid ${isChecked ? 'rgba(124,58,237,0.4)' : 'var(--hairline)'}`, opacity: isDisabled ? 0.5 : 1, transition: 'all 0.15s' }}>
-                                                                <input type="checkbox" checked={isChecked} disabled={isDisabled} onChange={() => !isDisabled && setSelectedMergeTables(prev => prev.includes(table.id_ban) ? prev.filter(x => x !== table.id_ban) : [...prev, table.id_ban])} style={{ width: '16px', height: '16px', accentColor: '#7c3aed' }} />
-                                                                <div style={{ flex: 1 }}>
-                                                                    <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--ink)' }}>{table.tenBan}</div>
-                                                                    <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginTop: '0.1rem' }}>Sức chứa: {table.sucChua} · {table.viTri}</div>
-                                                                </div>
-                                                                <span style={{ padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: '700', background: isDisabled ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.1)', color: isDisabled ? '#f87171' : '#34d399' }}>
-                                                                    {isDisabled ? 'Trùng giờ' : table.trangThai}
-                                                                </span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Note */}
-                                        <div style={{ marginBottom: '1.5rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: 'var(--muted)', marginBottom: '0.4rem' }}>Ghi chú (tuỳ chọn)</label>
-                                            <input type="text" value={mergeNote} onChange={e => setMergeNote(e.target.value)} placeholder="VD: Sinh nhật, nhóm đặc biệt..." style={{ width: '100%', padding: '0.6rem 0.875rem', borderRadius: '0.5rem', border: '1px solid var(--hairline)', background: 'var(--surface-soft)', color: 'var(--ink)', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box' }} />
-                                        </div>
-
-                                        {/* Footer */}
-                                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                                            <button onClick={() => setMergeModal(null)} style={{ padding: '0.5rem 1.25rem', borderRadius: 'var(--rounded-pill)', border: '1px solid var(--hairline)', background: 'var(--surface-soft)', color: 'var(--muted)', fontWeight: '700', cursor: 'pointer', fontSize: '0.875rem' }}>Hủy</button>
-                                            <button
-                                                onClick={handleSubmitMerge}
-                                                disabled={mergeSubmitLoading || selectedMergeTables.length === 0 || !isEnough}
-                                                style={{ padding: '0.5rem 1.5rem', borderRadius: 'var(--rounded-pill)', fontWeight: '700', fontSize: '0.875rem', cursor: 'pointer', border: 'none', background: (selectedMergeTables.length === 0 || !isEnough) ? 'var(--surface-soft)' : 'linear-gradient(135deg,#7c3aed,#9333ea)', color: (selectedMergeTables.length === 0 || !isEnough) ? 'var(--muted)' : '#fff', display: 'flex', alignItems: 'center', gap: '0.4rem', transition: 'all 0.2s' }}
-                                            >
-                                                <GitMerge size={15} />
-                                                {mergeSubmitLoading ? 'Đang xử lý...' : 'Xác nhận ghép bàn'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
-
-            {/* MODAL THU NGÂN / CHEKOUT CHO PHỤC VỤ */}
-            {checkoutOrder && (
-                <div onClick={() => setCheckoutOrder(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface-card)', borderRadius: 'var(--rounded-lg)', border: '1px solid var(--hairline)', width: '100%', maxWidth: '520px', maxHeight: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column', padding: '1.5rem', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', color: 'var(--ink)' }}>
-
-                        {/* Modal Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--hairline)', paddingBottom: '0.75rem', flexShrink: 0 }}>
-                            <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                Tính tiền &amp; Thu ngân
-                            </h2>
-                            <button onClick={() => setCheckoutOrder(null)} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                &times;
-                            </button>
-                        </div>
-
-                        {/* Scrollable Content Body */}
-                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem', marginBottom: '1rem' }}>
-                            {checkoutLoading ? (
-                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
-                                    <div style={{ width: '36px', height: '36px', border: '3px solid var(--hairline)', borderTopColor: 'var(--primary)', borderRadius: '50%', margin: '0 auto 1rem', animation: 'spin 1s linear infinite' }} />
-                                    Đang tải chi tiết hóa đơn...
-                                </div>
-                            ) : checkoutDetails ? (
-                                <div>
-                                    {/* Table & Customer Summary */}
-                                    <div style={{ background: 'var(--surface-soft)', border: '1px solid var(--hairline)', padding: '1rem', borderRadius: 'var(--rounded-lg)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                                            <span style={{ color: 'var(--muted)' }}>Bàn ăn:</span>
-                                            <strong style={{ color: 'var(--ink)' }}>{checkoutDetails.id_ban ? `Bàn ${checkoutDetails.id_ban}` : 'Mang về'}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                                            <span style={{ color: 'var(--muted)' }}>Đơn hàng:</span>
-                                            <strong style={{ color: 'var(--ink)' }}>#{checkoutDetails.id_donHang}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ color: 'var(--muted)' }}>Khách hàng:</span>
-                                            <strong style={{ color: 'var(--ink)' }}>{checkoutDetails.tenKhachHang || 'Vãng lai'}</strong>
-                                        </div>
-                                    </div>
-
-                                    {/* Ordered Items List */}
-                                    <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '0.75rem' }}>Món ăn đã phục vụ</h3>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                                        {checkoutDetails.chi_tiet && checkoutDetails.chi_tiet.length > 0 ? (
-                                            checkoutDetails.chi_tiet.map((item, idx) => (
-                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', padding: '0.6rem 0.85rem', borderRadius: '0.5rem', fontSize: '0.85rem' }}>
-                                                    <span>{item.tenMon || `Món #${item.id_monAn}`} <strong style={{ color: 'var(--muted)' }}>x{item.soLuong}</strong></span>
-                                                    <strong style={{ color: 'var(--ink)' }}>{fmtMoney(item.giaTaiThoiDiemBan * item.soLuong)}</strong>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div style={{ color: 'var(--muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>Không có chi tiết món ăn.</div>
-                                        )}
-                                    </div>
-
-                                    {/* Cost Calculations */}
-                                    <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                                            <span style={{ color: 'var(--muted)' }}>Tổng tiền món ăn:</span>
-                                            <span>{fmtMoney(checkoutDetails.tongTien)}</span>
-                                        </div>
-
-                                        {checkoutDetails.trangThaiCoc === 'Đã cọc' && checkoutDetails.tienCoc > 0 && (
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#10b981' }}>
-                                                <span>Tiền cọc (Đã thanh toán):</span>
-                                                <strong>-{fmtMoney(checkoutDetails.tienCoc)}</strong>
-                                            </div>
-                                        )}
-                                        {checkoutDetails.tongThanhToan > (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0) && (
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#10b981' }}>
-                                                <span>Đã thanh toán bổ sung:</span>
-                                                <strong>-{fmtMoney(checkoutDetails.tongThanhToan - (checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0))}</strong>
-                                            </div>
-                                        )}
-
-                                        {(() => {
-                                            const totalPaid = Math.max(checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0, checkoutDetails.tongThanhToan || 0);
-                                            const finalAmount = Math.max(0, checkoutDetails.tongTien - totalPaid);
-                                            const overpaidAmount = Math.max(0, totalPaid - checkoutDetails.tongTien);
-
-                                            if (overpaidAmount > 0) {
-                                                return (
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                                                        <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ef4444' }}>CẦN HOÀN TIỀN MẶT:</span>
-                                                        <strong style={{ fontSize: '1.3rem', color: '#ef4444', textShadow: '0 0 10px rgba(239,68,68,0.2)' }}>
-                                                            {fmtMoney(overpaidAmount)}
-                                                        </strong>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return (
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px dashed var(--hairline)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                                                    <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>CẦN THU CỦA KHÁCH:</span>
-                                                    <strong style={{ fontSize: '1.3rem', color: 'var(--primary)', textShadow: '0 0 10px rgba(249,115,22,0.2)' }}>
-                                                        {fmtMoney(finalAmount)}
-                                                    </strong>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    {/* VietQR Dynamic Code Display */}
-                                    {(() => {
-                                        const totalPaid = Math.max(checkoutDetails.trangThaiCoc === 'Đã cọc' ? checkoutDetails.tienCoc : 0, checkoutDetails.tongThanhToan || 0);
-                                        const finalAmount = Math.max(0, checkoutDetails.tongTien - totalPaid);
-                                        if (finalAmount <= 0) return null; // Ẩn QR code nếu không cần thanh toán thêm
-
-                                        const addInfo = `THANH TOAN DH${checkoutDetails.id_donHang}`;
-                                        return (
-                                            <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--surface-soft)', border: '1px solid var(--hairline)', borderRadius: 'var(--rounded-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                                                <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    Quét mã thanh toán VietQR
-                                                </span>
-                                                <div style={{ background: '#fff', padding: '0.5rem', borderRadius: 'var(--rounded-md)', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '180px', height: '180px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                                                    <img
-                                                        src={`https://img.vietqr.io/image/970419-9704198526191432198-compact.png?amount=${finalAmount}&addInfo=${encodeURIComponent(addInfo)}&accountName=NGUYEN%20VAN%20A`}
-                                                        alt="Mã QR chuyển khoản"
-                                                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                                    />
-                                                </div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--muted)', textAlign: 'center', display: 'grid', gap: '0.2rem' }}>
-                                                    <span>Chủ tài khoản: <strong style={{ color: 'var(--ink)' }}>NGUYEN VAN A</strong></span>
-                                                    <span>Số tài khoản: <strong style={{ color: 'var(--ink)' }}>9704198526191432198</strong></span>
-                                                    <span>Ngân hàng: <strong style={{ color: 'var(--ink)' }}>NCB</strong></span>
-                                                    <span>Nội dung: <strong style={{ color: 'var(--primary)' }}>{addInfo}</strong></span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            ) : (
-                                <div style={{ color: 'red', textAlign: 'center', padding: '1rem' }}>Lỗi tải chi tiết đơn hàng</div>
-                            )}
-                        </div>
-
-                        {/* Sticky Modal Footer (Actions) */}
-                        {checkoutDetails && (
-                            <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--hairline)', flexShrink: 0 }}>
-                                <button onClick={() => setCheckoutOrder(null)} className="btn btn-outline" style={{ flex: 1 }}>Hủy</button>
-                                <button onClick={() => handlePrintReceipt(checkoutDetails)} className="btn" style={{ flex: 1.5, background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#60a5fa', borderRadius: '0.5rem', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer' }}>
-                                    🖨️ In hóa đơn
-                                </button>
-                                <button onClick={async () => {
-                                    await updateOrderStatus(checkoutOrder.id_donHang, 'Đã thanh toán');
-                                    setCheckoutOrder(null);
-                                }} className="btn btn-primary" style={{ flex: 2, background: 'var(--primary)', border: 'none', boxShadow: '0 4px 15px rgba(249,115,22,0.3)', fontWeight: '700' }}>
-                                    Đã nhận &amp; Hoàn tất
-                                </button>
-                            </div>
-                        )}
-
-                    </div>
-                </div>
-            )}
+            {/* MODAL THU NGÂN / CHECKOUT CHO PHỤC VỤ */}
+            <WaiterCheckout
+                checkoutOrder={checkoutOrder}
+                checkoutDetails={checkoutDetails}
+                checkoutLoading={checkoutLoading}
+                onClose={() => setCheckoutOrder(null)}
+                onPrintReceipt={handlePrintReceipt}
+                onComplete={async (id_donHang) => {
+                    await updateOrderStatus(id_donHang, 'Đã thanh toán');
+                    setCheckoutOrder(null);
+                }}
+            />
             </div> {/* End main content */}
 
-            {/* Chat Panel (slide t\u1eeb ph\u1ea3i) */}
+            {/* Chat Panel (slide từ phải) */}
             <div style={{
                 width: showChatPanel ? '360px' : '0',
                 flexShrink: 0,

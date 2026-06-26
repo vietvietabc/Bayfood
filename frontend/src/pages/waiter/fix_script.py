@@ -5,15 +5,6 @@ filepath = r"c:\Users\DinhViet\Desktop\BayFood\frontend\src\pages\waiter\WaiterP
 with open(filepath, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# We need to replace the section from:
-#                                         ))}
-#                                     </thead>
-# to:
-#                     </div>
-#                 )}
-# 
-#             {/* MODAL THU NGÂN / CHEKOUT CHO PHỤC VỤ */}
-# with the correct shifts table closing and the 3 new tabs.
 
 new_tabs = """                                        ))}
                                     </tbody>

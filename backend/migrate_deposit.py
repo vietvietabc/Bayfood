@@ -1,7 +1,3 @@
-"""
-Migration: Thêm cột tiền cọc vào bảng DATBAN
-Chạy: python migrate_deposit.py
-"""
 import os
 from pathlib import Path
 from dotenv import load_dotenv

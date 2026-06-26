@@ -1,14 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Minus, Plus, ShoppingBag, Trash2, ArrowRight, ShoppingCart, Calendar, Clock, Users, Edit3 } from 'lucide-react';
+import { ShoppingBag, ArrowRight, ShoppingCart, Calendar, Clock, Users, Edit3 } from 'lucide-react';
 import axios from 'axios';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { 
+    toLocalDateString, toMinutes, buildDateRange, formatTimelineTime,
+    isBookedSlot, isBlockedSlot, isWarningSlot 
+} from './cart/cartUtils';
+import CartItem from './cart/CartItem';
+import CartPaymentChoice from './cart/CartPaymentChoice';
+import CartTimelineModal from './cart/CartTimelineModal';
+import CartCustomAlert from './cart/CartCustomAlert';
 
-const pad2 = (value) => String(value).padStart(2, '0');
-const toLocalDateString = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const todayString = toLocalDateString(new Date());
 
 const CartPage = () => {
@@ -30,7 +36,6 @@ const CartPage = () => {
     // Mini timeline trong edit booking
     const [editTimeline, setEditTimeline] = useState([]);          // slots của bàn cho ngày đã chọn
     const [editTimelineLoading, setEditTimelineLoading] = useState(false);
-    const [editWorkingHours, setEditWorkingHours] = useState(null); // giờ làm việc ngày đã chọn
     const [editSoNguoiError, setEditSoNguoiError] = useState('');   // lỗi validate số người
     const [editTimeError, setEditTimeError] = useState('');         // lỗi validate giờ nhập tay
 
@@ -67,25 +72,6 @@ const CartPage = () => {
 
     const showAlert = (message, type = 'info', onClose = null, showCancel = false) => {
         setCustomAlert({ show: true, message, type, onClose, showCancel });
-    };
-
-    const toMinutes = (value) => {
-        if (!value) return null;
-        const [hours, minutes] = value.split(':').map(Number);
-        return (hours * 60) + minutes;
-    };
-
-    const buildDateRange = (startDate, endDate) => {
-        if (!startDate || !endDate) return [];
-        const dates = [];
-        const current = new Date(`${startDate}T00:00:00`);
-        const end = `${endDate}T00:00:00`;
-        if (Number.isNaN(current.getTime())) return [];
-        while (`${toLocalDateString(current)}T00:00:00` <= end) {
-            dates.push(toLocalDateString(current));
-            current.setDate(current.getDate() + 1);
-        }
-        return dates;
     };
 
     useEffect(() => {
@@ -181,8 +167,6 @@ const CartPage = () => {
                     params: { ngay: bookingForm.date, fromTime: '00:00' }
                 });
                 const raw = timelineRes.data;
-                // workingHours đã có sẵn trong timeline response
-                setEditWorkingHours(raw?.workingHours || null);
                 const tablesList = raw?.tables || [];
                 const tableEntry = tablesList.find(e => Number(e?.table?.id_ban) === Number(bookingForm.id_ban));
                 console.log('[EditTimeline] id_ban:', bookingForm.id_ban, 'tables:', tablesList.length, 'found:', !!tableEntry, 'slots:', tableEntry?.slots?.length);
@@ -247,38 +231,6 @@ const CartPage = () => {
         return slotStartMinutes >= startMinutes;
     };
 
-    const formatTimelineTime = (value, isEnd = false) => {
-        const hours = value.getHours();
-        const minutes = value.getMinutes();
-        if (isEnd && hours === 0 && minutes === 0) return '24:00';
-        return value.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    };
-
-    const isBookedSlot = (slot) => slot.trangThai === 'Đã có người đặt';
-    const isBlockedSlot = (slot) => slot.trangThai === 'Không đủ thời gian';
-    const isWarningSlot = (slot) => slot.trangThai === 'Có giới hạn giờ';
-
-    const handlePickSlot = (dateString, table, slot) => {
-        if (isBookedSlot(slot) || isBlockedSlot(slot)) return;
-        const slotKey = `${dateString}-${table.id_ban}-${slot.batDau}`;
-        if (isWarningSlot(slot)) {
-            const confirmed = window.confirm(slot.warningMessage || 'Khung giờ này có giới hạn thời gian. Bạn có chắc chắn muốn đặt không?');
-            if (!confirmed) return;
-        }
-
-        const timeString = new Date(slot.batDau).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-
-        setBookingForm({
-            ...bookingForm,
-            id_ban: table.id_ban,
-            date: dateString,
-            time: timeString
-        });
-
-        setSelectedSlotKey(slotKey);
-        setSelectedTableLocal(table);
-    };
-
     // Ngưỡng tối thiểu đơn hàng để được đặt bàn (không áp dụng cho QR tại bàn)
     const MIN_ORDER_FOR_TABLE = 100_000;
 
@@ -337,45 +289,6 @@ const CartPage = () => {
         if (!selectedTableId && (!orderDate || !orderTime)) {
             showAlert('Vui lòng chọn ngày và giờ dự kiến bạn sẽ tới ăn hoặc lấy món.', 'error');
             return;
-        }
-
-        if (!selectedTableId && orderDate && orderTime) {
-            const currentDateTime = new Date();
-            const selectedDateTime = new Date(`${orderDate}T${orderTime}:00`);
-            if (selectedDateTime <= currentDateTime) {
-                showAlert('Thời gian tới phải lớn hơn thời gian hiện tại.', 'error');
-                return;
-            }
-
-            // Gọi API kiểm tra giờ làm việc của nhà hàng ngày hôm đó
-            try {
-                setIsSubmitting(true);
-                const response = await axios.get(`${BASE_URL}/api/gio-lam-viec`, {
-                    params: { ngay: orderDate }
-                });
-                const wh = response.data;
-                if (wh) {
-                    if (wh.isNghi) {
-                        showAlert(`Nhà hàng nghỉ vào ngày ${new Date(orderDate).toLocaleDateString('vi-VN')}. Vui lòng chọn ngày khác.`, 'warning');
-                        setIsSubmitting(false);
-                        return;
-                    }
-
-                    const openMinutes = toMinutes(wh.gioMoCua);
-                    const closeMinutes = toMinutes(wh.gioDongCua);
-                    const selectedMinutes = toMinutes(orderTime);
-
-                    if (selectedMinutes < openMinutes || selectedMinutes > (closeMinutes - 15)) {
-                        showAlert(`Cửa hàng chưa mở cửa vào khung giờ này (giờ hoạt động từ ${wh.gioMoCua} đến ${wh.gioDongCua}). Vui lòng hẹn giờ trong khung giờ này và trước lúc đóng cửa ít nhất 15 phút.`, 'warning');
-                        setIsSubmitting(false);
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.error("Lỗi khi kiểm tra giờ làm việc của nhà hàng:", err);
-            } finally {
-                setIsSubmitting(false);
-            }
         }
 
         if (selectedTableId || (upcomingReservation && !isEditingTime)) {
@@ -598,124 +511,16 @@ const CartPage = () => {
             </div>
 
             {/* ===== MÀN HÌNH CHỌN THANH TOÁN (trước khi tạo đơn) ===== */}
-            {showPaymentChoice && pendingPayload && (() => {
-                // Lấy tiền cọc thực của bàn đã chọn
-                const tableId = pendingPayload.dat_ban?.id_ban || pendingPayload.id_ban || null;
-                const selectedTableData = tableId ? tables.find(t => t.id_ban === Number(tableId)) : null;
-                const TABLE_FEE = selectedTableData?.tienCocMacDinh ?? 50_000;
-                const billTotal = pendingPayload.cart.reduce((s, i) => s + i.giaTaiThoiDiemBan * i.soLuong, 0);
-                const depositAmt = Math.ceil(billTotal * 0.1) + TABLE_FEE;  // 10% bill + phí giữ bàn
-                const fullAmt = Math.ceil(billTotal);                        // 100% bill, miễn phí giữ bàn
-
-                return (
-                    <div style={{ maxWidth: '620px', margin: '0 auto' }}>
-                        {/* Tiêu đề */}
-                        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                            <div style={{
-                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                width: '72px', height: '72px', borderRadius: '50%',
-                                background: 'linear-gradient(135deg, #0066cc, #004fa3)',
-                                boxShadow: '0 0 0 14px rgba(0,102,204,0.1)',
-                                fontSize: '2rem', marginBottom: '1.25rem', color: '#fff',
-                            }}>💳</div>
-                            <h1 style={{ fontSize: '1.85rem', fontWeight: '800', marginBottom: '0.5rem' }}>
-                                Xác nhận thanh toán
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-                                Chọn hình thức thanh toán để hoàn tất đặt bàn &amp; đặt món.
-                                <br />Bàn chỉ được giữ sau khi thanh toán thành công.
-                            </p>
-                        </div>
-
-                        {/* Tóm tắt hóa đơn */}
-                        <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.25rem' }}>
-                            <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: '700' }}>Chi tiết hóa đơn</h3>
-                            <div style={{ display: 'grid', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                {pendingPayload.cart.map((item, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
-                                        <span>× {item.soLuong}</span>
-                                        <span style={{ flex: 1, paddingLeft: '0.75rem' }}>{item.tenMon || `Món #${item.id_monAn}`}</span>
-                                        <strong>{(item.giaTaiThoiDiemBan * item.soLuong).toLocaleString('vi-VN')} ₫</strong>
-                                    </div>
-                                ))}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Tổng món ăn</span>
-                                    <strong>{Math.ceil(billTotal).toLocaleString('vi-VN')} ₫</strong>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                    <span>Phí giữ bàn <em>(chỉ áp dụng khi đặt cọc)</em></span>
-                                    <span>{TABLE_FEE.toLocaleString('vi-VN')} ₫</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Cảnh báo */}
-                        <div style={{ padding: '0.85rem 1.1rem', borderRadius: '0.75rem', background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.3)', marginBottom: '1.25rem', fontSize: '0.85rem', color: '#92400e', lineHeight: 1.6 }}>
-                            ⚠️ <strong>Bàn chỉ được xác nhận sau khi thanh toán VNPay thành công.</strong> Nếu không đến đúng giờ, tiền cọc sẽ <strong style={{ color: '#dc2626' }}>không được hoàn lại</strong>.
-                        </div>
-
-                        {/* Hai lựa chọn — luôn hiện 2 cột vì đã đảm bảo đơn >= 100k mới vào đây */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-                            {/* Đặt cọc */}
-                            <div style={{ padding: '1.25rem', borderRadius: '1rem', border: '2px solid rgba(202,138,4,0.5)', background: 'rgba(234,179,8,0.04)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ fontWeight: '800', color: '#92400e' }}>Đặt cọc trước</div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                    10% hóa đơn + {TABLE_FEE.toLocaleString('vi-VN')} ₫ phí bàn.<br />Trả phần còn lại khi đến ăn.
-                                </div>
-                                <div style={{ fontSize: '1.35rem', fontWeight: '900', color: '#ca8a04' }}>
-                                    {depositAmt.toLocaleString('vi-VN')} ₫
-                                </div>
-                                <button
-                                    disabled={isSubmitting}
-                                    onClick={() => initiatePayment('đặt cọc')}
-                                    style={{
-                                        padding: '0.65rem', borderRadius: '0.65rem', border: 'none',
-                                        background: payingMode === 'đặt cọc' ? '#b45309' : 'linear-gradient(135deg, #ca8a04, #92400e)',
-                                        color: '#fff', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                                        fontSize: '0.875rem', boxShadow: '0 3px 10px rgba(202,138,4,0.3)',
-                                        opacity: isSubmitting && payingMode !== 'đặt cọc' ? 0.5 : 1,
-                                    }}
-                                >
-                                    {payingMode === 'đặt cọc' ? 'Đang xử lý...' : 'Đặt cọc qua VNPay'}
-                                </button>
-                            </div>
-
-                            {/* Thanh toán toàn bộ */}
-                            <div style={{ padding: '1.25rem', borderRadius: '1rem', border: '2px solid rgba(16,185,129,0.5)', background: 'rgba(16,185,129,0.04)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <div style={{ fontWeight: '800', color: '#065f46' }}>Trả trước toàn bộ</div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                    Thanh toán 100% hóa đơn ngay.<br /><strong style={{ color: '#059669' }}>Miễn phí giữ bàn</strong>, không trả thêm khi đến.
-                                </div>
-                                <div style={{ fontSize: '1.35rem', fontWeight: '900', color: '#059669' }}>
-                                    {fullAmt.toLocaleString('vi-VN')} ₫
-                                </div>
-                                <button
-                                    disabled={isSubmitting}
-                                    onClick={() => initiatePayment('toàn bộ')}
-                                    style={{
-                                        padding: '0.65rem', borderRadius: '0.65rem', border: 'none',
-                                        background: payingMode === 'toàn bộ' ? '#047857' : 'linear-gradient(135deg, #10b981, #059669)',
-                                        color: '#fff', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                                        fontSize: '0.875rem', boxShadow: '0 3px 10px rgba(16,185,129,0.3)',
-                                        opacity: isSubmitting && payingMode !== 'toàn bộ' ? 0.5 : 1,
-                                    }}
-                                >
-                                    {payingMode === 'toàn bộ' ? 'Đang xử lý...' : 'Thanh toán qua VNPay'}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div style={{ textAlign: 'center' }}>
-                            <button
-                                onClick={() => { setShowPaymentChoice(false); setPendingPayload(null); }}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline' }}
-                            >
-                                ← Quay lại giỏ hàng
-                            </button>
-                        </div>
-                    </div>
-                );
-            })()}
+            {showPaymentChoice && pendingPayload && (
+                <CartPaymentChoice
+                    pendingPayload={pendingPayload}
+                    tables={tables}
+                    isSubmitting={isSubmitting}
+                    payingMode={payingMode}
+                    initiatePayment={initiatePayment}
+                    onBack={() => { setShowPaymentChoice(false); setPendingPayload(null); }}
+                />
+            )}
 
             {!showPaymentChoice && cart.length === 0 ? (
                 <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
@@ -734,19 +539,7 @@ const CartPage = () => {
                         </div>
                         <div style={{ padding: '1rem' }}>
                             {cart.map((item) => (
-                                <div key={item.id_monAn} style={{ display: 'grid', gridTemplateColumns: '88px 1fr auto', gap: '1rem', padding: '1rem', borderRadius: '0.75rem', background: 'var(--surface-light)', marginBottom: '0.75rem', alignItems: 'center' }}>
-                                    <img src={item.hinhAnh || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80'} alt={item.tenMon} style={{ width: '88px', height: '88px', objectFit: 'cover', borderRadius: '0.75rem' }} />
-                                    <div>
-                                        <h3 style={{ marginBottom: '0.35rem', fontSize: '1.05rem' }}>{item.tenMon}</h3>
-                                        <p style={{ color: 'var(--primary)', fontWeight: 'bold', marginBottom: '0.75rem' }}>{Number(item.giaTien).toLocaleString('vi-VN')} đ</p>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <button className="btn btn-outline" style={{ padding: '0.35rem' }} onClick={() => updateQuantity(item.id_monAn, -1)} aria-label={`Giảm số lượng ${item.tenMon}`}><Minus size={16} /></button>
-                                            <span style={{ minWidth: '28px', textAlign: 'center', fontWeight: 'bold' }}>{item.quantity}</span>
-                                            <button className="btn btn-outline" style={{ padding: '0.35rem' }} onClick={() => updateQuantity(item.id_monAn, 1)} aria-label={`Tăng số lượng ${item.tenMon}`}><Plus size={16} /></button>
-                                        </div>
-                                    </div>
-                                    <button className="btn" style={{ padding: '0.5rem', background: 'transparent', color: 'var(--danger)' }} onClick={() => removeFromCart(item.id_monAn)} aria-label={`Xóa ${item.tenMon} khỏi giỏ hàng`}><Trash2 size={18} /></button>
-                                </div>
+                                <CartItem key={item.id_monAn} item={item} updateQuantity={updateQuantity} removeFromCart={removeFromCart} />
                             ))}
                         </div>
                     </div>
@@ -1091,344 +884,53 @@ const CartPage = () => {
 
 
             {/* MODAL HỎI ĐẶT BÀN CÓ TIMELINE */}
-            {showModal && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 9999, padding: '1rem'
-                }}>
-                    <div className="card" style={{ maxWidth: '800px', width: '100%', padding: '2rem', animation: 'fadeIn 0.2s ease-out', maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div className="flex justify-between items-start mb-4">
-                            <h2 style={{ fontSize: '1.5rem', color: 'var(--text-main)' }}>
-                                Bạn có muốn đặt bàn dùng bữa tại quán cùng với đơn hàng này không?
-                            </h2>
-                            <button
-                                onClick={() => setShowModal(false)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', padding: '0.5rem', lineHeight: 1 }}
-                                aria-label="Đóng"
-                            >✕</button>
-                        </div>
+            <CartTimelineModal
+                showModal={showModal}
+                setShowModal={setShowModal}
+                loadingTables={loadingTables}
+                tables={tables}
+                selectedTableFilter={selectedTableFilter}
+                setSelectedTableFilter={setSelectedTableFilter}
+                timelineSearch={timelineSearch}
+                handleTimelineRangeChange={handleTimelineRangeChange}
+                todayString={todayString}
+                timelineLoading={timelineLoading}
+                timelineDays={timelineDays}
+                isSlotWithinSearchRange={isSlotWithinSearchRange}
+                isBookedSlot={isBookedSlot}
+                isBlockedSlot={isBlockedSlot}
+                isWarningSlot={isWarningSlot}
+                formatTimelineTime={formatTimelineTime}
+                handlePickSlot={(dateString, table, slot) => {
+                    if (isBookedSlot(slot) || isBlockedSlot(slot)) return;
+                    const slotKey = `${dateString}-${table.id_ban}-${slot.batDau}`;
+                    if (isWarningSlot(slot)) {
+                        const confirmed = window.confirm(slot.warningMessage || 'Khung giờ này có giới hạn thời gian. Bạn có chắc chắn muốn đặt không?');
+                        if (!confirmed) return;
+                    }
 
-                        <div style={{
-                            background: 'rgba(249, 115, 22, 0.1)',
-                            borderBottom: '2px solid var(--primary)',
-                            padding: '1rem',
-                            borderRadius: '0.5rem',
-                            marginBottom: '1.5rem',
-                            color: 'var(--text-main)',
-                            fontSize: '0.9rem'
-                        }}>
-                            <strong>Lưu ý:</strong> Đặt bàn ngay để chúng tôi giữ chỗ và chuẩn bị sẵn các món ăn nóng hổi ngay khi bạn vừa đến!
-                        </div>
+                    const timeString = new Date(slot.batDau).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-                        {/* CHỌN BÀN */}
-                        <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: '0.5rem' }}>
-                            <h3 style={{ fontSize: '1.1rem', margin: '0 0 1rem 0' }}>Chọn bàn</h3>
-                            {loadingTables ? (
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Đang tải bàn...</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {tables.map(table => {
-                                        const isSelected = selectedTableFilter === table.id_ban;
-                                        return (
-                                            <button
-                                                key={table.id_ban}
-                                                type="button"
-                                                onClick={() => setSelectedTableFilter(isSelected ? null : table.id_ban)}
-                                                style={{
-                                                    padding: '0.75rem',
-                                                    borderRadius: '0.75rem',
-                                                    border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                                    background: isSelected ? 'rgba(249, 115, 22, 0.1)' : 'var(--surface)',
-                                                    fontSize: '0.875rem',
-                                                    textAlign: 'left'
-                                                }}
-                                            >
-                                                <div style={{ fontWeight: 'bold', fontSize: '1rem', color: isSelected ? 'var(--primary)' : 'var(--text)' }}>{table.tenBan}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{table.viTri} · {table.sucChua} chỗ</div>
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                    setBookingForm({
+                        ...bookingForm,
+                        id_ban: table.id_ban,
+                        date: dateString,
+                        time: timeString
+                    });
 
-                        {/* KHU VỰC CHỌN GIỜ THEO TIMELINE */}
-                        <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: '0.5rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Thời gian tới</h3>
-                            </div>
+                    setSelectedSlotKey(slotKey);
+                    setSelectedTableLocal(table);
+                }}
+                selectedSlotKey={selectedSlotKey}
+                selectedTableLocal={selectedTableLocal}
+                bookingForm={bookingForm}
+                setBookingForm={setBookingForm}
+                submitOrder={submitOrder}
+                isSubmitting={isSubmitting}
+            />
 
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                                <div className="input-group mb-0">
-                                    <label className="input-label" htmlFor="timeline-from-date" style={{ fontSize: '0.85rem' }}><Calendar size={14} className="inline" /> Ngày đến</label>
-                                    <input
-                                        id="timeline-from-date"
-                                        type="date" name="fromDate"
-                                        className="input-field"
-                                        value={timelineSearch.fromDate}
-                                        onChange={handleTimelineRangeChange}
-                                        min={todayString}
-                                        aria-label="Ngày đến lọc timeline"
-                                    />
-                                </div>
-                                <div className="input-group mb-0">
-                                    <label className="input-label" htmlFor="timeline-from-time" style={{ fontSize: '0.85rem' }}><Clock size={14} className="inline" /> Lọc từ giờ</label>
-                                    <input
-                                        id="timeline-from-time"
-                                        type="time" name="fromTime"
-                                        className="input-field"
-                                        value={timelineSearch.fromTime}
-                                        onChange={handleTimelineRangeChange}
-                                        aria-label="Giờ đến lọc timeline"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* HIỂN THỊ TIMELINE */}
-                            <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-                                {timelineLoading ? (
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Đang tải timeline...</p>
-                                ) : timelineDays.length > 0 ? (
-                                    timelineDays.map((day) => {
-                                        const dayKey = day.date || day.ngay;
-                                        return (
-                                            <div key={dayKey}>
-                                                {day.tables.map(entry => {
-                                                    if (selectedTableFilter && entry.table.id_ban !== selectedTableFilter) return null;
-                                                    const table = entry.table;
-                                                    const filteredSlots = entry.slots.filter(slot => isSlotWithinSearchRange(new Date(slot.batDau)));
-                                                    if (filteredSlots.length === 0) return null;
-                                                    return (
-                                                        <div key={table.id_ban} style={{ marginBottom: '1rem', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--surface)' }}>
-                                                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>{table.tenBan} ({new Date(dayKey).toLocaleDateString('vi-VN')})</div>
-                                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.5rem' }}>
-                                                                {filteredSlots.map(slot => {
-                                                                    const slotStartDate = new Date(slot.batDau);
-                                                                    const isPastSlot = slotStartDate <= new Date();
-                                                                    const booked = isBookedSlot(slot);
-                                                                    const blocked = isBlockedSlot(slot);
-                                                                    const warning = isWarningSlot(slot);
-                                                                    const slotKey = `${dayKey}-${table.id_ban}-${slot.batDau}`;
-                                                                    const isSelectedSlot = selectedSlotKey === slotKey;
-                                                                    const isDisabled = booked || blocked || isPastSlot;
-                                                                    return (
-                                                                        <button
-                                                                            key={slotKey}
-                                                                            type="button"
-                                                                            disabled={isDisabled}
-                                                                            onClick={() => !isPastSlot && handlePickSlot(dayKey, table, slot)}
-                                                                            style={{
-                                                                                padding: '0.5rem',
-                                                                                borderRadius: '0.5rem',
-                                                                                border: isSelectedSlot ? '2px solid #2563eb' : '1px solid var(--border)',
-                                                                                background: isPastSlot ? 'var(--surface-light)' : booked || blocked ? '#fee2e2' : isSelectedSlot ? '#dbeafe' : warning ? '#fef3c7' : '#d1fae5',
-                                                                                color: isPastSlot ? 'var(--text-muted)' : booked || blocked ? '#ef4444' : isSelectedSlot ? '#2563eb' : warning ? '#d97706' : '#059669',
-                                                                                textAlign: 'center',
-                                                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                                                opacity: isDisabled ? 0.6 : 1
-                                                                            }}
-                                                                        >
-                                                                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{formatTimelineTime(new Date(slot.batDau))}</div>
-                                                                            <div style={{ fontSize: '0.65rem', marginTop: '0.15rem' }}>
-                                                                                {isPastSlot ? 'Đã qua' : booked ? 'Đã đặt' : blocked ? 'Kín' : warning ? 'Có giới hạn' : 'Trống'}
-                                                                            </div>
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Không có dữ liệu timeline.</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* THÔNG TIN BỔ SUNG NẾU ĐÃ CHỌN BÀN */}
-                        {selectedTableLocal && bookingForm.time && (
-                            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--text)', borderRadius: '0.5rem', fontSize: '0.875rem' }}>
-                                <div style={{ color: '#059669', marginBottom: '0.75rem', fontWeight: 'bold' }}>
-                                    Đã chọn <strong>{selectedTableLocal.tenBan}</strong> lúc <strong>{bookingForm.time} ({bookingForm.date})</strong>.
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="input-group mb-0">
-                                        <label className="input-label" htmlFor="booking-so-nguoi" style={{ fontSize: '0.85rem' }}><Users size={14} className="inline" /> Số người <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(tối đa {selectedTableLocal.sucChua} chỗ)</span></label>
-                                        <input
-                                            id="booking-so-nguoi"
-                                            type="number" min="1" max={selectedTableLocal.sucChua}
-                                            className="input-field"
-                                            value={bookingForm.soNguoi}
-                                            onChange={e => {
-                                                const val = parseInt(e.target.value) || 1;
-                                                const max = selectedTableLocal.sucChua || 20;
-                                                const clamped = Math.min(Math.max(1, val), max);
-                                                setBookingForm({ ...bookingForm, soNguoi: clamped });
-                                            }}
-                                            style={{ borderColor: parseInt(bookingForm.soNguoi) > (selectedTableLocal.sucChua || 20) ? '#ef4444' : '' }}
-                                            aria-label="Số người đi cùng"
-                                        />
-                                        {parseInt(bookingForm.soNguoi) > (selectedTableLocal.sucChua || 20) && (
-                                            <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                                                Bàn này chỉ chứa tối đa {selectedTableLocal.sucChua} người.
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="input-group mb-0">
-                                        <label className="input-label" htmlFor="booking-ghi-chu" style={{ fontSize: '0.85rem' }}><Edit3 size={14} className="inline" /> Ghi chú</label>
-                                        <input
-                                            id="booking-ghi-chu"
-                                            type="text" placeholder="Thêm yêu cầu..."
-                                            className="input-field"
-                                            value={bookingForm.ghiChu}
-                                            onChange={e => setBookingForm({ ...bookingForm, ghiChu: e.target.value })}
-                                            aria-label="Ghi chú thêm cho đặt bàn"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
-                            <button
-                                className="btn btn-outline"
-                                onClick={() => submitOrder(false)}
-                                disabled={isSubmitting}
-                            >
-                                Không, chỉ đặt món
-                            </button>
-
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => submitOrder(true)}
-                                disabled={isSubmitting || !bookingForm.id_ban || !bookingForm.date || !bookingForm.time}
-                                title={(!bookingForm.id_ban || !bookingForm.time) ? 'Vui lòng chọn 1 khung giờ trống ở trên' : ''}
-                            >
-                                Có, Đặt bàn kèm món
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             {/* Sleek Custom Alert Modal */}
-            {customAlert.show && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 10000, padding: '1rem',
-                    backdropFilter: 'blur(8px)',
-                    animation: 'fadeIn 0.2s ease-out'
-                }}>
-                    <div className="card" style={{
-                        maxWidth: '420px', width: '100%',
-                        padding: '2rem',
-                        border: '1px solid var(--alert-border)',
-                        background: 'var(--alert-bg)',
-                        boxShadow: 'var(--alert-shadow)',
-                        borderRadius: '1rem',
-                        textAlign: 'center',
-                        transform: 'scale(1)',
-                        animation: 'scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                    }}>
-                        <div style={{
-                            width: '56px', height: '56px',
-                            borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            margin: '0 auto 1.25rem auto',
-                            background: customAlert.type === 'success' ? 'rgba(16, 185, 129, 0.12)' : customAlert.type === 'error' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(249, 115, 22, 0.12)',
-                            color: customAlert.type === 'success' ? '#10b981' : customAlert.type === 'error' ? '#ef4444' : '#fb923c',
-                            border: `1px solid ${customAlert.type === 'success' ? 'rgba(16, 185, 129, 0.2)' : customAlert.type === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(249, 115, 22, 0.2)'}`
-                        }}>
-                            {customAlert.type === 'success' ? (
-                                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                            ) : customAlert.type === 'error' ? (
-                                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                                </svg>
-                            ) : (
-                                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.084 1.085l-.041.02H11.25zm0 5.25h.008v.008H11.25V16.5zm-9-4.5a9 9 0 1118 0 9 9 0 01-18 0z" />
-                                </svg>
-                            )}
-                        </div>
-
-                        <h3 style={{
-                            fontSize: '1.25rem',
-                            fontWeight: '600',
-                            color: 'var(--text-main)',
-                            marginBottom: '0.75rem'
-                        }}>
-                            {customAlert.type === 'success' ? 'Thành công' : customAlert.type === 'error' ? 'Có lỗi xảy ra' : 'Thông báo'}
-                        </h3>
-
-                        <p style={{
-                            color: 'var(--text-muted)',
-                            fontSize: '0.925rem',
-                            lineHeight: '1.5',
-                            marginBottom: '1.75rem',
-                            whiteSpace: 'pre-line'
-                        }}>
-                            {customAlert.message}
-                        </p>
-
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            {customAlert.showCancel && (
-                                <button
-                                    onClick={() => setCustomAlert({ show: false, message: '', type: 'info', onClose: null, showCancel: false })}
-                                    className="btn"
-                                    style={{
-                                        flex: 1,
-                                        padding: '0.75rem',
-                                        borderRadius: '0.5rem',
-                                        fontSize: '0.95rem',
-                                        fontWeight: '600',
-                                        letterSpacing: '0.025em',
-                                        background: 'rgba(255, 255, 255, 0.1)',
-                                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                                        color: '#fff',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    Đóng
-                                </button>
-                            )}
-                            <button
-                                onClick={() => {
-                                    const onCloseCb = customAlert.onClose;
-                                    setCustomAlert({ show: false, message: '', type: 'info', onClose: null, showCancel: false });
-                                    if (onCloseCb) onCloseCb();
-                                }}
-                                className="btn btn-primary"
-                                style={{
-                                    flex: 1,
-                                    padding: '0.75rem',
-                                    borderRadius: '0.5rem',
-                                    fontSize: '0.95rem',
-                                    fontWeight: '600',
-                                    letterSpacing: '0.025em',
-                                    background: customAlert.type === 'success' ? '#10b981' : customAlert.type === 'error' ? '#ef4444' : 'var(--primary)',
-                                    border: 'none',
-                                    color: '#fff',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                aria-label="Xác nhận đóng thông báo"
-                            >
-                                Đồng ý
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <CartCustomAlert customAlert={customAlert} setCustomAlert={setCustomAlert} />
         </div>
     );
 };

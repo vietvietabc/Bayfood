@@ -516,11 +516,15 @@ const AdminOrders = () => {
                             background: 'var(--surface-light)',
                             border: '1px solid var(--border)'
                           }}>
-                            <div style={{ width: '52px', height: '52px', borderRadius: '0.5rem', overflow: 'hidden', background: 'var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {item.hinhAnhMon ? (
-                                <img src={`${BASE_URL}${item.hinhAnhMon}`} alt={item.tenMon} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                              ) : (
-                                <span style={{ fontSize: '1.5rem' }}>🍽</span>
+                            <div style={{ width: '52px', height: '52px', borderRadius: '0.5rem', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                              <span style={{ fontSize: '1.5rem', position: 'absolute' }}>🍽</span>
+                              {item.hinhAnhMon && (
+                                <img 
+                                  src={item.hinhAnhMon.startsWith('http') ? item.hinhAnhMon : `${BASE_URL}${item.hinhAnhMon}`} 
+                                  alt={item.tenMon} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'relative', zIndex: 1 }} 
+                                  onError={e => { e.target.style.display = 'none'; }} 
+                                />
                               )}
                             </div>
                             <div>

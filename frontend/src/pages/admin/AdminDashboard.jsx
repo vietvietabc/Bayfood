@@ -5,6 +5,8 @@ import {
   Users, Star, Clock, ChevronRight, RefreshCw,
   CheckCircle2, Loader2, AlertCircle
 } from 'lucide-react';
+import { StatCard, Skeleton } from './dashboard/StatCards';
+import RevenueChart from './dashboard/RevenueChart';
 
 const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
 
@@ -56,164 +58,7 @@ const BOOKING_STATUS_COLOR = {
   'Vắng mặt': { bg: 'rgba(239,68,68,0.2)', color: '#dc2626' },
 };
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-const Skeleton = ({ w = '100%', h = '1rem', r = '0.5rem', style = {} }) => (
-  <div style={{
-    width: w, height: h, borderRadius: r,
-    background: 'linear-gradient(90deg, var(--surface-soft) 25%, var(--hairline) 50%, var(--surface-soft) 75%)',
-    backgroundSize: '200% 100%',
-    animation: 'shimmer 1.6s ease-in-out infinite',
-    ...style
-  }} />
-);
 
-// ─── KPI StatCard ─────────────────────────────────────────────────────────────
-const StatCard = ({ title, value, sub, icon, accent, loading, trend, trendUp }) => (
-  <div style={{
-    background: 'var(--surface-card)',
-    border: '1px solid var(--hairline)',
-    borderRadius: '1.25rem',
-    padding: '1.5rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    position: 'relative',
-    overflow: 'hidden',
-    transition: 'transform 0.25s cubic-bezier(0.32,0.72,0,1), box-shadow 0.25s cubic-bezier(0.32,0.72,0,1)',
-  }}
-    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18)'; }}
-    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-  >
-    {/* Glow accent */}
-    <div style={{ position: 'absolute', top: '-24px', right: '-24px', width: '80px', height: '80px', borderRadius: '50%', background: accent, opacity: 0.15, filter: 'blur(24px)', pointerEvents: 'none' }} />
-
-    {/* Icon + label row */}
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-      <div>
-        <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '0.3rem' }}>
-          {title}
-        </div>
-        {loading
-          ? <Skeleton w="120px" h="2rem" r="0.4rem" />
-          : <div style={{ fontSize: '1.85rem', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--ink)', lineHeight: 1.1 }}>{value}</div>
-        }
-      </div>
-      <div style={{ padding: '0.65rem', borderRadius: '0.875rem', background: accent + '22', color: accent, flexShrink: 0 }}>
-        {icon}
-      </div>
-    </div>
-
-    {/* Trend + sub */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-      {loading
-        ? <Skeleton w="80px" h="0.875rem" r="0.3rem" />
-        : <>
-          {trend != null && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', fontWeight: 700, color: trendUp ? '#10b981' : '#ef4444' }}>
-              {trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {trend}
-            </span>
-          )}
-          {sub && <span style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{sub}</span>}
-        </>
-      }
-    </div>
-  </div>
-);
-
-// ─── SVG Revenue Bar Chart ────────────────────────────────────────────────────
-const RevenueChart = ({ data7d, loading }) => {
-  const [hovered, setHovered] = useState(null);
-  const W = 560, H = 180, PAD_L = 0, PAD_B = 32, BAR_GAP = 8;
-  const days = getLast7Days();
-  const values = days.map(d => data7d[d] || 0);
-  const maxVal = Math.max(...values, 1);
-  const barW = (W - PAD_L - BAR_GAP * (days.length - 1)) / days.length;
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: `${H}px`, padding: '0 0 32px' }}>
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} style={{ flex: 1, borderRadius: '6px 6px 0 0', background: 'var(--hairline)', height: `${30 + Math.random() * 70}%`, animation: 'shimmer 1.6s ease-in-out infinite' }} />
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
-        <defs>
-          <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f97316" />
-            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.6" />
-          </linearGradient>
-          <linearGradient id="barHover" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.8" />
-          </linearGradient>
-        </defs>
-
-        {/* Grid lines */}
-        {[0.25, 0.5, 0.75, 1].map(t => {
-          const y = (H - PAD_B) * (1 - t);
-          return (
-            <line key={t} x1={0} y1={y} x2={W} y2={y}
-              stroke="var(--hairline)" strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />
-          );
-        })}
-
-        {/* Bars */}
-        {values.map((v, i) => {
-          const barH = Math.max(4, ((H - PAD_B) * v) / maxVal);
-          const x = i * (barW + BAR_GAP);
-          const y = H - PAD_B - barH;
-          const dayLabel = days[i].slice(5).replace('-', '/');
-          const isToday = days[i] === todayStr();
-          const isHovered = hovered === i;
-
-          return (
-            <g key={i} style={{ cursor: 'pointer' }}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              {/* Hover area */}
-              <rect x={x} y={0} width={barW} height={H - PAD_B} fill="transparent" />
-
-              {/* Bar */}
-              <rect
-                x={x} y={y} width={barW} height={barH}
-                rx="5" ry="5"
-                fill={isHovered ? 'url(#barHover)' : isToday ? 'url(#barGrad)' : 'var(--hairline)'}
-                opacity={isHovered ? 1 : isToday ? 1 : 0.55}
-                style={{ transition: 'all 0.2s cubic-bezier(0.32,0.72,0,1)' }}
-              />
-
-              {/* Tooltip on hover */}
-              {isHovered && v > 0 && (
-                <g>
-                  <rect x={Math.min(x - 4, W - 90)} y={y - 36} width={88} height={26} rx="6"
-                    fill="var(--surface-soft)" stroke="var(--hairline)" strokeWidth="1" />
-                  <text x={Math.min(x - 4, W - 90) + 44} y={y - 18}
-                    textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--ink)">
-                    {fmtShort(v)}
-                  </text>
-                </g>
-              )}
-
-              {/* X axis label */}
-              <text x={x + barW / 2} y={H - 6} textAnchor="middle"
-                fontSize="10" fontWeight={isToday ? '700' : '500'}
-                fill={isToday ? 'var(--primary)' : 'var(--muted)'}>
-                {isToday ? 'Hôm nay' : dayLabel}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-};
 
 // ─── Table Floor Mini ─────────────────────────────────────────────────────────
 const TableFloorMini = ({ tables, loading }) => {
@@ -523,7 +368,7 @@ const AdminDashboard = () => {
               <TrendingUp size={11} /> 7 ngày gần đây
             </div>
           </div>
-          <RevenueChart data7d={data7d} loading={loading} />
+          <RevenueChart data7d={data7d} loading={loading} fmtShort={fmtShort} getLast7Days={getLast7Days} todayStr={todayStr} />
         </div>
 
         {/* Table status card */}

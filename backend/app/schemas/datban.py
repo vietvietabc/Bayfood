@@ -27,6 +27,7 @@ class DatBan(DatBanCreate):
     soPhutGiuChoConLai: Optional[int] = None
     tenKhachHang: Optional[str] = None   # Tên khách hàng (join NguoiDung)
     tenBan: Optional[str] = None         # Tên bàn (join Ban)
+    viTri: Optional[str] = None          
     class Config:
         from_attributes = True
 

@@ -923,6 +923,21 @@
   background: linear-gradient(135deg, #059669, #10b981);
 }
 
+.cd-btn--cancel {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.cd-btn--cancel:hover {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  border-color: transparent !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
 .cd-btn--review {
   background: linear-gradient(135deg, #eab308, #ca8a04);
   color: #000;
